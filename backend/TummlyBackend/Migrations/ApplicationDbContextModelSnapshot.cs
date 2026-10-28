@@ -4824,8 +4824,27 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("DeliveryNetPence")
                         .HasColumnType("int");
 
+                    b.Property<string>("DeliverySource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("DispatchCarrierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DispatchCarrierReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DispatchSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<DateTime?>("DispatchedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DispatchedByAdminUserId")
+                        .HasColumnType("int");
 
                     b.Property<string>("FulfilmentStatus")
                         .HasMaxLength(32)
@@ -4875,8 +4894,18 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("PlacedByUserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PreparationStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PreparationStartedByAdminUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ProcessingStartedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ProductionStartSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<DateTime?>("ProductionStartedAtUtc")
                         .HasColumnType("datetime2");

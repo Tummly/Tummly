@@ -104,39 +104,28 @@ namespace TummlyBackend.Controllers
                 body,
                 cancellationToken
             );
+            return FulfilmentResult(result);
+        }
 
-            if (result.Succeeded)
+        [HttpPost("{id:guid}/preparation-started")]
+        public async Task<IActionResult> MarkPreparationStarted(
+            Guid id,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
             {
-                return Ok(result.Order);
+                return denied;
             }
 
-            return result.ErrorCode switch
-            {
-                "order_not_found" => NotFound(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                "illegal_fulfilment_transition" => Conflict(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                _ => BadRequest(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-            };
+            var result = await _fulfilment.MarkPreparationStartedAsync(
+                id,
+                actorId,
+                actorIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
         }
 
         [HttpPost("{id:guid}/production-started")]
@@ -145,65 +134,63 @@ namespace TummlyBackend.Controllers
             CancellationToken cancellationToken = default
         )
         {
-            var staffId = GetStaffId();
-            if (staffId == null)
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
             {
-                return Unauthorized(
-                    new
-                    {
-                        success = false,
-                        message = "Invalid token.",
-                    }
-                );
-            }
-
-            var adminIdentity =
-                User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.Identity?.Name;
-
-            if (string.IsNullOrWhiteSpace(adminIdentity))
-            {
-                return BadRequest(
-                    new
-                    {
-                        success = false,
-                        message =
-                            "Admin identity could not be resolved from the current session.",
-                    }
-                );
+                return denied;
             }
 
             var result = await _fulfilment.MarkProductionStartedAsync(
                 id,
-                staffId.Value,
-                adminIdentity,
+                actorId,
+                actorIdentity,
                 cancellationToken
             );
+            return FulfilmentResult(result);
+        }
 
-            if (result.Succeeded)
+        [HttpPost("{id:guid}/dispatched")]
+        public async Task<IActionResult> MarkDispatched(
+            Guid id,
+            [FromBody] AdminShopDispatchRequest? body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
             {
-                return Ok(result.Order);
+                return denied;
             }
 
-            return result.ErrorCode switch
+            var result = await _fulfilment.MarkDispatchedAsync(
+                id,
+                body ?? new AdminShopDispatchRequest(),
+                actorId,
+                actorIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
+        }
+
+        [HttpPost("{id:guid}/delivered")]
+        public async Task<IActionResult> MarkDelivered(
+            Guid id,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var denied = ResolveAdminActor(out var actorId, out var actorIdentity);
+            if (denied != null)
             {
-                "order_not_found" => NotFound(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-                _ => BadRequest(
-                    new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                    }
-                ),
-            };
+                return denied;
+            }
+
+            var result = await _fulfilment.MarkDeliveredAsync(
+                id,
+                actorId,
+                actorIdentity,
+                cancellationToken
+            );
+            return FulfilmentResult(result);
         }
 
         [HttpPost("{id:guid}/force-cancel")]
@@ -273,6 +260,82 @@ namespace TummlyBackend.Controllers
                             message = result.ErrorMessage,
                         }
                     ),
+                _ => BadRequest(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+            };
+        }
+
+        private IActionResult? ResolveAdminActor(
+            out int actorId,
+            out string actorIdentity
+        )
+        {
+            actorId = 0;
+            actorIdentity = string.Empty;
+
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(
+                    new
+                    {
+                        success = false,
+                        message = "Invalid token.",
+                    }
+                );
+            }
+
+            var identity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(identity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message =
+                            "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            actorId = staffId.Value;
+            actorIdentity = identity;
+            return null;
+        }
+
+        private IActionResult FulfilmentResult(AdminShopOrderFulfilmentResult result)
+        {
+            if (result.Succeeded)
+            {
+                return Ok(result.Order);
+            }
+
+            return result.ErrorCode switch
+            {
+                "order_not_found" => NotFound(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
+                "illegal_fulfilment_transition" => Conflict(
+                    new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    }
+                ),
                 _ => BadRequest(
                     new
                     {

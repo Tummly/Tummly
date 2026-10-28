@@ -95,6 +95,7 @@ describe("shopOrdersFilterSheetSchema", () => {
   it("maps fulfilment display labels to stored filter ids", () => {
     expect(normalizeFulfilmentStatusToId("Confirmed")).toBe("processing")
     expect(normalizeFulfilmentStatusToId("Preparing")).toBe("processing")
+    expect(normalizeFulfilmentStatusToId("In production")).toBe("processing")
     expect(normalizeFulfilmentStatusToId("Dispatched")).toBe("in_transit")
     expect(normalizePaymentStatusToId("Refunded")).toBe("refunded")
     expect(normalizePaymentStatusToId("Free")).toBe("paid")

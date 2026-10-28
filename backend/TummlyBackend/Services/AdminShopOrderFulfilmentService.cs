@@ -14,6 +14,7 @@ namespace TummlyBackend.Services
         private const int MaxTrackingUrlLength = 2048;
         private const int MaxOpsNotesLength = 2000;
         private const int MaxForceCancelReasonLength = 500;
+        private const int MaxCarrierFieldLength = 200;
 
         private static readonly HashSet<string> ValidFulfilmentFilters =
             new(StringComparer.OrdinalIgnoreCase)
@@ -110,16 +111,10 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var order = await _context.ShopOrders
-                .Include(row => row.Lines)
-                .FirstOrDefaultAsync(row => row.Id == orderId, cancellationToken);
-
+            var order = await FindOrderAsync(orderId, cancellationToken);
             if (order == null)
             {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "order_not_found",
-                    "Shop order was not found."
-                );
+                return OrderNotFound();
             }
 
             if (
@@ -134,16 +129,21 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Status moves only through the preparation, production, dispatch
+            // and delivery actions, which each write their own audit row.
             var currentStatus = order.FulfilmentStatus;
-            var targetStatus = string.IsNullOrWhiteSpace(patch.FulfilmentStatus)
-                ? currentStatus
-                : patch.FulfilmentStatus.Trim().ToLowerInvariant();
-
-            if (!IsLegalTransition(currentStatus, targetStatus))
+            if (
+                !string.IsNullOrWhiteSpace(patch.FulfilmentStatus)
+                && !string.Equals(
+                    patch.FulfilmentStatus.Trim(),
+                    currentStatus,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 return AdminShopOrderFulfilmentResult.Fail(
                     "illegal_fulfilment_transition",
-                    $"Cannot move fulfilment from '{currentStatus}' to '{targetStatus}'."
+                    "Use the preparation, production, dispatch or delivery action to change fulfilment status."
                 );
             }
 
@@ -156,49 +156,32 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var transitioningToInTransit =
-                currentStatus == ShopFulfilmentStatuses.Processing
-                && targetStatus == ShopFulfilmentStatuses.InTransit;
-            if (
-                transitioningToInTransit
-                && (!patch.TrackingUrlSet || string.IsNullOrWhiteSpace(patch.TrackingUrl))
-            )
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "tracking_reference_required",
-                    "A tracking reference is required to mark the order as dispatched."
-                );
-            }
-
             if (patch.TrackingUrlSet)
             {
-                var trackingError = ValidateTrackingUrlMutation(
-                    currentStatus,
-                    targetStatus,
-                    patch.TrackingUrl
-                );
+                if (currentStatus == ShopFulfilmentStatuses.Delivered)
+                {
+                    return AdminShopOrderFulfilmentResult.Fail(
+                        "tracking_url_read_only",
+                        "trackingUrl is read-only once the order is delivered."
+                    );
+                }
+
+                if (currentStatus != ShopFulfilmentStatuses.InTransit)
+                {
+                    return AdminShopOrderFulfilmentResult.Fail(
+                        "invalid_tracking_url",
+                        "trackingUrl can only be changed once the order is dispatched."
+                    );
+                }
+
+                var trackingError = ValidateTrackingUrl(patch.TrackingUrl);
                 if (trackingError != null)
                 {
                     return trackingError;
                 }
             }
 
-            var now = DateTime.UtcNow;
-            var transitioningToDelivered =
-                currentStatus == ShopFulfilmentStatuses.InTransit
-                && targetStatus == ShopFulfilmentStatuses.Delivered;
-
-            if (transitioningToInTransit)
-            {
-                order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
-                order.DispatchedAtUtc = now;
-            }
-            else if (transitioningToDelivered)
-            {
-                order.FulfilmentStatus = ShopFulfilmentStatuses.Delivered;
-                order.DeliveredAtUtc = now;
-            }
-
+            var now = _clock.GetUtcNow().UtcDateTime;
             if (patch.TrackingUrlSet)
             {
                 order.TrackingUrl = NormalizeTrackingUrl(patch.TrackingUrl);
@@ -212,13 +195,53 @@ namespace TummlyBackend.Services
             order.UpdatedAtUtc = now;
             await _context.SaveChangesAsync(cancellationToken);
 
-            if (transitioningToInTransit)
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        public async Task<AdminShopOrderFulfilmentResult> MarkPreparationStartedAsync(
+            Guid orderId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await FindOrderAsync(orderId, cancellationToken);
+            if (order == null)
             {
-                await _shopOrderEmail.TryNotifyDispatchedAsync(
-                    order.Id,
-                    cancellationToken
+                return OrderNotFound();
+            }
+
+            if (
+                !IsPaidProcessing(order)
+                || order.PreparationStartedAtUtc != null
+                || order.ProductionStartedAtUtc != null
+            )
+            {
+                return IllegalTransition(
+                    "Preparation can only start once, for a paid order still in processing."
                 );
             }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.PreparationStartedAtUtc = now;
+            order.PreparationStartedByAdminUserId = actorAdminUserId;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopPreparationStarted,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: null
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
 
             return AdminShopOrderFulfilmentResult.Ok(
                 await MapWithPrintAssetsAsync(order, cancellationToken)
@@ -232,52 +255,188 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var order = await _context.ShopOrders
-                .Include(row => row.Lines)
-                .FirstOrDefaultAsync(row => row.Id == orderId, cancellationToken);
-
+            var order = await FindOrderAsync(orderId, cancellationToken);
             if (order == null)
             {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "order_not_found",
-                    "Shop order was not found."
-                );
-            }
-
-            if (order.ProductionStartedAtUtc != null)
-            {
-                return AdminShopOrderFulfilmentResult.Ok(
-                    await MapWithPrintAssetsAsync(order, cancellationToken)
-                );
+                return OrderNotFound();
             }
 
             if (
-                !string.Equals(
-                    order.PaymentStatus,
-                    ShopPaymentStatuses.Paid,
-                    StringComparison.Ordinal
-                )
-                || !string.Equals(
-                    order.FulfilmentStatus,
-                    ShopFulfilmentStatuses.Processing,
-                    StringComparison.Ordinal
-                )
+                !IsPaidProcessing(order)
+                || order.PreparationStartedAtUtc == null
+                || order.ProductionStartedAtUtc != null
             )
             {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "shop_order_not_in_production",
-                    "Production start is only allowed for paid orders still in processing."
+                return IllegalTransition(
+                    "Production can only start once preparation has started, for a paid order still in processing."
                 );
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
             order.ProductionStartedAtUtc = now;
             order.ProductionStartedByAdminUserId = actorAdminUserId;
+            order.ProductionStartSource = ShopFulfilmentEvidenceSources.AdminManual;
             order.UpdatedAtUtc = now;
 
             _audit.Append(
                 new AdminAuditAppendRequest(
                     AdminAuditActions.ShopProductionStarted,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: null
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        public async Task<AdminShopOrderFulfilmentResult> MarkDispatchedAsync(
+            Guid orderId,
+            AdminShopDispatchRequest request,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await FindOrderAsync(orderId, cancellationToken);
+            if (order == null)
+            {
+                return OrderNotFound();
+            }
+
+            // Carrier evidence is the dispatch event. A tracking URL on its
+            // own (a generated label or link) does not mark the order dispatched.
+            var carrierName = request.CarrierName?.Trim() ?? string.Empty;
+            if (carrierName.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "carrier_name_required",
+                    "A carrier or supplier name is required to mark the order as dispatched."
+                );
+            }
+
+            if (carrierName.Length > MaxCarrierFieldLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_carrier_name",
+                    $"carrierName must be at most {MaxCarrierFieldLength} characters."
+                );
+            }
+
+            var carrierReference = request.CarrierReference?.Trim() ?? string.Empty;
+            if (carrierReference.Length == 0)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "carrier_reference_required",
+                    "A carrier or supplier reference is required to mark the order as dispatched."
+                );
+            }
+
+            if (carrierReference.Length > MaxCarrierFieldLength)
+            {
+                return AdminShopOrderFulfilmentResult.Fail(
+                    "invalid_carrier_reference",
+                    $"carrierReference must be at most {MaxCarrierFieldLength} characters."
+                );
+            }
+
+            var trackingError = ValidateTrackingUrl(request.TrackingUrl);
+            if (trackingError != null)
+            {
+                return trackingError;
+            }
+
+            if (!IsPaidProcessing(order) || order.ProductionStartedAtUtc == null)
+            {
+                return IllegalTransition(
+                    "Dispatch can only be recorded once, after production has started, for a paid order in processing."
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.FulfilmentStatus = ShopFulfilmentStatuses.InTransit;
+            order.DispatchedAtUtc = now;
+            order.DispatchedByAdminUserId = actorAdminUserId;
+            order.DispatchSource = ShopFulfilmentEvidenceSources.AdminManual;
+            order.DispatchCarrierName = carrierName;
+            order.DispatchCarrierReference = carrierReference;
+            order.TrackingUrl = NormalizeTrackingUrl(request.TrackingUrl);
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopDispatched,
+                    actorIdentity,
+                    AdminAuditTargetTypes.ShopOrder,
+                    orderId.ToString("D"),
+                    ActorAdminUserId: actorAdminUserId,
+                    RestaurantId: order.RestaurantId,
+                    DetailJson: System.Text.Json.JsonSerializer.Serialize(
+                        new
+                        {
+                            carrierName,
+                            carrierReference,
+                            trackingUrl = order.TrackingUrl,
+                        }
+                    )
+                )
+            );
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await _shopOrderEmail.TryNotifyDispatchedAsync(
+                order.Id,
+                cancellationToken
+            );
+
+            return AdminShopOrderFulfilmentResult.Ok(
+                await MapWithPrintAssetsAsync(order, cancellationToken)
+            );
+        }
+
+        public async Task<AdminShopOrderFulfilmentResult> MarkDeliveredAsync(
+            Guid orderId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var order = await FindOrderAsync(orderId, cancellationToken);
+            if (order == null)
+            {
+                return OrderNotFound();
+            }
+
+            if (
+                !string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.InTransit,
+                    StringComparison.Ordinal
+                )
+                || order.DispatchedAtUtc == null
+                || order.DeliveredAtUtc != null
+            )
+            {
+                return IllegalTransition(
+                    "Delivery can only be recorded once, after dispatch."
+                );
+            }
+
+            var now = _clock.GetUtcNow().UtcDateTime;
+            order.FulfilmentStatus = ShopFulfilmentStatuses.Delivered;
+            order.DeliveredAtUtc = now;
+            order.DeliverySource = ShopFulfilmentEvidenceSources.AdminManual;
+            order.UpdatedAtUtc = now;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopDelivered,
                     actorIdentity,
                     AdminAuditTargetTypes.ShopOrder,
                     orderId.ToString("D"),
@@ -568,35 +727,6 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static bool IsLegalTransition(string from, string to)
-        {
-            if (
-                from == ShopFulfilmentStatuses.Processing
-                && to == ShopFulfilmentStatuses.InTransit
-            )
-            {
-                return true;
-            }
-
-            if (
-                from == ShopFulfilmentStatuses.InTransit
-                && to is ShopFulfilmentStatuses.Delivered or ShopFulfilmentStatuses.InTransit
-            )
-            {
-                return true;
-            }
-
-            if (
-                from == ShopFulfilmentStatuses.Delivered
-                && to == ShopFulfilmentStatuses.Delivered
-            )
-            {
-                return true;
-            }
-
-            return false;
-        }
-
         private static AdminShopOrderFulfilmentResult? ValidateOpsNotes(
             string? opsNotes
         )
@@ -617,80 +747,14 @@ namespace TummlyBackend.Services
             return null;
         }
 
-        private static AdminShopOrderFulfilmentResult? ValidateTrackingUrlMutation(
-            string currentStatus,
-            string targetStatus,
+        private static AdminShopOrderFulfilmentResult? ValidateTrackingUrl(
             string? trackingUrl
         )
         {
-            var effectiveStatusForTracking =
-                targetStatus == ShopFulfilmentStatuses.InTransit
-                || currentStatus == ShopFulfilmentStatuses.InTransit
-                    && targetStatus == ShopFulfilmentStatuses.InTransit
-                    ? ShopFulfilmentStatuses.InTransit
-                    : targetStatus;
-
-            if (
-                currentStatus == ShopFulfilmentStatuses.Delivered
-                || targetStatus == ShopFulfilmentStatuses.Delivered
-                    && currentStatus != ShopFulfilmentStatuses.InTransit
-            )
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "tracking_url_read_only",
-                    "trackingUrl is read-only once the order is delivered."
-                );
-            }
-
-            // Delivered transition: tracking stays as-is (read-only after deliver).
-            if (
-                currentStatus == ShopFulfilmentStatuses.InTransit
-                && targetStatus == ShopFulfilmentStatuses.Delivered
-            )
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "tracking_url_read_only",
-                    "trackingUrl cannot change on the delivered transition."
-                );
-            }
-
-            if (
-                trackingUrl == null
-                && effectiveStatusForTracking != ShopFulfilmentStatuses.InTransit
-            )
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "invalid_tracking_url",
-                    "trackingUrl can only be cleared while in_transit."
-                );
-            }
-
-            if (
-                trackingUrl == null
-                && effectiveStatusForTracking == ShopFulfilmentStatuses.InTransit
-            )
+            var normalized = NormalizeTrackingUrl(trackingUrl);
+            if (normalized == null)
             {
                 return null;
-            }
-
-            if (
-                currentStatus == ShopFulfilmentStatuses.Processing
-                && targetStatus != ShopFulfilmentStatuses.InTransit
-            )
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "invalid_tracking_url",
-                    "trackingUrl can only be set when moving to or while in_transit."
-                );
-            }
-
-            var normalized = trackingUrl!.Trim();
-            if (normalized.Length == 0)
-            {
-                return AdminShopOrderFulfilmentResult.Fail(
-                    "invalid_tracking_url",
-                    "trackingUrl must be a non-empty https URL or null to clear."
-                );
             }
 
             if (normalized.Length > MaxTrackingUrlLength)
@@ -719,14 +783,50 @@ namespace TummlyBackend.Services
             return null;
         }
 
+        private static bool IsPaidProcessing(ShopOrder order)
+        {
+            return string.Equals(
+                    order.PaymentStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+                && string.Equals(
+                    order.FulfilmentStatus,
+                    ShopFulfilmentStatuses.Processing,
+                    StringComparison.Ordinal
+                );
+        }
+
+        private async Task<ShopOrder?> FindOrderAsync(
+            Guid orderId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.ShopOrders
+                .Include(row => row.Lines)
+                .FirstOrDefaultAsync(row => row.Id == orderId, cancellationToken);
+        }
+
+        private static AdminShopOrderFulfilmentResult OrderNotFound()
+        {
+            return AdminShopOrderFulfilmentResult.Fail(
+                "order_not_found",
+                "Shop order was not found."
+            );
+        }
+
+        private static AdminShopOrderFulfilmentResult IllegalTransition(string message)
+        {
+            return AdminShopOrderFulfilmentResult.Fail(
+                "illegal_fulfilment_transition",
+                message
+            );
+        }
+
         private static string? NormalizeTrackingUrl(string? trackingUrl)
         {
-            if (trackingUrl == null)
-            {
-                return null;
-            }
-
-            return trackingUrl.Trim();
+            var trimmed = trackingUrl?.Trim();
+            return string.IsNullOrEmpty(trimmed) ? null : trimmed;
         }
 
         private static string? NormalizeOpsNotes(string? opsNotes)
@@ -790,6 +890,13 @@ namespace TummlyBackend.Services
             return item;
         }
 
+        private static DateTime? AsUtc(DateTime? value)
+        {
+            return value == null
+                ? null
+                : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc);
+        }
+
         private static AdminShopOrderListItemDto MapListItem(ShopOrder order)
         {
             return new AdminShopOrderListItemDto
@@ -810,7 +917,12 @@ namespace TummlyBackend.Services
                     DateTimeKind.Utc
                 ),
                 PaidAtUtc = order.PaidAtUtc,
-                ProductionStartedAtUtc = order.ProductionStartedAtUtc,
+                PreparationStartedAtUtc = AsUtc(order.PreparationStartedAtUtc),
+                ProductionStartedAtUtc = AsUtc(order.ProductionStartedAtUtc),
+                DispatchedAtUtc = AsUtc(order.DispatchedAtUtc),
+                DispatchCarrierName = order.DispatchCarrierName,
+                DispatchCarrierReference = order.DispatchCarrierReference,
+                DeliveredAtUtc = AsUtc(order.DeliveredAtUtc),
                 GrossPence = order.GrossPence,
                 ReviewReason = order.ReviewReason,
                 Lines = order.Lines

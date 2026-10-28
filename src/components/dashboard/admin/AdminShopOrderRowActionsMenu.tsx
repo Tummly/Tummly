@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import type { AdminShopFulfilmentAction } from "@/lib/adminShopOrderFulfilment"
 import { adminShopOrderRowActions } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
@@ -24,10 +25,7 @@ type AdminShopOrderRowActionsMenuProps = {
   onViewOrder: () => void
   onDownloadMaterials: () => void
   onApproveMaterials: () => void
-  onRequestFulfilment: (
-    status: "in_transit" | "delivered",
-    label: string
-  ) => void
+  onRequestFulfilment: (action: AdminShopFulfilmentAction) => void
 }
 
 /** Admin Shop orders row ⋮ menu. Parent cell must stop click propagation. */
@@ -93,7 +91,7 @@ export function AdminShopOrderRowActionsMenu({
             <DropdownMenuItem
               className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
               disabled={busy}
-              onSelect={() => onRequestFulfilment(next.status, next.label)}
+              onSelect={() => onRequestFulfilment(next)}
             >
               {next.label}
             </DropdownMenuItem>

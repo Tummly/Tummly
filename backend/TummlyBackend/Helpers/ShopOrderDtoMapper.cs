@@ -71,11 +71,7 @@ namespace TummlyBackend.Helpers
                     order.IsComplimentary
                 ),
                 FulfilmentStatus = order.FulfilmentStatus,
-                FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    order.FulfilmentStatus,
-                    order.PaymentStatus,
-                    order.ProductionStartedAtUtc != null
-                ),
+                FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(order),
                 DeliveryMethod = order.DeliveryMethod,
                 MaterialsNetPence = order.MaterialsNetPence,
                 VatPence = order.VatPence,

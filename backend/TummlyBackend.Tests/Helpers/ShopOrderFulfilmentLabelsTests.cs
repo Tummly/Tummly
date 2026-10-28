@@ -6,72 +6,130 @@ namespace TummlyBackend.Tests.Helpers
 {
     public class ShopOrderFulfilmentLabelsTests
     {
+        private static readonly DateTime Stamp = new(2026, 10, 28, 9, 0, 0, DateTimeKind.Utc);
+
         [Fact]
-        public void ToDisplayLabel_PaidProcessingOrder_ReadsConfirmed()
+        public void ToDisplayLabel_PaidOrderWithNoPreparationEvidence_ReadsConfirmed()
         {
-            Assert.Equal(
-                "Confirmed",
-                ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    ShopFulfilmentStatuses.Processing,
-                    ShopPaymentStatuses.Paid
-                )
-            );
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+
+            Assert.Equal("Confirmed", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
 
         [Fact]
-        public void ToDisplayLabel_ProcessingWithProductionStarted_ReadsPreparing()
+        public void ToDisplayLabel_ProcessingStartedAloneIsConfirmed()
         {
-            Assert.Equal(
-                "Preparing",
-                ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    ShopFulfilmentStatuses.Processing,
-                    ShopPaymentStatuses.Paid,
-                    productionStarted: true
-                )
-            );
+            // ProcessingStartedAtUtc is set at payment: it means confirmed.
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.ProcessingStartedAtUtc = Stamp;
+
+            Assert.Equal("Confirmed", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
 
         [Fact]
-        public void ToDisplayLabel_ProductionStartedIsIgnoredAfterDispatch()
+        public void ToDisplayLabel_PreparationStarted_ReadsPreparing()
         {
-            Assert.Equal(
-                "Dispatched",
-                ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    ShopFulfilmentStatuses.InTransit,
-                    ShopPaymentStatuses.Paid,
-                    productionStarted: true
-                )
-            );
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.PreparationStartedAtUtc = Stamp;
+
+            Assert.Equal("Preparing", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_ProductionStarted_ReadsInProduction()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.PreparationStartedAtUtc = Stamp;
+            order.ProductionStartedAtUtc = Stamp.AddHours(1);
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_PreparationWithoutProduction_IsNotInProduction()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.PreparationStartedAtUtc = Stamp;
+
+            Assert.NotEqual("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_TrackingUrlAloneDoesNotReadDispatched()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.PreparationStartedAtUtc = Stamp;
+            order.ProductionStartedAtUtc = Stamp.AddHours(1);
+            order.TrackingUrl = "https://track.example/label-only";
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_DispatchEvidence_ReadsDispatched()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.ProductionStartedAtUtc = Stamp;
+            order.DispatchedAtUtc = Stamp.AddHours(2);
+            order.DispatchCarrierName = "DPD";
+            order.DispatchCarrierReference = "DPD-123";
+
+            Assert.Equal("Dispatched", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_InTransitWithoutDispatchEvidence_DoesNotReadDispatched()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.InTransit);
+            order.ProductionStartedAtUtc = Stamp;
+
+            Assert.Equal("In production", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_DeliveryEvidence_ReadsDelivered()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Delivered);
+            order.DispatchedAtUtc = Stamp;
+            order.DeliveredAtUtc = Stamp.AddDays(2);
+
+            Assert.Equal("Delivered", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_DeliveredWithoutDeliveryEvidence_DoesNotReadDelivered()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Delivered);
+            order.DispatchedAtUtc = Stamp;
+
+            Assert.Equal("Dispatched", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
+        }
+
+        [Fact]
+        public void ToDisplayLabel_Cancelled_ReadsCancelled()
+        {
+            var order = PaidOrder(ShopFulfilmentStatuses.Cancelled);
+
+            Assert.Equal("Cancelled", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
 
         [Fact]
         public void ToDisplayLabel_UnpaidOrder_ReadsAwaitingPaymentEvenWhenProcessing()
         {
-            Assert.Equal(
-                "Awaiting payment",
-                ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    ShopFulfilmentStatuses.Processing,
-                    ShopPaymentStatuses.AwaitingPayment
-                )
-            );
+            var order = PaidOrder(ShopFulfilmentStatuses.Processing);
+            order.PaymentStatus = ShopPaymentStatuses.AwaitingPayment;
+            order.PreparationStartedAtUtc = Stamp;
+
+            Assert.Equal("Awaiting payment", ShopOrderFulfilmentLabels.ToDisplayLabel(order));
         }
 
-        [Theory]
-        [InlineData(ShopFulfilmentStatuses.InTransit, "Dispatched")]
-        [InlineData(ShopFulfilmentStatuses.Delivered, "Delivered")]
-        [InlineData(ShopFulfilmentStatuses.Cancelled, "Cancelled")]
-        public void ToDisplayLabel_LaterStates_KeepTheirLabels(
-            string storedStatus,
-            string expected
-        )
+        private static ShopOrder PaidOrder(string fulfilmentStatus)
         {
-            Assert.Equal(
-                expected,
-                ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    storedStatus,
-                    ShopPaymentStatuses.Paid
-                )
-            );
+            return new ShopOrder
+            {
+                FulfilmentStatus = fulfilmentStatus,
+                PaymentStatus = ShopPaymentStatuses.Paid,
+            };
         }
     }
 }

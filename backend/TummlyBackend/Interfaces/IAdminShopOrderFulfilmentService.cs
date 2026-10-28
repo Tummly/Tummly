@@ -15,7 +15,29 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        Task<AdminShopOrderFulfilmentResult> MarkPreparationStartedAsync(
+            Guid orderId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
+
         Task<AdminShopOrderFulfilmentResult> MarkProductionStartedAsync(
+            Guid orderId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<AdminShopOrderFulfilmentResult> MarkDispatchedAsync(
+            Guid orderId,
+            AdminShopDispatchRequest request,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<AdminShopOrderFulfilmentResult> MarkDeliveredAsync(
             Guid orderId,
             int actorAdminUserId,
             string actorIdentity,
