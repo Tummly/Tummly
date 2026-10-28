@@ -71,8 +71,10 @@ namespace TummlyBackend.Helpers
         }
 
         /// <summary>
-        /// Valid UK mobile (libphonenumber MOBILE), plus the Ofcom drama range
-        /// 07700 900000–900999 that libphonenumber rejects. Guest contact only.
+        /// Valid UK mobile (libphonenumber MOBILE). The Ofcom drama range
+        /// 07700 900000–900999 that libphonenumber rejects is accepted only
+        /// when <see cref="ReservedTestNumberPolicy.AllowReservedTestNumbers"/>
+        /// is true. Guest contact only.
         /// </summary>
         private static bool IsUkMobile(PhoneNumber parsed)
         {
@@ -81,9 +83,42 @@ namespace TummlyBackend.Helpers
                 return Util.GetNumberType(parsed) == PhoneNumberType.MOBILE;
             }
 
-            var nationalNumber = Util.GetNationalSignificantNumber(parsed);
-            return nationalNumber.Length == 10
-                && nationalNumber.StartsWith("7700900", StringComparison.Ordinal);
+            return ReservedTestNumberPolicy.AllowReservedTestNumbers
+                && IsReservedTestNationalNumber(
+                    Util.GetNationalSignificantNumber(parsed)
+                );
+        }
+
+        private static bool IsReservedTestNationalNumber(string nationalNumber) =>
+            nationalNumber.Length == 10
+            && nationalNumber.StartsWith("7700900", StringComparison.Ordinal);
+
+        /// <summary>
+        /// True for a UK number in the Ofcom reserved drama range 07700 900xxx,
+        /// in any common spelling (national, +44, 0044). Checks digits only, so
+        /// it works on raw input before libphonenumber normalisation. Ignores the
+        /// policy. Used by the provider send guard.
+        /// </summary>
+        public static bool IsReservedTestRange(string? phone)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return false;
+            }
+
+            var digits = new string(phone.Where(char.IsDigit).ToArray());
+            if (digits.StartsWith("0044", StringComparison.Ordinal))
+            {
+                digits = "44" + digits[4..];
+            }
+
+            if (digits.StartsWith("44", StringComparison.Ordinal))
+            {
+                digits = "0" + digits[2..];
+            }
+
+            return digits.Length == 11
+                && digits.StartsWith("07700900", StringComparison.Ordinal);
         }
 
         private static bool TryParseValidUk(

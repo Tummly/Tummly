@@ -58,6 +58,23 @@ namespace TummlyBackend.Services
                 };
             }
 
+            // Defence in depth: the reserved test range never reaches Twilio
+            // unless GuestContact:AllowReservedTestNumbers is on.
+            if (
+                PhoneNumberHelper.IsReservedTestRange(phoneNumber)
+                && !ReservedTestNumberPolicy.AllowReservedTestNumbers
+            )
+            {
+                _logger.LogWarning(
+                    "Refused Recovery SMS to reserved test range {MaskedPhone}",
+                    LogContactMask.Phone(phoneNumber)
+                );
+                return new RecoveryGuestSmsDeliveryResult.Failed
+                {
+                    Message = "Unable to send Recovery SMS.",
+                };
+            }
+
             TwilioClient.Init(_settings.AccountSid, _settings.AuthToken);
             var e164 = PhoneNumberHelper.NormalizeToE164(
                 phoneNumber,

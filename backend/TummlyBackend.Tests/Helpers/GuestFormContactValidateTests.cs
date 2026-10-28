@@ -9,6 +9,24 @@ namespace TummlyBackend.Tests.Helpers
     /// </summary>
     public class GuestFormContactValidateTests
     {
+        [Fact]
+        public void TryResolve_ReservedTestRange_AcceptedWhenPolicyAllows()
+        {
+            using var policy = ReservedTestNumberPolicy.OverrideFor(true);
+
+            Assert.True(GuestFormContactValidate.TryResolve("07700900123", out var contactType));
+            Assert.Equal(ContactType.Phone, contactType);
+        }
+
+        [Fact]
+        public void TryResolve_ReservedTestRange_RejectedWhenPolicyOff()
+        {
+            using var policy = ReservedTestNumberPolicy.OverrideFor(false);
+
+            Assert.False(GuestFormContactValidate.TryResolve("07700900123", out _));
+            Assert.False(GuestFormContactValidate.TryResolve("+447700900123", out _));
+        }
+
         [Theory]
         [InlineData("guest@example.com", ContactType.Email)]
         [InlineData("07911123456", ContactType.Phone)]
