@@ -652,8 +652,9 @@ namespace TummlyBackend.Services
         /// no Custom config). Save it as the account's plan config so capacity,
         /// entitlements, the included-credit mint and renewal read it. Only when it
         /// is the quote that was charged (same period amount and cadence as the
-        /// settled order); otherwise nothing is saved from it. Saving the same value
-        /// twice changes nothing.
+        /// settled order, and the same quote hash when the order recorded one);
+        /// otherwise nothing is saved from it. Saving the same value twice changes
+        /// nothing.
         /// </summary>
         private static void SavePaidPendingCustomConfig(
             BillingAccount billingAccount,
@@ -681,6 +682,15 @@ namespace TummlyBackend.Services
                     pending.Cadence,
                     intent.TargetCadence,
                     StringComparison.OrdinalIgnoreCase
+                )
+                // An order created before the hash was recorded keeps the amount match only.
+                || (
+                    !string.IsNullOrWhiteSpace(intent.CustomPlanQuoteHash)
+                    && !string.Equals(
+                        pending.QuoteHash,
+                        intent.CustomPlanQuoteHash,
+                        StringComparison.Ordinal
+                    )
                 )
             )
             {

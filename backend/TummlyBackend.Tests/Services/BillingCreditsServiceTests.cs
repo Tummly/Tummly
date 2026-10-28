@@ -418,6 +418,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(CountingCustomCycleMerchant.CheckoutUrl, response!.CheckoutUrl);
             Assert.Equal(1, merchant.CreateOrderCallCount);
             Assert.Equal(quote.PeriodNetPence, merchant.LastCreateOrderRequest!.LineItems![0].UnitPriceAmount);
+            // The order intent records the quote that was charged; settlement checks it.
+            var intent = await context.RevolutOrderIntents.SingleAsync();
+            Assert.Equal(quote.QuoteHash, intent.CustomPlanQuoteHash);
         }
 
         [Theory]

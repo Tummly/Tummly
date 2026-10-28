@@ -221,6 +221,7 @@ namespace TummlyBackend.Services
                     )
                         ? "annual"
                         : "monthly",
+                    CustomPlanQuoteHash = config.QuoteHash,
                     CheckoutUrl = checkoutUrl,
                     IdempotencyKey = key,
                     IsOpen = true,

@@ -1577,11 +1577,91 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(settled.CustomPlanConfigJson);
         }
 
+        [Fact]
+        public async Task Apply_CustomPlanCycle_PendingConfigWithAnotherQuoteHash_IsNotSaved()
+        {
+            // Same amount and cadence, but the order was created for another quote
+            // (the price moved and came back): the pending config is not the paid one.
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = PaidCustomConfig(8_000, 4, "hash_pending");
+            AddCustomCycleIntent(
+                context,
+                account.RestaurantId,
+                "ord_custom_other_hash",
+                8_000,
+                quoteHash: "hash_paid"
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+
+            await applier.ApplyAsync(CustomCompleted("ord_custom_other_hash"));
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Null(settled.CustomPlanConfigJson);
+        }
+
+        [Fact]
+        public async Task Apply_CustomPlanCycle_PendingConfigWithTheOrdersQuoteHash_IsSaved()
+        {
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            var paid = PaidCustomConfig(8_000, 4, "hash_paid");
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = paid;
+            AddCustomCycleIntent(
+                context,
+                account.RestaurantId,
+                "ord_custom_same_hash",
+                8_000,
+                quoteHash: "hash_paid"
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+
+            await applier.ApplyAsync(CustomCompleted("ord_custom_same_hash"));
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(paid, settled.CustomPlanConfigJson);
+        }
+
         private const string BillingBaselineFree = BillingSubscriptionPlans.Free;
 
-        private static string PaidCustomConfig(int periodNetPence, int qrAccountExtra) =>
+        private static string PaidCustomConfig(
+            int periodNetPence,
+            int qrAccountExtra,
+            string? quoteHash = null
+        ) =>
             new CustomPlanConfig
             {
+                QuoteHash = quoteHash,
                 Version = 2,
                 CatalogPublicId = "cat",
                 BasePlan = "starter",
@@ -1604,11 +1684,13 @@ namespace TummlyBackend.Tests.Services
             ApplicationDbContext context,
             int restaurantId,
             string orderId,
-            int netPence
+            int netPence,
+            string? quoteHash = null
         ) =>
             context.RevolutOrderIntents.Add(
                 new RevolutOrderIntent
                 {
+                    CustomPlanQuoteHash = quoteHash,
                     Id = Guid.NewGuid(),
                     OrderId = orderId,
                     RestaurantId = restaurantId,
