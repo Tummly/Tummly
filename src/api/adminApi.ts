@@ -8,6 +8,11 @@ import type {
   ExtendActivationPayload,
 } from "../types/admin";
 import type {
+  AdminAuditEventsResponse,
+  AdminEnvironment,
+  AdminOverview,
+} from "../types/adminOps";
+import type {
   AdminPrintMaterialAsset,
   AdminPrintMaterialQrType,
   AdminPrintMaterialsLocation,
@@ -290,3 +295,20 @@ export async function retryOperatorPrintMaterial(
     (response.data?.data ?? {}) as Record<string, unknown>
   );
 }
+
+export const getAdminOverview = async (): Promise<AdminOverview> => {
+  const response = await axiosInstance.get("/admin/overview");
+  return response.data.data as AdminOverview;
+};
+
+export const getAdminEnvironment = async (): Promise<AdminEnvironment> => {
+  const response = await axiosInstance.get("/admin/environment");
+  return response.data.data as AdminEnvironment;
+};
+
+export const getAdminAuditEvents = async (
+  params: Record<string, string | number>
+): Promise<AdminAuditEventsResponse> => {
+  const response = await axiosInstance.get("/admin/audit-events", { params });
+  return response.data as AdminAuditEventsResponse;
+};

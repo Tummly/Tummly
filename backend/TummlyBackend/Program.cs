@@ -1240,6 +1240,9 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
 builder.Services.AddScoped<IAdminAccountDirectoryService, AdminAccountDirectoryService>();
+builder.Services.AddScoped<IAdminOverviewService, AdminOverviewService>();
+builder.Services.AddSingleton(new ApiStartedAtUtc(DateTime.UtcNow));
+builder.Services.AddScoped<IAdminEnvironmentService, AdminEnvironmentService>();
 builder.Services.AddScoped<IGuestRetentionPurgeService, GuestRetentionPurgeService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();

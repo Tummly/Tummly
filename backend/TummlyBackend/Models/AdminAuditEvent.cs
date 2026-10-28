@@ -21,6 +21,12 @@
         public string? DetailJson { get; set; }
 
         public bool Succeeded { get; set; } = true;
+
+        /// <summary>
+        /// Request trace id (HttpContext.TraceIdentifier) when the event was
+        /// written during an HTTP request. Null for background jobs.
+        /// </summary>
+        public string? CorrelationId { get; set; }
     }
 
     public static class AdminAuditActions

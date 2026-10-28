@@ -20,6 +20,8 @@ namespace TummlyBackend.Controllers
         private readonly IAdminPaymentRefundService _paymentRefunds;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
         private readonly IAdminAuditService _adminAudit;
+        private readonly IAdminOverviewService _adminOverview;
+        private readonly IAdminEnvironmentService _adminEnvironment;
 
         public AdminController(
             IAdminService adminService,
@@ -27,7 +29,9 @@ namespace TummlyBackend.Controllers
             ICreditLedger creditLedger,
             IAdminPaymentRefundService paymentRefunds,
             IPrintReadyQrMaterialsService printReadyQrMaterials,
-            IAdminAuditService adminAudit
+            IAdminAuditService adminAudit,
+            IAdminOverviewService adminOverview,
+            IAdminEnvironmentService adminEnvironment
         )
         {
             _adminService = adminService;
@@ -36,6 +40,8 @@ namespace TummlyBackend.Controllers
             _paymentRefunds = paymentRefunds;
             _printReadyQrMaterials = printReadyQrMaterials;
             _adminAudit = adminAudit;
+            _adminOverview = adminOverview;
+            _adminEnvironment = adminEnvironment;
         }
 
         /*
@@ -793,14 +799,39 @@ namespace TummlyBackend.Controllers
             [FromQuery] DateTime? to,
             [FromQuery] int skip = 0,
             [FromQuery] int take = 50,
+            [FromQuery] string? targetId = null,
             CancellationToken cancellationToken = default
         )
         {
             var result = await _adminAudit.ListAsync(
-                new AdminAuditListQuery(action, restaurantId, from, to, skip, take),
+                new AdminAuditListQuery(action, restaurantId, from, to, skip, take, targetId),
                 cancellationToken
             );
             return Ok(new { success = true, data = result.Items, totalCount = result.TotalCount });
+        }
+
+        /*
+         =========================================
+         OVERVIEW COUNTS AND ENVIRONMENT
+         =========================================
+        */
+
+        [HttpGet("overview")]
+        public async Task<IActionResult> GetOverview(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var overview = await _adminOverview.GetAsync(cancellationToken);
+            return Ok(new { success = true, data = overview });
+        }
+
+        [HttpGet("environment")]
+        public async Task<IActionResult> GetEnvironment(
+            CancellationToken cancellationToken = default
+        )
+        {
+            var environment = await _adminEnvironment.GetAsync(cancellationToken);
+            return Ok(new { success = true, data = environment });
         }
 
         private int? GetStaffId()
