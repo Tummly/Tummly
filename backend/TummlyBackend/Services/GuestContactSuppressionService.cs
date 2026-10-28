@@ -115,6 +115,34 @@ namespace TummlyBackend.Services
             return seen.ToList();
         }
 
+        public async Task<IReadOnlySet<string>> FindContactKeysWithKindAsync(
+            int restaurantId,
+            LocationGuestPermissionKind kind,
+            IEnumerable<string> contactKeys,
+            CancellationToken ct = default
+        )
+        {
+            var keys = contactKeys.Distinct(StringComparer.Ordinal).ToList();
+            if (keys.Count == 0)
+            {
+                return new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            var storedHashes = (
+                await _context.GuestContactSuppressions
+                    .Where(row =>
+                        row.RestaurantId == restaurantId
+                        && row.PermissionKind == kind
+                    )
+                    .Select(row => row.ContactHash)
+                    .ToListAsync(ct)
+            ).ToHashSet(StringComparer.Ordinal);
+
+            return keys
+                .Where(key => storedHashes.Contains(_hasher.Hash(key)))
+                .ToHashSet(StringComparer.Ordinal);
+        }
+
         private async Task<GuestContactSuppression?> FindExistingAsync(
             int restaurantId,
             LocationGuestPermissionKind kind,
