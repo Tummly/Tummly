@@ -36,6 +36,37 @@ public class GuestPreferenceContactTests
     }
 
     [Fact]
+    public void TryParse_UkMobile_E164_True()
+    {
+        var ok = GuestPreferenceContact.TryParse(
+            "+447911123456",
+            out var contactType,
+            out var normalizedValue
+        );
+
+        Assert.True(ok);
+        Assert.Equal(TummlyGuestContactTypes.Phone, contactType);
+        Assert.Equal("+447911123456", normalizedValue);
+    }
+
+    [Theory]
+    [InlineData("020 7946 0000")]
+    [InlineData("+442079460000")]
+    public void TryParse_UkLandline_False(string raw)
+    {
+        // Only mobiles (07 / +447) get SMS marketing. Landlines are not accepted as a contact.
+        var ok = GuestPreferenceContact.TryParse(
+            raw,
+            out var contactType,
+            out var normalizedValue
+        );
+
+        Assert.False(ok);
+        Assert.Equal(string.Empty, contactType);
+        Assert.Equal(string.Empty, normalizedValue);
+    }
+
+    [Fact]
     public void TryParse_NonUkPhone_False()
     {
         var ok = GuestPreferenceContact.TryParse(

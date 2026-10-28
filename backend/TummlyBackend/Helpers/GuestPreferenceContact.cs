@@ -4,8 +4,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Parses and masks the email or UK phone a guest types into the
-    /// guest preference centre. Phones are UK only (+44).
+    /// Parses and masks the email or UK mobile a guest types into the
+    /// guest preference centre. Phones are UK mobiles only (+447). Landlines are rejected.
     /// </summary>
     public static class GuestPreferenceContact
     {
@@ -49,7 +49,7 @@ namespace TummlyBackend.Helpers
                     out var e164
                 )
                 && e164 != null
-                && e164.StartsWith("+44", StringComparison.Ordinal)
+                && e164.StartsWith("+447", StringComparison.Ordinal)
             )
             {
                 contactType = TummlyGuestContactTypes.Phone;
