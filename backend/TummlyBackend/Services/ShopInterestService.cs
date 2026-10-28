@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Shop;
@@ -137,11 +138,13 @@ namespace TummlyBackend.Services
             {
                 await _context.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex) when (
+                ex.InnerException is SqlException { Number: 2601 or 2627 }
+            )
             {
                 // A concurrent Register for the same key won the filtered unique index.
-                // That active row is the answer, so this is a success. Any other failure
-                // has no active row and is rethrown.
+                // That active row is the answer, so this is a success. Other failures
+                // are not caught.
                 _context.Entry(registration).State = EntityState.Detached;
                 var raced = await ActiveRegistrationExistsAsync(
                     userId,
