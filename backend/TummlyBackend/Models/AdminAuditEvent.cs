@@ -35,7 +35,10 @@
         public const string CreditAdjust = "credit.adjust";
         public const string CreditReverse = "credit.reverse";
         public const string PaymentRefund = "payment.refund";
+        public const string ShopPreparationStarted = "shop.preparation_started";
         public const string ShopProductionStarted = "shop.production_started";
+        public const string ShopDispatched = "shop.dispatched";
+        public const string ShopDelivered = "shop.delivered";
         public const string ShopForceCancel = "shop.force_cancel";
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";

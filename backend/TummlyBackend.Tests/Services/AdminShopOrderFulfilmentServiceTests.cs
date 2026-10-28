@@ -42,7 +42,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.False(result.Succeeded);
-            Assert.Equal("shop_order_not_in_production", result.ErrorCode);
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
             var stored = await db.ShopOrders
                 .AsNoTracking()
                 .SingleAsync(row => row.Id == orderId);
@@ -71,6 +71,10 @@ namespace TummlyBackend.Tests.Services
                 .SingleAsync(row => row.Id == orderId);
             Assert.Equal(FixedUtc.UtcDateTime, stored.ProductionStartedAtUtc);
             Assert.Equal(seeded.AdminId, stored.ProductionStartedByAdminUserId);
+            Assert.Equal(
+                ShopFulfilmentEvidenceSources.AdminManual,
+                stored.ProductionStartSource
+            );
             Assert.Equal(FixedUtc.UtcDateTime, stored.UpdatedAtUtc);
             Assert.False(ShopOrderCancelRules.CanCancel(stored));
             Assert.Equal(
@@ -91,7 +95,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task MarkProductionStarted_SecondCall_IsIdempotentWithoutSecondAudit()
+        public async Task MarkProductionStarted_SecondCall_IsRejectedWithoutSecondAudit()
         {
             await using var db = CreateContext();
             var seeded = await SeedAsync(db);
@@ -111,7 +115,8 @@ namespace TummlyBackend.Tests.Services
                 "other@tummly.com"
             );
 
-            Assert.True(second.Succeeded);
+            Assert.False(second.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", second.ErrorCode);
             Assert.Equal(1, await db.AdminAuditEvents.CountAsync());
 
             var stored = await db.ShopOrders
@@ -318,6 +323,425 @@ namespace TummlyBackend.Tests.Services
             Assert.False(result.Succeeded);
             Assert.Equal("order_not_found", result.ErrorCode);
             Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task MarkPreparationStarted_SetsStampAndAppendsAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(
+                db,
+                seeded,
+                preparationStarted: false
+            );
+            var service = CreateService(db);
+
+            var result = await service.MarkPreparationStartedAsync(
+                orderId,
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            var stored = await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Equal(FixedUtc.UtcDateTime, stored.PreparationStartedAtUtc);
+            Assert.Equal(seeded.AdminId, stored.PreparationStartedByAdminUserId);
+            Assert.Null(stored.ProductionStartedAtUtc);
+
+            var row = Assert.Single(await db.AdminAuditEvents.ToListAsync());
+            Assert.Equal(AdminAuditActions.ShopPreparationStarted, row.Action);
+            Assert.Equal(AdminAuditTargetTypes.ShopOrder, row.TargetType);
+            Assert.Equal(orderId.ToString("D"), row.TargetId);
+            Assert.Equal(seeded.AdminId, row.ActorAdminUserId);
+            Assert.Equal(seeded.AdminEmail, row.ActorIdentity);
+        }
+
+        [Fact]
+        public async Task MarkPreparationStarted_Repeated_IsRejectedWithoutSecondAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(
+                db,
+                seeded,
+                preparationStarted: false
+            );
+            var service = CreateService(db);
+            Assert.True(
+                (await service.MarkPreparationStartedAsync(
+                    orderId,
+                    seeded.AdminId,
+                    seeded.AdminEmail
+                )).Succeeded
+            );
+
+            var second = await service.MarkPreparationStartedAsync(
+                orderId,
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(second.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", second.ErrorCode);
+            Assert.Equal(1, await db.AdminAuditEvents.CountAsync());
+        }
+
+        [Fact]
+        public async Task MarkProductionStarted_BeforePreparation_IsRejectedOutOfOrder()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(
+                db,
+                seeded,
+                preparationStarted: false
+            );
+            var service = CreateService(db);
+
+            var result = await service.MarkProductionStartedAsync(
+                orderId,
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            var stored = await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+            Assert.Null(stored.ProductionStartedAtUtc);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task MarkDispatched_BeforeProduction_IsRejectedOutOfOrder()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            var stored = await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task MarkDispatched_MissingCarrierName_IsRejected()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(carrierName: "   ", trackingUrl: "https://track.example/1"),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.Equal("carrier_name_required", result.ErrorCode);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, (await Reload(db, orderId)).FulfilmentStatus);
+        }
+
+        [Fact]
+        public async Task MarkDispatched_MissingCarrierReference_IsRejectedEvenWithTrackingUrl()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(carrierReference: "  ", trackingUrl: "https://track.example/1"),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.False(result.Succeeded);
+            Assert.Equal("carrier_reference_required", result.ErrorCode);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.TrackingUrl);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task MarkDispatched_RejectsNonHttpsTrackingUrl()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(trackingUrl: "http://track.example/insecure"),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.Equal("invalid_tracking_url", result.ErrorCode);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, (await Reload(db, orderId)).FulfilmentStatus);
+        }
+
+        [Fact]
+        public async Task MarkDispatched_WithCarrierEvidence_SetsEvidenceAndAppendsAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(trackingUrl: "https://track.example/1"),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.InTransit, stored.FulfilmentStatus);
+            Assert.Equal(FixedUtc.UtcDateTime, stored.DispatchedAtUtc);
+            Assert.Equal(seeded.AdminId, stored.DispatchedByAdminUserId);
+            Assert.Equal(ShopFulfilmentEvidenceSources.AdminManual, stored.DispatchSource);
+            Assert.Equal("DPD", stored.DispatchCarrierName);
+            Assert.Equal("DPD-123", stored.DispatchCarrierReference);
+            Assert.Equal("https://track.example/1", stored.TrackingUrl);
+            Assert.Null(stored.DeliveredAtUtc);
+
+            var row = Assert.Single(await db.AdminAuditEvents.ToListAsync());
+            Assert.Equal(AdminAuditActions.ShopDispatched, row.Action);
+            Assert.Equal(orderId.ToString("D"), row.TargetId);
+            Assert.Equal(seeded.AdminId, row.ActorAdminUserId);
+            Assert.Contains("DPD-123", row.DetailJson);
+        }
+
+        [Fact]
+        public async Task MarkDispatched_WithoutTrackingUrl_SucceedsWithCarrierEvidence()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.InTransit, stored.FulfilmentStatus);
+            Assert.Null(stored.TrackingUrl);
+            Assert.Equal("DPD-123", stored.DispatchCarrierReference);
+        }
+
+        [Fact]
+        public async Task MarkDispatched_Repeated_IsRejectedWithoutSecondAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+            Assert.True(
+                (await service.MarkDispatchedAsync(
+                    orderId,
+                    DispatchRequest(),
+                    seeded.AdminId,
+                    seeded.AdminEmail
+                )).Succeeded
+            );
+
+            var second = await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(carrierReference: "DPD-999"),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.Equal("illegal_fulfilment_transition", second.ErrorCode);
+            var stored = await Reload(db, orderId);
+            Assert.Equal("DPD-123", stored.DispatchCarrierReference);
+            Assert.Equal(1, await db.AdminAuditEvents.CountAsync());
+        }
+
+        [Fact]
+        public async Task MarkDelivered_BeforeDispatch_IsRejectedOutOfOrder()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var result = await service.MarkDeliveredAsync(
+                orderId,
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DeliveredAtUtc);
+            Assert.Empty(await db.AdminAuditEvents.ToListAsync());
+        }
+
+        [Fact]
+        public async Task MarkDelivered_AfterDispatch_RecordsSourceAndAppendsAudit()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+            Assert.True(
+                (await service.MarkDispatchedAsync(
+                    orderId,
+                    DispatchRequest(),
+                    seeded.AdminId,
+                    seeded.AdminEmail
+                )).Succeeded
+            );
+
+            var result = await service.MarkDeliveredAsync(
+                orderId,
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+
+            Assert.True(result.Succeeded);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Delivered, stored.FulfilmentStatus);
+            Assert.Equal(FixedUtc.UtcDateTime, stored.DeliveredAtUtc);
+            Assert.Equal(ShopFulfilmentEvidenceSources.AdminManual, stored.DeliverySource);
+            Assert.Equal(
+                new[]
+                {
+                    AdminAuditActions.ShopDispatched,
+                    AdminAuditActions.ShopDelivered,
+                },
+                (await db.AdminAuditEvents
+                    .OrderBy(row => row.Id)
+                    .ToListAsync())
+                    .Select(row => row.Action)
+            );
+        }
+
+        [Fact]
+        public async Task MarkDelivered_Repeated_IsRejected()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertProductionStartedOrderAsync(db, seeded);
+            var service = CreateService(db);
+            await service.MarkDispatchedAsync(
+                orderId,
+                DispatchRequest(),
+                seeded.AdminId,
+                seeded.AdminEmail
+            );
+            Assert.True(
+                (await service.MarkDeliveredAsync(orderId, seeded.AdminId, seeded.AdminEmail)).Succeeded
+            );
+
+            var second = await service.MarkDeliveredAsync(orderId, seeded.AdminId, seeded.AdminEmail);
+
+            Assert.Equal("illegal_fulfilment_transition", second.ErrorCode);
+            Assert.Equal(2, await db.AdminAuditEvents.CountAsync());
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_CannotChangeStatus_UseTransitionActions()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var patch = new AdminShopOrderFulfilmentPatchDto
+            {
+                FulfilmentStatus = ShopFulfilmentStatuses.InTransit,
+            };
+            var result = await service.UpdateFulfilmentAsync(orderId, patch);
+
+            Assert.Equal("illegal_fulfilment_transition", result.ErrorCode);
+            var stored = await Reload(db, orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+        }
+
+        [Fact]
+        public async Task UpdateFulfilment_TrackingUrlBeforeDispatch_IsRejected()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var patch = new AdminShopOrderFulfilmentPatchDto { TrackingUrl = "https://track.example/1" };
+            var result = await service.UpdateFulfilmentAsync(orderId, patch);
+
+            Assert.Equal("invalid_tracking_url", result.ErrorCode);
+            Assert.Null((await Reload(db, orderId)).TrackingUrl);
+        }
+
+        private static AdminShopDispatchRequest DispatchRequest(
+            string carrierName = "DPD",
+            string carrierReference = "DPD-123",
+            string? trackingUrl = null
+        ) =>
+            new()
+            {
+                CarrierName = carrierName,
+                CarrierReference = carrierReference,
+                TrackingUrl = trackingUrl,
+            };
+
+        private static async Task<ShopOrder> Reload(ApplicationDbContext db, Guid orderId)
+        {
+            return await db.ShopOrders
+                .AsNoTracking()
+                .SingleAsync(row => row.Id == orderId);
+        }
+
+        /// <summary>
+        /// Paid order with preparation and production already recorded, set
+        /// directly so the audit table only holds the rows a test writes.
+        /// </summary>
+        private static async Task<Guid> InsertProductionStartedOrderAsync(
+            ApplicationDbContext db,
+            Seeded seeded
+        )
+        {
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var order = await db.ShopOrders.SingleAsync(row => row.Id == orderId);
+            order.ProductionStartedAtUtc = DateTime.UtcNow.AddHours(-5);
+            order.ProductionStartedByAdminUserId = seeded.AdminId;
+            order.ProductionStartSource = ShopFulfilmentEvidenceSources.AdminManual;
+            await db.SaveChangesAsync();
+            return orderId;
         }
 
         [Fact]
@@ -722,7 +1146,8 @@ namespace TummlyBackend.Tests.Services
 
         private static async Task<Guid> InsertPaidProcessingOrderAsync(
             ApplicationDbContext db,
-            Seeded seeded
+            Seeded seeded,
+            bool preparationStarted = true
         )
         {
             var orderId = Guid.NewGuid();
@@ -746,6 +1171,9 @@ namespace TummlyBackend.Tests.Services
                     PaidAtUtc = DateTime.UtcNow.AddDays(-1),
                     FulfilmentStatus = ShopFulfilmentStatuses.Processing,
                     ProcessingStartedAtUtc = DateTime.UtcNow.AddHours(-12),
+                    PreparationStartedAtUtc = preparationStarted
+                        ? DateTime.UtcNow.AddHours(-10)
+                        : null,
                     ShipToContactName = "Ada",
                     ShipToAddressLine1 = "1 High Street",
                     ShipToPostcode = "SE1 1TQ",
