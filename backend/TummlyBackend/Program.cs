@@ -3,6 +3,7 @@ using TummlyBackend.Billing;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Shop.MaterialsCatalog;
 using TummlyBackend.PrintReadyQrMaterials;
+using TummlyBackend.TrustIndicators;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
@@ -704,6 +705,7 @@ builder.Services.AddScoped<
     IAdminCommercialCatalogService,
     AdminCommercialCatalogService
 >();
+builder.Services.AddScoped<ITrustIndicatorService, TrustIndicatorService>();
 builder.Services.AddScoped<CustomPlanCycleBillingService>();
 builder.Services.AddScoped<ICustomPlanCycleRenewalJob, CustomPlanCycleRenewalJob>();
 builder.Services.AddScoped<ICustomPlanQuoteService, CustomPlanQuoteService>();
@@ -1768,6 +1770,22 @@ static async Task InitializeDatabaseAsync(
         logger.LogWarning(
             ex,
             "Admin/Support seed failed; continuing without blocking readiness."
+        );
+    }
+
+    try
+    {
+        // Own scope and context: a failed admin seed save must not leave tracked entries here.
+        using var trustScope = services.CreateScope();
+        await TrustIndicatorCatalogSeed.EnsureSeededAsync(
+            trustScope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+        );
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(
+            ex,
+            "Trust indicator seed failed; continuing without blocking readiness."
         );
     }
 
