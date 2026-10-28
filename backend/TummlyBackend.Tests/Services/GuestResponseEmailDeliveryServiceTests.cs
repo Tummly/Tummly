@@ -367,7 +367,41 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Delivery_SkipsWhenContactSuppressedAfterCompose()
+        public async Task Delivery_SendsWhenEmailMarketingUnsubscribedAfterCompose()
+        {
+            // An EmailMarketing unsubscribe is a marketing choice. It does not stop
+            // a genuine Feedback service email.
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "unsubscribed-after@example.com"
+            );
+
+            await _guestResponses.SendAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                FeedbackGuestResponseChannel.Email,
+                FeedbackRecoveryIntent.RespondToGuest,
+                subject: "Thanks",
+                body: "Still sent after an unsubscribe.",
+                purpose: null,
+                tone: null,
+                includeNotes: null
+            );
+
+            await StageSuppressionAfterComposeAsync(
+                seeded.FeedbackId,
+                "email:unsubscribed-after@example.com",
+                LocationGuestPermissionKind.EmailMarketing,
+                GuestContactSuppressionSources.EmailUnsubscribe
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+        }
+
+        [Fact]
+        public async Task Delivery_SkipsWhenHardBouncedAfterCompose()
         {
             var seeded = await SeedAsync(
                 contactType: ContactType.Email,
@@ -380,7 +414,7 @@ namespace TummlyBackend.Tests.Services
                 FeedbackGuestResponseChannel.Email,
                 FeedbackRecoveryIntent.RespondToGuest,
                 subject: "Thanks",
-                body: "Will be skipped after unsubscribe.",
+                body: "Will be skipped after a hard bounce.",
                 purpose: null,
                 tone: null,
                 includeNotes: null
@@ -390,27 +424,12 @@ namespace TummlyBackend.Tests.Services
                 .AsNoTracking()
                 .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
 
-            var feedback = await _context.Feedbacks
-                .AsNoTracking()
-                .SingleAsync(f => f.Id == seeded.FeedbackId);
-            var restaurantId = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(row => row.Id == feedback.RestaurantLocationId)
-                .Select(row => row.RestaurantId)
-                .SingleAsync();
-            var suppressions = new GuestContactSuppressionService(
-                _context,
-                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
-            );
-            await suppressions.StageAsync(
-                restaurantId,
+            await StageSuppressionAfterComposeAsync(
+                seeded.FeedbackId,
                 "email:suppressed-after@example.com",
-                LocationGuestPermissionKind.EmailMarketing,
-                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc),
-                GuestContactSuppressionSources.EmailUnsubscribe
+                LocationGuestPermissionKind.EmailDelivery,
+                GuestContactSuppressionSources.EmailBounce
             );
-            await _context.SaveChangesAsync();
-            _context.ChangeTracker.Clear();
 
             await _deliveryWork.DrainAsync();
 
@@ -424,6 +443,36 @@ namespace TummlyBackend.Tests.Services
                 skipped.EmailDeliveryStatus
             );
             Assert.Equal(GuestReplyDeliveryState.Failed, skipped.DeliveryState);
+        }
+
+        private async Task StageSuppressionAfterComposeAsync(
+            int feedbackId,
+            string contactKey,
+            LocationGuestPermissionKind kind,
+            string source
+        )
+        {
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .SingleAsync(f => f.Id == feedbackId);
+            var restaurantId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == feedback.RestaurantLocationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                restaurantId,
+                contactKey,
+                kind,
+                new DateTime(2026, 10, 24, 14, 0, 0, DateTimeKind.Utc),
+                source
+            );
+            await _context.SaveChangesAsync();
+            _context.ChangeTracker.Clear();
         }
 
         [Fact]

@@ -67,6 +67,17 @@ describe("recoveryComposerPresentation", () => {
     })
   })
 
+  it("a permanent Email hard bounce shows the safe delivery status, not provider copy", () => {
+    expect(
+      mapRecoveryComposerSendFailure(
+        new Error("Email delivery unavailable. Use a verified alternative contact method.")
+      )
+    ).toEqual({
+      kind: "refused",
+      message: "Email delivery unavailable. Use a verified alternative contact method.",
+    })
+  })
+
   it("RC-03: maps unknown failures to generic send failed", () => {
     expect(mapRecoveryComposerSendFailure(new Error("boom"))).toEqual({
       kind: "failed",

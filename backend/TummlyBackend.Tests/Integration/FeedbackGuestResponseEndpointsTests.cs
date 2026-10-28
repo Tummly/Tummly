@@ -623,8 +623,9 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SendGuestResponse_Returns400_WhenEmailContactUnsubscribed()
+        public async Task SendGuestResponse_Email_AllowedWhenEmailMarketingUnsubscribed()
         {
+            // Marketing unsubscribe and genuine service email are separate purposes.
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "guest-response-email-unsubscribed-tok",
                 ContactType.Email,
@@ -632,27 +633,47 @@ namespace TummlyBackend.Tests.Integration
                 FeedbackWorkflowStatus.InProgress,
                 email: "email-unsubscribed-owner@example.com"
             );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "email:alex@example.com",
+                LocationGuestPermissionKind.EmailMarketing,
+                GuestContactSuppressionSources.EmailUnsubscribe
+            );
 
-            using (var scope = _factory.Services.CreateScope())
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
             {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var suppressions = scope.ServiceProvider
-                    .GetRequiredService<IGuestContactSuppressionService>();
-                var restaurantId = await context.RestaurantLocations
-                    .AsNoTracking()
-                    .Where(row => row.Id == seeded.LocationId)
-                    .Select(row => row.RestaurantId)
-                    .SingleAsync();
-                await suppressions.StageAsync(
-                    restaurantId,
-                    "email:alex@example.com",
-                    LocationGuestPermissionKind.EmailMarketing,
-                    DateTime.UtcNow,
-                    GuestContactSuppressionSources.EmailUnsubscribe
-                );
-                await context.SaveChangesAsync();
-            }
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns400_WhenEmailHardBounced_WithSafeMessage()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-email-bounced-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "email-bounced-owner@example.com"
+            );
+            await StageEmailSuppressionAsync(
+                seeded.LocationId,
+                "email:alex@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                GuestContactSuppressionSources.EmailBounce
+            );
 
             using var post = new HttpRequestMessage(
                 HttpMethod.Post,
@@ -673,9 +694,36 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal(
-                ServiceReplyEligibility.NotAllowedMessage,
+                ServiceReplyEligibility.EmailDeliveryUnavailableMessage,
                 body.GetProperty("message").GetString()
             );
+        }
+
+        private async Task StageEmailSuppressionAsync(
+            int locationId,
+            string contactKey,
+            LocationGuestPermissionKind kind,
+            string source
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var suppressions = scope.ServiceProvider
+                .GetRequiredService<IGuestContactSuppressionService>();
+            var restaurantId = await context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.RestaurantId)
+                .SingleAsync();
+            await suppressions.StageAsync(
+                restaurantId,
+                contactKey,
+                kind,
+                DateTime.UtcNow,
+                source
+            );
+            await context.SaveChangesAsync();
         }
 
         [Fact]

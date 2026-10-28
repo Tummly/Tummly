@@ -50,6 +50,7 @@ namespace TummlyBackend.Tests.Services
                 ),
                 NullLogger<ResendWebhookService>.Instance,
                 withdraw,
+                suppressions,
                 () => _now
             );
         }
@@ -309,9 +310,10 @@ namespace TummlyBackend.Tests.Services
         );
 
         [Fact]
-        public async Task Resend_PermanentBounce_WithdrawsEmailMarketing()
+        public async Task Resend_PermanentBounce_WritesDeliverySuppressionNotWithdrawal()
         {
             await SeedDeliveryAsync(providerMessageId: "email-bounce-1");
+            var restaurantId = (await _context.Restaurants.SingleAsync()).Id;
             var body = BounceBody(
                 "email.bounced",
                 "email-bounce-1",
@@ -322,15 +324,32 @@ namespace TummlyBackend.Tests.Services
             var status = await PostAsync(body, "msg_bounce_perm");
 
             Assert.Equal(ResendWebhookHandleStatus.Accepted, status);
-            Assert.Single(
-                await _context.LocationGuestPermissionLedgerEntries
-                    .Where(e =>
-                        e.PermissionKind == LocationGuestPermissionKind.EmailMarketing
-                        && e.EventKind == LocationGuestPermissionLedgerEventKinds.Withdraw
-                        && e.Source == LocationGuestPermissionLedgerSources.EmailBounce
-                    )
-                    .ToListAsync()
+            // A hard bounce is a delivery failure. It is not a guest withdrawal.
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+            var suppression = await _context.GuestContactSuppressions.SingleAsync();
+            Assert.Equal(restaurantId, suppression.RestaurantId);
+            Assert.Equal(LocationGuestPermissionKind.EmailDelivery, suppression.PermissionKind);
+            Assert.Equal(GuestContactSuppressionSources.EmailBounce, suppression.Source);
+            Assert.Equal(_now, suppression.WithdrawnAtUtc);
+        }
+
+        [Fact]
+        public async Task Resend_PermanentBounceRepeated_KeepsOneSuppressionRow()
+        {
+            await SeedDeliveryAsync(providerMessageId: "email-bounce-withdrawn");
+            var body = BounceBody(
+                "email.bounced",
+                "email-bounce-withdrawn",
+                "guest@example.com",
+                "Permanent"
             );
+
+            await PostAsync(body, "msg_bounce_withdrawn_1");
+            await PostAsync(body, "msg_bounce_withdrawn_2");
+
+            // Repeat deliveries stay a single row (unique per restaurant, kind, hash).
+            Assert.Single(await _context.GuestContactSuppressions.ToListAsync());
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
         }
 
         [Fact]
@@ -392,9 +411,25 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(restaurantId, suppression.RestaurantId);
             Assert.Equal(GuestContactSuppressionSources.EmailBounce, suppression.Source);
             Assert.Equal(
-                LocationGuestPermissionKind.EmailMarketing,
+                LocationGuestPermissionKind.EmailDelivery,
                 suppression.PermissionKind
             );
+        }
+
+        [Fact]
+        public async Task Resend_TransientBounce_OnGuestReply_DoesNotSuppress()
+        {
+            await SeedFeedbackReplyAsync("reply-transient");
+            var body = BounceBody(
+                "email.bounced",
+                "reply-transient",
+                "reply@example.com",
+                "Transient"
+            );
+
+            await PostAsync(body, "msg_reply_transient");
+
+            Assert.Empty(await _context.GuestContactSuppressions.ToListAsync());
         }
 
         [Fact]

@@ -15,6 +15,9 @@ export const RECOVERY_COMPOSER_COPY = {
   noPermission: "This guest has not asked for a reply to their Feedback.",
   providerUnavailable:
     "The message provider is unavailable. Try again later.",
+  /** Server refusal after a permanent Email hard bounce. Names no guest data. */
+  emailDeliveryUnavailable:
+    "Email delivery unavailable. Use a verified alternative contact method.",
   sendFailed: "Could not send the response. Please try again.",
 } as const
 
@@ -76,6 +79,13 @@ export function mapRecoveryComposerSendFailure(
     return {
       kind: "no_permission",
       message: RECOVERY_COMPOSER_COPY.noPermission,
+    }
+  }
+
+  if (message.includes("email delivery unavailable")) {
+    return {
+      kind: "refused",
+      message: RECOVERY_COMPOSER_COPY.emailDeliveryUnavailable,
     }
   }
 

@@ -171,6 +171,92 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("suppressed", result.ExcludedReasons.Single().Reason);
         }
 
+        [Fact]
+        public async Task EvaluateAsync_EmailHardBounce_ExcludesEmailMarketingWithoutLedgerWithdrawal()
+        {
+            var seeded = await SeedLocationAsync();
+            var restaurant = await _context.Restaurants.SingleAsync(r => r.Id == seeded.RestaurantId);
+            restaurant.EmailMarketingPermissionEnabled = true;
+            restaurant.SmsMarketingPermissionEnabled = true;
+            await _context.SaveChangesAsync();
+            await AddGuestAsync(
+                seeded,
+                "Bounced",
+                email: "bounced@example.com",
+                mobile: "+447911123456",
+                offersOptOut: false
+            );
+
+            var before = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                seeded.LocationId,
+                "all-eligible-guests",
+                "email"
+            );
+            Assert.Single(before);
+
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                seeded.RestaurantId,
+                "email:bounced@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                DateTime.UtcNow,
+                GuestContactSuppressionSources.EmailBounce
+            );
+            await _context.SaveChangesAsync();
+
+            var emailIds = await _eligibility.ListChannelEligibleLocationGuestIdsAsync(
+                seeded.LocationId,
+                "all-eligible-guests",
+                "email"
+            );
+            Assert.Empty(emailIds);
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "all-eligible-guests");
+            Assert.Equal(0, result.EmailEligible);
+            Assert.Equal(1, result.SmsEligible);
+            Assert.Equal(1, result.CurrentlyEligible);
+
+            // The bounce is a delivery fact: no consent withdrawal is written.
+            Assert.Empty(await _context.LocationGuestPermissionLedgerEntries.ToListAsync());
+        }
+
+        [Fact]
+        public async Task EvaluateAsync_EmailHardBounceAndNoOtherChannel_IsSuppressed()
+        {
+            var seeded = await SeedLocationAsync();
+            var restaurant = await _context.Restaurants.SingleAsync(r => r.Id == seeded.RestaurantId);
+            restaurant.EmailMarketingPermissionEnabled = true;
+            await _context.SaveChangesAsync();
+            await AddGuestAsync(
+                seeded,
+                "Bounced Only",
+                email: "bounced-only@example.com",
+                mobile: null,
+                offersOptOut: false
+            );
+
+            var suppressions = new GuestContactSuppressionService(
+                _context,
+                new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+            );
+            await suppressions.StageAsync(
+                seeded.RestaurantId,
+                "email:bounced-only@example.com",
+                LocationGuestPermissionKind.EmailDelivery,
+                DateTime.UtcNow,
+                GuestContactSuppressionSources.EmailBounce
+            );
+            await _context.SaveChangesAsync();
+
+            var result = await _eligibility.EvaluateAsync(seeded.LocationId, "all-eligible-guests");
+
+            Assert.Equal(0, result.CurrentlyEligible);
+            Assert.Equal("suppressed", result.ExcludedReasons.Single().Reason);
+        }
+
         [Theory]
         [InlineData("offer-not-redeemed")]
         [InlineData("recent-redeemers")]

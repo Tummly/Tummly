@@ -34,15 +34,27 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly ILocationGuestPermissionLedgerService _permissions;
+        private readonly IGuestContactSuppressionService _suppressions;
 
+        /// <param name="suppressions">
+        /// DI injects the configured hasher. The inline default is for tests
+        /// and ad-hoc construction only.
+        /// </param>
         public CampaignEligibilityService(
             ApplicationDbContext context,
-            ILocationGuestPermissionLedgerService? permissions = null
+            ILocationGuestPermissionLedgerService? permissions = null,
+            IGuestContactSuppressionService? suppressions = null
         )
         {
             _context = context;
             _permissions =
                 permissions ?? new LocationGuestPermissionLedgerService(context);
+            _suppressions =
+                suppressions
+                ?? new GuestContactSuppressionService(
+                    context,
+                    new GuestContactHasher(GuestContactHasher.TestingFallbackKey)
+                );
         }
 
         public async Task<CampaignEligibilityDto> EvaluateAsync(
@@ -98,12 +110,18 @@ namespace TummlyBackend.Services
                 matchedRows.Select(row => row.LocationGuestId).ToList(),
                 cancellationToken
             );
+            var emailBlocked = await LoadEmailDeliveryBlockedIdsAsync(
+                restaurant.Id,
+                matchedRows,
+                cancellationToken
+            );
 
             return Aggregate(
                 key,
                 matchedRows,
                 restaurant,
                 permissionStates,
+                emailBlocked,
                 evaluatedAt,
                 CampaignAudienceStore.IsKey(key) ? CampaignAudienceStore.Load(_context, locationId, key).Limit : null
             );
@@ -169,6 +187,12 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var emailBlocked = await LoadEmailDeliveryBlockedIdsAsync(
+                restaurant.Id,
+                matchedRows,
+                cancellationToken
+            );
+
             var ids = new List<int>();
             foreach (var guest in matchedRows)
             {
@@ -178,7 +202,8 @@ namespace TummlyBackend.Services
                     ResolvePrimaryExclusionReason(
                         guest,
                         restaurant,
-                        states
+                        states,
+                        emailBlocked
                     ) != null
                 )
                 {
@@ -191,6 +216,7 @@ namespace TummlyBackend.Services
                 if (
                     channelKey == "email"
                     && hasEmail
+                    && !emailBlocked.Contains(guest.LocationGuestId)
                     && LocationGuestChannelPermissionGate.CanSendOnChannel(
                         restaurant,
                         states,
@@ -279,6 +305,58 @@ namespace TummlyBackend.Services
             );
         }
 
+        /// <summary>
+        /// Guests whose email address has a permanent hard-bounce suppression
+        /// (<see cref="LocationGuestPermissionKind.EmailDelivery"/>) at this
+        /// restaurant. A bounce blocks marketing email to that address. It is a
+        /// delivery fact, so the consent ledger is not changed.
+        /// </summary>
+        private async Task<IReadOnlySet<int>> LoadEmailDeliveryBlockedIdsAsync(
+            int restaurantId,
+            IReadOnlyList<GuestEligibilityRow> rows,
+            CancellationToken cancellationToken
+        )
+        {
+            var idsByKey = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                if (
+                    string.IsNullOrWhiteSpace(row.Email)
+                    || !GuestContactKey.TryCreate(
+                        row.Email,
+                        ContactType.Email,
+                        out var contactKey
+                    )
+                )
+                {
+                    continue;
+                }
+
+                if (!idsByKey.TryGetValue(contactKey, out var ids))
+                {
+                    ids = new List<int>();
+                    idsByKey[contactKey] = ids;
+                }
+
+                ids.Add(row.LocationGuestId);
+            }
+
+            var bouncedKeys = await _suppressions.FindContactKeysWithKindAsync(
+                restaurantId,
+                LocationGuestPermissionKind.EmailDelivery,
+                idsByKey.Keys,
+                cancellationToken
+            );
+
+            var blocked = new HashSet<int>();
+            foreach (var contactKey in bouncedKeys)
+            {
+                blocked.UnionWith(idsByKey[contactKey]);
+            }
+
+            return blocked;
+        }
+
         private static CampaignEligibilityDto Aggregate(
             string audienceKey,
             IReadOnlyList<GuestEligibilityRow> matched,
@@ -290,6 +368,7 @@ namespace TummlyBackend.Services
                     LocationGuestPermissionState
                 >
             > permissionStates,
+            IReadOnlySet<int> emailBlocked,
             DateTime evaluatedAt,
             int? limit = null
         )
@@ -306,7 +385,8 @@ namespace TummlyBackend.Services
                 var primaryReason = ResolvePrimaryExclusionReason(
                     guest,
                     restaurant,
-                    states
+                    states,
+                    emailBlocked
                 );
                 if (primaryReason != null)
                 {
@@ -321,6 +401,7 @@ namespace TummlyBackend.Services
                 var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
                 if (
                     hasEmail
+                    && !emailBlocked.Contains(guest.LocationGuestId)
                     && LocationGuestChannelPermissionGate.CanSendOnChannel(
                         restaurant,
                         states,
@@ -387,7 +468,8 @@ namespace TummlyBackend.Services
             IReadOnlyDictionary<
                 LocationGuestPermissionKind,
                 LocationGuestPermissionState
-            > states
+            > states,
+            IReadOnlySet<int> emailBlocked
         )
         {
             var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
@@ -398,8 +480,12 @@ namespace TummlyBackend.Services
                 return "invalid-contact";
             }
 
+            // A hard bounce on this address blocks email marketing to it.
+            var emailDeliveryBlocked = emailBlocked.Contains(guest.LocationGuestId);
+
             var emailAllowed =
                 hasEmail
+                && !emailDeliveryBlocked
                 && LocationGuestChannelPermissionGate.CanSendOnChannel(
                     restaurant,
                     states,
@@ -431,9 +517,10 @@ namespace TummlyBackend.Services
 
             // Suppressed when every contact the guest has is restaurant-off
             // (not only when both restaurant toggles are globally off).
+            var emailReachable =
+                hasEmail && emailRestaurantOn && !emailDeliveryBlocked;
             var hasReachableRestaurantChannel =
-                (hasEmail && emailRestaurantOn)
-                || (hasMobile && smsRestaurantOn);
+                emailReachable || (hasMobile && smsRestaurantOn);
 
             if (!hasReachableRestaurantChannel)
             {
@@ -444,8 +531,7 @@ namespace TummlyBackend.Services
             var smsState = states[LocationGuestPermissionKind.SmsMarketing];
 
             var withdrawnOnReachableChannel =
-                (hasEmail
-                    && emailRestaurantOn
+                (emailReachable
                     && emailState == LocationGuestPermissionState.Withdrawn)
                 || (hasMobile
                     && smsRestaurantOn
