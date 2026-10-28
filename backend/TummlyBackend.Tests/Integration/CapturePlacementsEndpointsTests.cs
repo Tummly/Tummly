@@ -2004,6 +2004,9 @@ namespace TummlyBackend.Tests.Integration
         )
         {
             var cafeName = $"QR Cap {token}";
+            // The tests share one database, and a premises already registered
+            // in another Workspace goes to review at signup. Keep each seed unique.
+            var street = $"{Guid.NewGuid().ToString("N")[..6]} High Street";
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider
@@ -2017,7 +2020,7 @@ namespace TummlyBackend.Tests.Integration
                         FullName = "QR Cap Owner",
                         Email = email,
                         Mobile = "07911123456",
-                        MainLocation = "1 High Street",
+                        MainLocation = street,
                         TownCity = "Leeds",
                         Postcode = "LS1 1AA",
                         Role = "Owner",
@@ -2052,7 +2055,7 @@ namespace TummlyBackend.Tests.Integration
                         new
                         {
                             locationName = "Main",
-                            address = "1 High Street",
+                            address = street,
                             city = "Leeds",
                             postcode = "LS1 1AA",
                         },

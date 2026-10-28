@@ -51,6 +51,7 @@ export type LocationsImportRow = {
   postcode: string
   locationPhone?: string
   localContact?: string
+  fsaEstablishmentId?: string
 }
 
 type LocationsImportLocationsDialogProps = {
@@ -307,6 +308,7 @@ export function LocationsImportLocationsDialog({
         postcode: location.postcode.trim(),
         locationPhone: location.locationPhone.trim() || undefined,
         localContact: location.localContact.trim() || undefined,
+        fsaEstablishmentId: location.fsaEstablishmentId?.trim() || undefined,
       }))
     )
     resetDialogState()

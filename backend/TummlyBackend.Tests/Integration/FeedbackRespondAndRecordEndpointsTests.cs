@@ -1022,6 +1022,44 @@ namespace TummlyBackend.Tests.Integration
             return await client.SendAsync(post);
         }
 
+        [Fact]
+        public async Task RespondAndRecord_Returns400_WhenPurposeNotAllowed()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-purpose-refused-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/respond-and-record-internal-action"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Regarding your visit",
+                body = "Thank you for your visit.",
+                intent = "respond_and_record_internal_action",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                FeedbackGuestResponsePurposes.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
         private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
         {
             using var scope = _factory.Services.CreateScope();

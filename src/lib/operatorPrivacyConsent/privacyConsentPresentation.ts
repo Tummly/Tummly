@@ -39,6 +39,17 @@ export const PRIVACY_CONSENT_PAGE_COPY = {
   privacyActivityEmptyTitle: "No activity yet",
   privacyActivityEmptyBody:
     "Privacy and consent activity will appear here.",
+  archivedLocationsTitle: "Archived Locations",
+  archivedLocationsSubtitle:
+    "Archived Locations are no longer active. Their historical records, including Feedback and permission evidence, are retained according to applicable retention rules. Authorised Workspace Owners can review permitted historical records in read-only mode. Archived records do not create current messaging eligibility.",
+  archivedLocationsEmptyTitle: "No archived Location activity",
+  archivedLocationsEmptyBody:
+    "Privacy and consent activity for archived Locations will appear here.",
+  archivedLocationsAccessRestrictedTitle: "Access restricted",
+  archivedLocationsAccessRestrictedBody:
+    "You do not have permission to view this archived information. Access requires the appropriate Workspace permissions. Contact your Workspace Owner if you believe you need access.",
+  archivedLocationBadge: "Archived",
+  archivedLocationsLoadError: "Could not load archived Location history.",
   guestPermissionToggleError: "Could not save guest permission.",
   permissionRecordsLoadError: "Could not load permission records.",
   privacyReviewCompleteError: "Could not complete privacy review.",
@@ -272,6 +283,11 @@ export type PrivacyActivityItem = {
   id: string
   timeLabel: string
   description: string
+}
+
+/** Owner-only history row for an archived Location. Never mixed into active rows. */
+export type PrivacyArchivedActivityItem = PrivacyActivityItem & {
+  locationName: string
 }
 
 /** Figma Privacy activity rows (5746:101810) until the API lands. */

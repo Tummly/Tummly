@@ -655,6 +655,75 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RetryProvision_PremisesAlreadyRegistered_SavesDraftForReview_NoPilotNoKitNoQr()
+        {
+            var theirOwner = new User
+            {
+                FullName = "Their Owner",
+                Email = "their-owner@example.com",
+                PasswordHash = "x",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Users.Add(theirOwner);
+            await _db.SaveChangesAsync();
+            var theirs = new Restaurant
+            {
+                Name = "Their Kitchen",
+                AccountType = "Single",
+                OwnerUserId = theirOwner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.Restaurants.Add(theirs);
+            await _db.SaveChangesAsync();
+            _db.RestaurantLocations.Add(
+                new RestaurantLocation
+                {
+                    RestaurantId = theirs.Id,
+                    LocationName = "Their Main",
+                    Address = "1 High Street",
+                    City = "Leeds",
+                    Postcode = "LS1 1AA",
+                    LifecycleStatus = LocationLifecycleStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _db.SaveChangesAsync();
+
+            await SeedOnboardingCompletePendingWithPlanAsync(
+                BillingSubscriptionPlans.Pilot
+            );
+
+            await _signup.RetryProvisionAsync(_sessionToken);
+
+            var location = await _db.RestaurantLocations.SingleAsync(l =>
+                l.LocationName == "Main"
+            );
+            Assert.Equal(LocationLifecycleStatus.Draft, location.LifecycleStatus);
+            Assert.Equal(PremisesReviewStatus.PendingReview, location.PremisesReviewStatus);
+            Assert.Empty(
+                await _db.QrCodes
+                    .Where(qr => qr.RestaurantLocationId == location.Id)
+                    .ToListAsync()
+            );
+            var billing = await _db.BillingAccounts.SingleAsync(b =>
+                b.RestaurantId == location.RestaurantId
+            );
+            Assert.Null(billing.PilotStartedAtUtc);
+            Assert.Equal(0, _mintLedger.MintPilotCallCount);
+            Assert.Equal(
+                0,
+                await _db.ShopOrders.CountAsync(o => o.IsComplimentary)
+            );
+            Assert.Equal(0, _pilotEmail.PilotStartedCalls);
+            Assert.Equal(
+                1,
+                await _db.AdminAuditEvents.CountAsync(e =>
+                    e.Action == AdminAuditActions.LocationPremisesFlagged
+                )
+            );
+        }
+
+        [Fact]
         public async Task RetryProvision_CompletePilotWithoutStart_StartsPilot()
         {
             await SeedOnboardingCompletePendingWithPlanAsync(

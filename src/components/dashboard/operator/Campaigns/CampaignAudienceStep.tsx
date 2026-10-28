@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
   CAMPAIGN_AUDIENCE_COPY,
+  campaignAudienceUnavailableReasonLabel,
   formatExcludedReasonLabel,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type {
@@ -102,6 +103,9 @@ function EligibilitySummary({
     breakdown.source === "live"
     && breakdown.excludedReasons.length > 0
     && (breakdown.excluded ?? 0) > 0
+  const unavailableReasonLabel = campaignAudienceUnavailableReasonLabel(
+    breakdown.unavailableReason
+  )
 
   return (
     <aside
@@ -132,6 +136,23 @@ function EligibilitySummary({
           </div>
         ))}
       </dl>
+
+      {audience.periodLabel != null ? (
+        <p className="m-0 flex items-center justify-between gap-3 text-sm">
+          <span className="font-semibold text-[var(--op-color-gray-550)]">
+            {CAMPAIGN_AUDIENCE_COPY.periodLabel}
+          </span>
+          <span className="font-medium text-op-text-primary">
+            {audience.periodLabel}
+          </span>
+        </p>
+      ) : null}
+
+      {unavailableReasonLabel != null ? (
+        <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+          {unavailableReasonLabel}
+        </p>
+      ) : null}
 
       {showExcludedReasons ? (
         <div className="flex flex-col gap-3.5 border-t border-op-card-border pt-3.5">

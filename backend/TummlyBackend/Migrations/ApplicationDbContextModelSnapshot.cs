@@ -710,6 +710,13 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<int?>("AudienceLookbackDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AudienceLookbackTimeZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("BillingReservationRef")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
@@ -747,6 +754,10 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("OfferStance")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("RecommendationSourceKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
 
                     b.Property<int?>("ReservedEstimate")
                         .HasColumnType("int");
@@ -798,6 +809,10 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("OfferId");
+
+                    b.HasIndex("RestaurantLocationId", "RecommendationSourceKey")
+                        .IsUnique()
+                        .HasFilter("[Status] = N'draft' AND [RecommendationSourceKey] IS NOT NULL");
 
                     b.HasIndex("RestaurantLocationId", "Status", "UpdatedAt")
                         .IsDescending(false, false, true);
@@ -4015,6 +4030,10 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("FsaEstablishmentId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime?>("GuestFormPreviewedAt")
                         .HasColumnType("datetime2");
 
@@ -4047,6 +4066,23 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("Postcode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PremisesKey")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("PremisesReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("PremisesReviewStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PremisesReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PremisesReviewedByAdminUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("QrPlacementGuideViewedAt")
                         .HasColumnType("datetime2");
 
@@ -4058,9 +4094,15 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FsaEstablishmentId");
+
                     b.HasIndex("ManagerUserId");
 
                     b.HasIndex("OfferCardCatalogOfferId");
+
+                    b.HasIndex("PremisesKey");
+
+                    b.HasIndex("PremisesReviewStatus");
 
                     b.HasIndex("RestaurantId");
 
@@ -4551,6 +4593,10 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("ShopInterestProductId");
 
+                    b.HasIndex("UserId", "ShopInterestProductId", "LocationId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ShopInterestRegistrations_User_Product_Location");
+
                     b.ToTable("ShopInterestRegistrations");
                 });
 
@@ -4820,8 +4866,27 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("DeliveryNetPence")
                         .HasColumnType("int");
 
+                    b.Property<string>("DeliverySource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("DispatchCarrierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DispatchCarrierReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DispatchSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<DateTime?>("DispatchedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("DispatchedByAdminUserId")
+                        .HasColumnType("int");
 
                     b.Property<string>("FulfilmentStatus")
                         .HasMaxLength(32)
@@ -4871,8 +4936,18 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("PlacedByUserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("PreparationStartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PreparationStartedByAdminUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("ProcessingStartedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ProductionStartSource")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<DateTime?>("ProductionStartedAtUtc")
                         .HasColumnType("datetime2");

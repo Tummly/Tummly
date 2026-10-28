@@ -596,7 +596,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PatchFulfilment_ProcessingToInTransitToDelivered_SetsTimestamps()
+        public async Task Transitions_PreparationProductionDispatchDelivered_SetEvidenceAndAudit()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
@@ -604,40 +604,87 @@ namespace TummlyBackend.Tests.Integration
                 ShopFulfilmentStatuses.Processing
             );
 
-            using var dispatchRequest = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
-                seeded.AdminJwt,
-                new
-                {
-                    fulfilmentStatus = ShopFulfilmentStatuses.InTransit,
-                    trackingUrl = "https://track.example/abc",
-                    opsNotes = "handed to carrier",
-                }
+            var prepared = await _client.SendAsync(
+                AuthorizedPost(
+                    $"/api/admin/shop-orders/{orderId}/preparation-started",
+                    seeded.AdminJwt
+                )
             );
-            var dispatchResponse = await _client.SendAsync(dispatchRequest);
-            Assert.Equal(HttpStatusCode.OK, dispatchResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, prepared.StatusCode);
+            var afterPrepare = await ReadOrderAsync(orderId);
+            Assert.NotNull(afterPrepare.PreparationStartedAtUtc);
+            Assert.Equal(seeded.AdminId, afterPrepare.PreparationStartedByAdminUserId);
+            Assert.Null(afterPrepare.ProductionStartedAtUtc);
 
+            var produced = await _client.SendAsync(
+                AuthorizedPost(
+                    $"/api/admin/shop-orders/{orderId}/production-started",
+                    seeded.AdminJwt
+                )
+            );
+            Assert.Equal(HttpStatusCode.OK, produced.StatusCode);
+            var afterProduction = await ReadOrderAsync(orderId);
+            Assert.NotNull(afterProduction.ProductionStartedAtUtc);
+            Assert.Equal(
+                ShopFulfilmentEvidenceSources.AdminManual,
+                afterProduction.ProductionStartSource
+            );
+
+            var dispatched = await _client.SendAsync(
+                AuthorizedPostJson(
+                    $"/api/admin/shop-orders/{orderId}/dispatched",
+                    seeded.AdminJwt,
+                    new
+                    {
+                        carrierName = "DPD",
+                        carrierReference = "DPD-123",
+                        trackingUrl = "https://track.example/abc",
+                    }
+                )
+            );
+            Assert.Equal(HttpStatusCode.OK, dispatched.StatusCode);
             var afterDispatch = await ReadOrderAsync(orderId);
             Assert.Equal(ShopFulfilmentStatuses.InTransit, afterDispatch.FulfilmentStatus);
             Assert.NotNull(afterDispatch.DispatchedAtUtc);
-            Assert.Null(afterDispatch.DeliveredAtUtc);
+            Assert.Equal(seeded.AdminId, afterDispatch.DispatchedByAdminUserId);
+            Assert.Equal(ShopFulfilmentEvidenceSources.AdminManual, afterDispatch.DispatchSource);
+            Assert.Equal("DPD", afterDispatch.DispatchCarrierName);
+            Assert.Equal("DPD-123", afterDispatch.DispatchCarrierReference);
             Assert.Equal("https://track.example/abc", afterDispatch.TrackingUrl);
-            Assert.Equal("handed to carrier", afterDispatch.OpsNotes);
+            Assert.Null(afterDispatch.DeliveredAtUtc);
 
-            using var deliverRequest = AuthorizedPatch(
+            using var notes = AuthorizedPatch(
                 $"/api/admin/shop-orders/{orderId}/fulfilment",
                 seeded.AdminJwt,
-                new { fulfilmentStatus = ShopFulfilmentStatuses.Delivered }
+                new { opsNotes = "handed to carrier" }
             );
-            var deliverResponse = await _client.SendAsync(deliverRequest);
-            Assert.Equal(HttpStatusCode.OK, deliverResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(notes)).StatusCode);
+            Assert.Equal("handed to carrier", (await ReadOrderAsync(orderId)).OpsNotes);
 
+            var delivered = await _client.SendAsync(
+                AuthorizedPost(
+                    $"/api/admin/shop-orders/{orderId}/delivered",
+                    seeded.AdminJwt
+                )
+            );
+            Assert.Equal(HttpStatusCode.OK, delivered.StatusCode);
             var afterDeliver = await ReadOrderAsync(orderId);
             Assert.Equal(ShopFulfilmentStatuses.Delivered, afterDeliver.FulfilmentStatus);
             Assert.NotNull(afterDeliver.DeliveredAtUtc);
+            Assert.Equal(ShopFulfilmentEvidenceSources.AdminManual, afterDeliver.DeliverySource);
             Assert.Equal("https://track.example/abc", afterDeliver.TrackingUrl);
-        }
 
+            foreach (var action in new[]
+            {
+                AdminAuditActions.ShopPreparationStarted,
+                AdminAuditActions.ShopProductionStarted,
+                AdminAuditActions.ShopDispatched,
+                AdminAuditActions.ShopDelivered,
+            })
+            {
+                Assert.Equal(1, await CountAuditAsync(action, orderId.ToString("D")));
+            }
+        }
         [Fact]
         public async Task PatchFulfilment_IllegalBackward_Returns409()
         {
@@ -678,53 +725,237 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PatchFulfilment_RejectsNonHttpsTrackingUrl()
+        public async Task Dispatch_RejectsNonHttpsTrackingUrl()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
-                ShopFulfilmentStatuses.Processing
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2)
             );
 
-            using var ftpRequest = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
-                seeded.AdminJwt,
-                new
-                {
-                    fulfilmentStatus = ShopFulfilmentStatuses.InTransit,
-                    trackingUrl = "ftp://files.example/track",
-                }
-            );
-            var ftpResponse = await _client.SendAsync(ftpRequest);
-            Assert.Equal(HttpStatusCode.BadRequest, ftpResponse.StatusCode);
+            foreach (var badUrl in new[]
+            {
+                "ftp://files.example/track",
+                "http://track.example/insecure",
+                "not-a-url",
+            })
+            {
+                using var request = AuthorizedPostJson(
+                    $"/api/admin/shop-orders/{orderId}/dispatched",
+                    seeded.AdminJwt,
+                    new
+                    {
+                        carrierName = "DPD",
+                        carrierReference = "DPD-123",
+                        trackingUrl = badUrl,
+                    }
+                );
+                var response = await _client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+                var body = await ReadJsonAsync(response);
+                Assert.Equal("invalid_tracking_url", body.GetProperty("code").GetString());
+            }
 
-            using var httpRequest = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
-                seeded.AdminJwt,
-                new
-                {
-                    fulfilmentStatus = ShopFulfilmentStatuses.InTransit,
-                    trackingUrl = "http://track.example/insecure",
-                }
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.TrackingUrl);
+        }
+        [Fact]
+        public async Task Dispatch_RequiresCarrierReference_TrackingUrlAloneIsRejected()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2)
             );
-            var httpResponse = await _client.SendAsync(httpRequest);
-            Assert.Equal(HttpStatusCode.BadRequest, httpResponse.StatusCode);
 
-            using var badRequest = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
+            using var urlOnly = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/dispatched",
                 seeded.AdminJwt,
-                new
-                {
-                    fulfilmentStatus = ShopFulfilmentStatuses.InTransit,
-                    trackingUrl = "not-a-url",
-                }
+                new { trackingUrl = "https://track.example/only" }
             );
-            var badResponse = await _client.SendAsync(badRequest);
-            Assert.Equal(HttpStatusCode.BadRequest, badResponse.StatusCode);
+            var urlOnlyResponse = await _client.SendAsync(urlOnly);
+            Assert.Equal(HttpStatusCode.BadRequest, urlOnlyResponse.StatusCode);
+            Assert.Equal(
+                "carrier_name_required",
+                (await ReadJsonAsync(urlOnlyResponse)).GetProperty("code").GetString()
+            );
+
+            using var missingReference = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/dispatched",
+                seeded.AdminJwt,
+                new { carrierName = "DPD", trackingUrl = "https://track.example/only" }
+            );
+            var missingResponse = await _client.SendAsync(missingReference);
+            Assert.Equal(HttpStatusCode.BadRequest, missingResponse.StatusCode);
+            Assert.Equal(
+                "carrier_reference_required",
+                (await ReadJsonAsync(missingResponse)).GetProperty("code").GetString()
+            );
+
+            using var blankReference = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/dispatched",
+                seeded.AdminJwt,
+                new { carrierName = "DPD", carrierReference = "   " }
+            );
+            var blankResponse = await _client.SendAsync(blankReference);
+            Assert.Equal(HttpStatusCode.BadRequest, blankResponse.StatusCode);
+            Assert.Equal(
+                "carrier_reference_required",
+                (await ReadJsonAsync(blankResponse)).GetProperty("code").GetString()
+            );
+
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.TrackingUrl);
+            Assert.Equal(0, await CountAuditAsync(AdminAuditActions.ShopDispatched, orderId.ToString("D")));
         }
 
         [Fact]
-        public async Task PatchFulfilment_Delivered_DoesNotMintReceiptSticker()
+        public async Task Transitions_OutOfOrderOrRepeated_Return409()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var notPrepared = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing
+            );
+            var prepared = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3)
+            );
+            var notProduced = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3)
+            );
+
+            using (var productionBeforePrep = AuthorizedPost(
+                $"/api/admin/shop-orders/{notPrepared}/production-started",
+                seeded.AdminJwt
+            ))
+            {
+                var response = await _client.SendAsync(productionBeforePrep);
+                Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+                Assert.Equal(
+                    "illegal_fulfilment_transition",
+                    (await ReadJsonAsync(response)).GetProperty("code").GetString()
+                );
+            }
+
+            using (var repeatPrep = AuthorizedPost(
+                $"/api/admin/shop-orders/{prepared}/preparation-started",
+                seeded.AdminJwt
+            ))
+            {
+                Assert.Equal(HttpStatusCode.Conflict, (await _client.SendAsync(repeatPrep)).StatusCode);
+            }
+
+            using (var dispatchBeforeProduction = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{notProduced}/dispatched",
+                seeded.AdminJwt,
+                new { carrierName = "DPD", carrierReference = "DPD-123" }
+            ))
+            {
+                Assert.Equal(
+                    HttpStatusCode.Conflict,
+                    (await _client.SendAsync(dispatchBeforeProduction)).StatusCode
+                );
+            }
+
+            using (var deliverBeforeDispatch = AuthorizedPost(
+                $"/api/admin/shop-orders/{notProduced}/delivered",
+                seeded.AdminJwt
+            ))
+            {
+                Assert.Equal(
+                    HttpStatusCode.Conflict,
+                    (await _client.SendAsync(deliverBeforeDispatch)).StatusCode
+                );
+            }
+
+            Assert.Equal(ShopFulfilmentStatuses.Processing, (await ReadOrderAsync(notProduced)).FulfilmentStatus);
+        }
+
+        [Fact]
+        public async Task Transitions_DeniedForOperatorJwt_AndWriteNoAudit()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2)
+            );
+
+            var requests = new[]
+            {
+                AuthorizedPost($"/api/admin/shop-orders/{orderId}/preparation-started", seeded.OwnerJwt),
+                AuthorizedPost($"/api/admin/shop-orders/{orderId}/production-started", seeded.OwnerJwt),
+                AuthorizedPostJson(
+                    $"/api/admin/shop-orders/{orderId}/dispatched",
+                    seeded.OwnerJwt,
+                    new { carrierName = "DPD", carrierReference = "DPD-123" }
+                ),
+                AuthorizedPost($"/api/admin/shop-orders/{orderId}/delivered", seeded.OwnerJwt),
+            };
+            foreach (var request in requests)
+            {
+                using (request)
+                {
+                    var response = await _client.SendAsync(request);
+                    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+                }
+            }
+
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.DeliveredAtUtc);
+            foreach (var action in new[]
+            {
+                AdminAuditActions.ShopPreparationStarted,
+                AdminAuditActions.ShopProductionStarted,
+                AdminAuditActions.ShopDispatched,
+                AdminAuditActions.ShopDelivered,
+            })
+            {
+                Assert.Equal(0, await CountAuditAsync(action, orderId.ToString("D")));
+            }
+        }
+
+        [Fact]
+        public async Task PatchFulfilment_CannotDispatchOrDeliver_UseTransitionActions()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2)
+            );
+
+            using var dispatch = AuthorizedPatch(
+                $"/api/admin/shop-orders/{orderId}/fulfilment",
+                seeded.AdminJwt,
+                new { fulfilmentStatus = ShopFulfilmentStatuses.InTransit }
+            );
+            var response = await _client.SendAsync(dispatch);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            Assert.Equal(
+                "illegal_fulfilment_transition",
+                (await ReadJsonAsync(response)).GetProperty("code").GetString()
+            );
+            Assert.Equal(ShopFulfilmentStatuses.Processing, (await ReadOrderAsync(orderId)).FulfilmentStatus);
+        }
+        [Fact]
+        public async Task Delivered_DoesNotMintReceiptSticker()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
@@ -735,10 +966,9 @@ namespace TummlyBackend.Tests.Integration
                 titleSnapshot: "Offer Card"
             );
 
-            using var deliver = AuthorizedPatch(
-                $"/api/admin/shop-orders/{orderId}/fulfilment",
-                seeded.AdminJwt,
-                new { fulfilmentStatus = ShopFulfilmentStatuses.Delivered }
+            using var deliver = AuthorizedPost(
+                $"/api/admin/shop-orders/{orderId}/delivered",
+                seeded.AdminJwt
             );
             Assert.Equal(
                 HttpStatusCode.OK,
@@ -755,7 +985,6 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(0, receiptCount);
         }
-
         [Fact]
         public async Task ExportCsv_UsesPersistedShipToAndLines_DefaultProcessing()
         {
@@ -797,6 +1026,38 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ExportCsv_WritesOneReadAuditRow_PerRequest()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await InsertOrderAsync(seeded, ShopFulfilmentStatuses.Processing);
+            await InsertOrderAsync(seeded, ShopFulfilmentStatuses.Processing);
+            var before = await CountAuditAsync(AdminAuditActions.ShopOrdersExport, "export");
+
+            using var request = AuthorizedGet(
+                "/api/admin/shop-orders/export.csv",
+                seeded.AdminJwt
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                before + 1,
+                await CountAuditAsync(AdminAuditActions.ShopOrdersExport, "export")
+            );
+        }
+
+        private async Task<int> CountAuditAsync(string action, string targetId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            return await context.AdminAuditEvents
+                .AsNoTracking()
+                .CountAsync(e => e.Action == action && e.TargetId == targetId);
+        }
+
+        [Fact]
         public async Task OperatorDetail_StillOmitsOpsNotes_AfterAdminWritesNotes()
         {
             var seeded = await SeedWorkspaceAsync();
@@ -824,12 +1085,13 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task MarkProductionStarted_StampsAudits_Idempotent_AndBlocksOperatorCancel()
+        public async Task MarkProductionStarted_RequiresPreparation_RepeatIsRejected_AndBlocksOperatorCancel()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
-                ShopFulfilmentStatuses.Processing
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3)
             );
 
             using var first = AuthorizedPost(
@@ -864,22 +1126,13 @@ namespace TummlyBackend.Tests.Integration
                 seeded.AdminJwt
             );
             Assert.Equal(
-                HttpStatusCode.OK,
+                HttpStatusCode.Conflict,
                 (await _client.SendAsync(second)).StatusCode
             );
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                Assert.Equal(
-                    1,
-                    await context.AdminAuditEvents.CountAsync(row =>
-                        row.Action == AdminAuditActions.ShopProductionStarted
-                        && row.TargetId == orderId.ToString("D")
-                    )
-                );
-            }
+            Assert.Equal(
+                1,
+                await CountAuditAsync(AdminAuditActions.ShopProductionStarted, orderId.ToString("D"))
+            );
 
             using var detail = AuthorizedGet(
                 $"/api/shop/orders/{orderId}?locationId={seeded.LocationId}",
@@ -909,14 +1162,14 @@ namespace TummlyBackend.Tests.Integration
                 cancelBody.GetProperty("code").GetString()
             );
         }
-
         [Fact]
         public async Task ForceCancel_AfterStamp_Refunds_SkipRefund_AndFailClosed()
         {
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
-                ShopFulfilmentStatuses.Processing
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3)
             );
             const string revolutOrderId = "ord_admin_force_1";
 
@@ -1094,6 +1347,8 @@ namespace TummlyBackend.Tests.Integration
             string? trackingUrl = null,
             string? opsNotes = null,
             DateTime? deliveredAtUtc = null,
+            DateTime? preparationStartedAtUtc = null,
+            DateTime? productionStartedAtUtc = null,
             string catalogSkuId = "table-tents",
             string titleSnapshot = "Table tents",
             string shipToContactName = "Ada Lovelace",
@@ -1152,7 +1407,28 @@ namespace TummlyBackend.Tests.Integration
                     || fulfilmentStatus == ShopFulfilmentStatuses.Delivered
                         ? DateTime.UtcNow.AddHours(-6)
                         : null,
+                DispatchSource = fulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || fulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                        ? ShopFulfilmentEvidenceSources.AdminManual
+                        : null,
+                DispatchedByAdminUserId = fulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || fulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                        ? seeded.AdminId
+                        : null,
+                DispatchCarrierName = fulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || fulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                        ? "DPD"
+                        : null,
+                DispatchCarrierReference = fulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || fulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                        ? "DPD-123"
+                        : null,
                 DeliveredAtUtc = deliveredAtUtc,
+                PreparationStartedAtUtc = preparationStartedAtUtc,
+                ProductionStartedAtUtc = productionStartedAtUtc,
+                ProductionStartSource = productionStartedAtUtc == null
+                    ? null
+                    : ShopFulfilmentEvidenceSources.AdminManual,
                 TrackingUrl = trackingUrl,
                 OpsNotes = opsNotes,
                 ShipToContactName = shipToContactName,
@@ -1182,6 +1458,204 @@ namespace TummlyBackend.Tests.Integration
             context.ShopOrders.Add(order);
             await context.SaveChangesAsync();
             return order.Id;
+        }
+
+        [Fact]
+        public async Task DispatchEvidence_LegacyOrder_AdminBackfillsAndClearsMissingFilter()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertLegacyDispatchAsync(seeded, ShopFulfilmentStatuses.InTransit);
+            var dispatchedAt = DateTime.UtcNow.AddHours(-5);
+
+            using var missingBefore = AuthorizedGet(
+                "/api/admin/shop-orders?dispatchEvidenceMissing=true",
+                seeded.AdminJwt
+            );
+            var beforeItems = (await ReadJsonAsync(await _client.SendAsync(missingBefore)))
+                .GetProperty("items")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("id").GetGuid())
+                .ToList();
+            Assert.Contains(orderId, beforeItems);
+
+            using var backfill = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/dispatch-evidence",
+                seeded.AdminJwt,
+                new
+                {
+                    carrierName = "DPD",
+                    carrierReference = "DPD-123",
+                    dispatchedAtUtc = dispatchedAt,
+                }
+            );
+            var response = await _client.SendAsync(backfill);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("DPD-123", body.GetProperty("dispatchCarrierReference").GetString());
+            Assert.Equal("legacy_backfill", (await ReadOrderAsync(orderId)).DispatchSource);
+            Assert.Equal(seeded.AdminId, (await ReadOrderAsync(orderId)).DispatchedByAdminUserId);
+            Assert.Equal(1, await CountAuditAsync(AdminAuditActions.ShopDispatchEvidenceRecorded, orderId.ToString("D")));
+
+            using var missingAfter = AuthorizedGet(
+                "/api/admin/shop-orders?dispatchEvidenceMissing=true",
+                seeded.AdminJwt
+            );
+            var afterItems = (await ReadJsonAsync(await _client.SendAsync(missingAfter)))
+                .GetProperty("items")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("id").GetGuid())
+                .ToList();
+            Assert.DoesNotContain(orderId, afterItems);
+        }
+
+        [Fact]
+        public async Task DispatchEvidence_RepeatOrCompleteOrder_Returns409()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var legacyId = await InsertLegacyDispatchAsync(seeded, ShopFulfilmentStatuses.InTransit);
+            var processingId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2)
+            );
+            var evidence = new
+            {
+                carrierName = "DPD",
+                carrierReference = "DPD-123",
+                dispatchedAtUtc = DateTime.UtcNow.AddHours(-5),
+            };
+
+            using var first = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{legacyId}/dispatch-evidence",
+                seeded.AdminJwt,
+                evidence
+            );
+            Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(first)).StatusCode);
+
+            using var repeat = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{legacyId}/dispatch-evidence",
+                seeded.AdminJwt,
+                evidence
+            );
+            var repeatResponse = await _client.SendAsync(repeat);
+            Assert.Equal(HttpStatusCode.Conflict, repeatResponse.StatusCode);
+            Assert.Equal(
+                "illegal_fulfilment_transition",
+                (await ReadJsonAsync(repeatResponse)).GetProperty("code").GetString()
+            );
+
+            using var notDispatched = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{processingId}/dispatch-evidence",
+                seeded.AdminJwt,
+                evidence
+            );
+            Assert.Equal(HttpStatusCode.Conflict, (await _client.SendAsync(notDispatched)).StatusCode);
+            Assert.Equal(1, await CountAuditAsync(AdminAuditActions.ShopDispatchEvidenceRecorded, legacyId.ToString("D")));
+        }
+
+        [Fact]
+        public async Task DispatchEvidence_MissingCarrierName_Returns400()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertLegacyDispatchAsync(seeded, ShopFulfilmentStatuses.InTransit);
+
+            using var request = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/dispatch-evidence",
+                seeded.AdminJwt,
+                new
+                {
+                    carrierReference = "DPD-123",
+                    dispatchedAtUtc = DateTime.UtcNow.AddHours(-5),
+                }
+            );
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Equal(
+                "carrier_name_required",
+                (await ReadJsonAsync(response)).GetProperty("code").GetString()
+            );
+            Assert.Null((await ReadOrderAsync(orderId)).DispatchSource);
+        }
+
+        [Fact]
+        public async Task StatusCorrection_LegacyOrder_AdminReturnsToProcessingAndAudits()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertLegacyDispatchAsync(seeded, ShopFulfilmentStatuses.InTransit);
+
+            using var blankReason = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/status-correction",
+                seeded.AdminJwt,
+                new { reason = "   " }
+            );
+            var blankResponse = await _client.SendAsync(blankReason);
+            Assert.Equal(HttpStatusCode.BadRequest, blankResponse.StatusCode);
+            Assert.Equal(
+                "invalid_correction_reason",
+                (await ReadJsonAsync(blankResponse)).GetProperty("code").GetString()
+            );
+
+            using var correct = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/status-correction",
+                seeded.AdminJwt,
+                new { reason = "No carrier reference was recorded." }
+            );
+            var response = await _client.SendAsync(correct);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.Processing, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchedAtUtc);
+            Assert.Null(stored.TrackingUrl);
+            Assert.Equal(1, await CountAuditAsync(AdminAuditActions.ShopStatusCorrected, orderId.ToString("D")));
+
+            using var repeat = AuthorizedPostJson(
+                $"/api/admin/shop-orders/{orderId}/status-correction",
+                seeded.AdminJwt,
+                new { reason = "Again." }
+            );
+            Assert.Equal(HttpStatusCode.Conflict, (await _client.SendAsync(repeat)).StatusCode);
+            Assert.Equal(1, await CountAuditAsync(AdminAuditActions.ShopStatusCorrected, orderId.ToString("D")));
+        }
+
+        [Fact]
+        public async Task DispatchEvidenceAndCorrection_DeniedForOperatorJwt_AndWriteNoAudit()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertLegacyDispatchAsync(seeded, ShopFulfilmentStatuses.InTransit);
+
+            var requests = new[]
+            {
+                AuthorizedPostJson(
+                    $"/api/admin/shop-orders/{orderId}/dispatch-evidence",
+                    seeded.OwnerJwt,
+                    new
+                    {
+                        carrierName = "DPD",
+                        carrierReference = "DPD-123",
+                        dispatchedAtUtc = DateTime.UtcNow.AddHours(-5),
+                    }
+                ),
+                AuthorizedPostJson(
+                    $"/api/admin/shop-orders/{orderId}/status-correction",
+                    seeded.OwnerJwt,
+                    new { reason = "Operator attempt." }
+                ),
+            };
+            foreach (var request in requests)
+            {
+                using (request)
+                {
+                    Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(request)).StatusCode);
+                }
+            }
+
+            var stored = await ReadOrderAsync(orderId);
+            Assert.Equal(ShopFulfilmentStatuses.InTransit, stored.FulfilmentStatus);
+            Assert.Null(stored.DispatchSource);
+            Assert.Equal(0, await CountAuditAsync(AdminAuditActions.ShopDispatchEvidenceRecorded, orderId.ToString("D")));
+            Assert.Equal(0, await CountAuditAsync(AdminAuditActions.ShopStatusCorrected, orderId.ToString("D")));
         }
 
         private async Task<Seeded> SeedWorkspaceAsync()
@@ -1301,6 +1775,37 @@ namespace TummlyBackend.Tests.Integration
                 tummlyAdmin.Id,
                 jwtService.GenerateAdminToken(tummlyAdmin)
             );
+        }
+
+        /// <summary>
+        /// Round 1 shape: an in-transit or delivered order with a dispatch time
+        /// and tracking URL, but no carrier name, reference, source or actor.
+        /// </summary>
+        private async Task<Guid> InsertLegacyDispatchAsync(
+            Seeded seeded,
+            string fulfilmentStatus
+        )
+        {
+            var orderId = await InsertOrderAsync(
+                seeded,
+                fulfilmentStatus,
+                trackingUrl: "https://track.example/legacy",
+                preparationStartedAtUtc: DateTime.UtcNow.AddHours(-3),
+                productionStartedAtUtc: DateTime.UtcNow.AddHours(-2),
+                deliveredAtUtc: fulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                    ? DateTime.UtcNow.AddHours(-1)
+                    : null
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var order = await context.ShopOrders.SingleAsync(row => row.Id == orderId);
+            order.DispatchSource = null;
+            order.DispatchedByAdminUserId = null;
+            order.DispatchCarrierName = null;
+            order.DispatchCarrierReference = null;
+            await context.SaveChangesAsync();
+            return orderId;
         }
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

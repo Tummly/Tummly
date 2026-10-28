@@ -2,7 +2,10 @@ namespace TummlyBackend.DTOs.Locations
 {
     public abstract record AddOwnedLocationResult
     {
-        public sealed record Created(int LocationId) : AddOwnedLocationResult;
+        public sealed record Created(
+            int LocationId,
+            PremisesDuplicateWarning? PremisesWarning = null
+        ) : AddOwnedLocationResult;
 
         public sealed record CapReached(int Cap, int Current, string? Message = null)
             : AddOwnedLocationResult;

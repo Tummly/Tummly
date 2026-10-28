@@ -14,6 +14,9 @@ namespace TummlyBackend.DTOs.Admin
 
         public IReadOnlyList<string> FulfilmentStatus { get; set; } =
             Array.Empty<string>();
+
+        /// <summary>Only Dispatched or Delivered orders whose carrier evidence is missing.</summary>
+        public bool DispatchEvidenceMissing { get; set; }
     }
 
     public sealed class AdminShopOrderListResponseDto
@@ -59,10 +62,28 @@ namespace TummlyBackend.DTOs.Admin
 
         public DateTime? PaidAtUtc { get; set; }
 
+        /// <summary>When Admin recorded that preparation started (UTC).</summary>
+        public DateTime? PreparationStartedAtUtc { get; set; }
+
         /// <summary>
         /// When set, warehouse production has started and operator cancel is blocked.
         /// </summary>
         public DateTime? ProductionStartedAtUtc { get; set; }
+
+        /// <summary>Dispatch evidence time (UTC); null until dispatched.</summary>
+        public DateTime? DispatchedAtUtc { get; set; }
+
+        public string? DispatchCarrierName { get; set; }
+
+        public string? DispatchCarrierReference { get; set; }
+
+        /// <summary>How the dispatch evidence was recorded (for example <c>legacy_backfill</c>).</summary>
+        public string? DispatchSource { get; set; }
+
+        /// <summary>Admin who recorded the dispatch evidence; null for legacy dispatches.</summary>
+        public int? DispatchedByAdminUserId { get; set; }
+
+        public DateTime? DeliveredAtUtc { get; set; }
 
         public int GrossPence { get; set; }
 
@@ -164,6 +185,38 @@ namespace TummlyBackend.DTOs.Admin
 
         [JsonIgnore]
         public bool OpsNotesSet => _opsNotesSet;
+    }
+
+    /// <summary>
+    /// Dispatch evidence from Admin. Carrier name and reference are required;
+    /// the tracking URL is optional supporting information.
+    /// </summary>
+    public sealed class AdminShopDispatchRequest
+    {
+        public string? CarrierName { get; init; }
+
+        public string? CarrierReference { get; init; }
+
+        public string? TrackingUrl { get; init; }
+    }
+
+    /// <summary>
+    /// Backfill of dispatch evidence for a legacy order. All three fields are
+    /// required: the actual dispatch time is supplied by Admin.
+    /// </summary>
+    public sealed class AdminShopDispatchEvidenceRequest
+    {
+        public string? CarrierName { get; init; }
+
+        public string? CarrierReference { get; init; }
+
+        public DateTimeOffset? DispatchedAtUtc { get; init; }
+    }
+
+    /// <summary>Audited return to the last substantiated status.</summary>
+    public sealed class AdminShopStatusCorrectionRequest
+    {
+        public string? Reason { get; init; }
     }
 
     public sealed class AdminShopForceCancelRequest

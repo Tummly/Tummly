@@ -128,13 +128,14 @@ namespace TummlyBackend.Tests.Helpers
 
         public FaultyGuestReplySmsSendStep(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IRecoverySmsBillingReserve smsBilling,
             IRecoveryGuestSmsDelivery smsDelivery,
             TimeProvider clock,
             ILogger<GuestReplySmsSendStep> logger,
             SmsStepFaults faults
         )
-            : base(context, smsBilling, smsDelivery, clock, logger)
+            : base(context, suppressions, smsBilling, smsDelivery, clock, logger)
         {
             _faults = faults;
         }
@@ -193,6 +194,7 @@ namespace TummlyBackend.Tests.Helpers
             services.AddScoped<IGuestReplySmsSendStep>(sp =>
                 new FaultyGuestReplySmsSendStep(
                     sp.GetRequiredService<ApplicationDbContext>(),
+                    sp.GetRequiredService<IGuestContactSuppressionService>(),
                     sp.GetRequiredService<IRecoverySmsBillingReserve>(),
                     sp.GetRequiredService<IRecoveryGuestSmsDelivery>(),
                     sp.GetRequiredService<TimeProvider>(),

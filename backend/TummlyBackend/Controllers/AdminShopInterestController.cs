@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
@@ -37,6 +38,55 @@ namespace TummlyBackend.Controllers
                     countsByProduct = result.CountsByProduct,
                 }
             );
+        }
+
+        [HttpGet("counts/export")]
+        public async Task<IActionResult> ExportCounts(CancellationToken cancellationToken)
+        {
+            var (fileName, content) = await _interest.ExportCountsCsvAsync(
+                cancellationToken
+            );
+            return File(content, "text/csv", fileName);
+        }
+
+        [HttpDelete("registrations/{id:int}")]
+        public async Task<IActionResult> RemoveRegistration(
+            int id,
+            CancellationToken cancellationToken
+        )
+        {
+            var staffId = GetStaffId();
+            if (staffId == null)
+            {
+                return Unauthorized(new { success = false, message = "Invalid token." });
+            }
+
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                return BadRequest(
+                    new
+                    {
+                        success = false,
+                        message = "Admin identity could not be resolved from the current session.",
+                    }
+                );
+            }
+
+            var (ok, error) = await _interest.RemoveRegistrationAsync(
+                id,
+                staffId.Value,
+                adminIdentity,
+                cancellationToken
+            );
+            if (!ok)
+            {
+                return NotFound(new { success = false, message = error });
+            }
+
+            return Ok(new { success = true });
         }
 
         [HttpGet("products")]
@@ -163,6 +213,20 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(new { success = true, item = product });
+        }
+
+        private int? GetStaffId()
+        {
+            var staffIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (
+                string.IsNullOrEmpty(staffIdClaim)
+                || !int.TryParse(staffIdClaim, out var staffId)
+            )
+            {
+                return null;
+            }
+
+            return staffId;
         }
 
         private IActionResult MapError(string error)

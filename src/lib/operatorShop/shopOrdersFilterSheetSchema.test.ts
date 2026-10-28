@@ -27,8 +27,8 @@ const MOCK_ORDERS: DetailedShopOrder[] = [
     totalNumeric: 82.8,
     paymentStatus: "Paid",
     paymentStatusLabel: "Paid",
-    fulfilmentStatus: "Processing",
-    fulfilmentStatusLabel: "Processing",
+    fulfilmentStatus: "Confirmed",
+    fulfilmentStatusLabel: "Confirmed",
     orderKindLabel: null,
     updatedDate: "30 Jul 2026",
   },
@@ -93,6 +93,9 @@ describe("shopOrdersFilterSheetSchema", () => {
   })
 
   it("maps fulfilment display labels to stored filter ids", () => {
+    expect(normalizeFulfilmentStatusToId("Confirmed")).toBe("processing")
+    expect(normalizeFulfilmentStatusToId("Preparing")).toBe("processing")
+    expect(normalizeFulfilmentStatusToId("In production")).toBe("processing")
     expect(normalizeFulfilmentStatusToId("Dispatched")).toBe("in_transit")
     expect(normalizePaymentStatusToId("Refunded")).toBe("refunded")
     expect(normalizePaymentStatusToId("Free")).toBe("paid")

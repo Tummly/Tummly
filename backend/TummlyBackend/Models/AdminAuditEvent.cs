@@ -35,14 +35,38 @@
         public const string CreditAdjust = "credit.adjust";
         public const string CreditReverse = "credit.reverse";
         public const string PaymentRefund = "payment.refund";
+        public const string ShopPreparationStarted = "shop.preparation_started";
         public const string ShopProductionStarted = "shop.production_started";
+        public const string ShopDispatched = "shop.dispatched";
+        public const string ShopDelivered = "shop.delivered";
+        public const string ShopDispatchEvidenceRecorded =
+            "shop.dispatch_evidence_recorded";
+        public const string ShopStatusCorrected = "shop.status_corrected";
         public const string ShopForceCancel = "shop.force_cancel";
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";
         public const string ShopPrintAssetApproved = "shop.print_asset_approved";
+        public const string ShopInterestRegistrationRemoved =
+            "shop.interest_registration_removed";
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
         public const string GuestDataExport = "guest.data_export";
+        public const string GuestIdentityCorrection = "guest.identity_correction";
+        public const string OperatorActivationAssetRead =
+            "operator.activation_asset_read";
+        public const string OperatorPrintMaterialsRead =
+            "operator.print_materials_read";
+        public const string OperatorPrintMaterialDownload =
+            "operator.print_material_download";
+        public const string ShopOrdersExport = "shop.orders_export";
+        public const string ShopOrdersRead = "shop.orders_read";
+        public const string TrialRequestsRead = "trial.requests_read";
+        public const string OperatorPilotAccountsRead = "operator.pilot_accounts_read";
+        public const string AdminAuditEventsRead = "audit.events_read";
+        public const string PrivacyArchivedHistoryRead =
+            "privacy_consent.archived_history_read";
+        public const string SupportQueriesRead = "support.queries_read";
+        public const string SupportQueryRead = "support.query_read";
         public const string CommercialCatalogPublish = "commercial_catalog.publish";
         public const string CommercialCatalogDraftSave = "commercial_catalog.draft_save";
         public const string BillingScheduledChangeGateFailed =
@@ -53,6 +77,9 @@
             "billing.paid_signup_checkout_failed";
         public const string BillingPendingPaymentRetryFailed =
             "billing.pending_payment_retry_failed";
+        public const string LocationPremisesFlagged = "location.premises_flagged";
+        public const string LocationPremisesCleared = "location.premises_cleared";
+        public const string LocationPremisesRejected = "location.premises_rejected";
     }
 
     public static class AdminAuditTargetTypes
@@ -64,6 +91,10 @@
         public const string PaymentOrder = "payment_order";
         public const string ShopOrder = "shop_order";
         public const string ShopMaterialSku = "shop_material_sku";
+        public const string ShopInterestRegistration = "shop_interest_registration";
         public const string CommercialCatalogVersion = "commercial_catalog_version";
+        public const string HelpCentreQuery = "help_centre_query";
+        public const string AdminAuditEvent = "admin_audit_event";
+        public const string RestaurantLocation = "restaurant_location";
     }
 }

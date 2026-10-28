@@ -30,6 +30,10 @@ import {
 import { fetchSignupLocationCapacity } from "@/components/signup/locations/fetchSignupLocationCapacity"
 import { Button } from "@/components/ui/button"
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
+import {
+  isPossibleDuplicatePremises,
+  POSSIBLE_DUPLICATE_PREMISES_MESSAGE,
+} from "@/lib/operatorLocations/importPremisesWarning"
 import { cn } from "@/lib/utils"
 import type { LocationDetailEditFields } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
 import type { PlanEntitlementLimit } from "@/lib/planEntitlements/planEntitlementsPresentation"
@@ -283,16 +287,24 @@ function SignupLocationsPage() {
           setAddError(null)
           try {
             const created = await createOwnedLocation(input)
-            try {
-              const activated = await activateOwnedLocation(created.locationId)
-              if (activated.accountType != null) {
-                updateAuthAccountType(activated.accountType)
+            // Same rule as import: a possible duplicate stays Draft for review.
+            const needsReview = isPossibleDuplicatePremises(created.warning)
+            if (!needsReview) {
+              try {
+                const activated = await activateOwnedLocation(created.locationId)
+                if (activated.accountType != null) {
+                  updateAuthAccountType(activated.accountType)
+                }
+              } catch {
+                // Create may already leave the location Active.
               }
-            } catch {
-              // Create may already leave the location Active.
             }
             await refresh()
-            toast.success("Location added.")
+            if (needsReview) {
+              toast.warning(POSSIBLE_DUPLICATE_PREMISES_MESSAGE)
+            } else {
+              toast.success("Location added.")
+            }
           } catch (error) {
             const message = getUserFacingApiErrorMessage(
               error,
@@ -322,10 +334,15 @@ function SignupLocationsPage() {
                 postcode: row.postcode,
                 locationPhone: row.locationPhone,
                 localContact: row.localContact,
+                fsaEstablishmentId: row.fsaEstablishmentId,
               }))
             )
 
             for (const created of result.created) {
+              // Possible duplicates stay Draft for review; never activate them here.
+              if (isPossibleDuplicatePremises(created.warning)) {
+                continue
+              }
               try {
                 const activated = await activateOwnedLocation(created.locationId)
                 if (activated.accountType != null) {
@@ -347,6 +364,21 @@ function SignupLocationsPage() {
             } else if (result.created.length > 0) {
               toast.success(
                 `Imported ${result.created.length}; ${result.errors.length} row(s) need attention.`
+              )
+            }
+
+            const duplicateRows = result.created.filter((row) =>
+              isPossibleDuplicatePremises(row.warning)
+            )
+            if (duplicateRows.length > 0) {
+              toast.warning(
+                duplicateRows
+                  .slice(0, 4)
+                  .map(
+                    (row) =>
+                      `Row ${row.rowIndex + 1}: ${POSSIBLE_DUPLICATE_PREMISES_MESSAGE}`
+                  )
+                  .join(" ")
               )
             }
 

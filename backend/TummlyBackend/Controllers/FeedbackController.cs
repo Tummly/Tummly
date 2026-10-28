@@ -1512,6 +1512,16 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
@@ -1610,6 +1620,15 @@ namespace TummlyBackend.Controllers
                 return Unauthorized(new
                 {
                     success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
                     message = ex.Message,
                 });
             }
@@ -1793,6 +1812,17 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = "Purpose and tone are required.",
+                    retryable = false,
+                });
+            }
+
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
                     retryable = false,
                 });
             }
@@ -2075,6 +2105,16 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackGuestResponsePurposes.IsAllowed(dto.Purpose))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = FeedbackGuestResponsePurposes.ErrorCode,
+                    message = FeedbackGuestResponsePurposes.Message,
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
@@ -2176,6 +2216,15 @@ namespace TummlyBackend.Controllers
                 return Unauthorized(new
                 {
                     success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
                     message = ex.Message,
                 });
             }
@@ -2449,6 +2498,15 @@ namespace TummlyBackend.Controllers
                 return Unauthorized(new
                 {
                     success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ServiceReplyRefusedException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = ex.Code,
                     message = ex.Message,
                 });
             }

@@ -67,8 +67,20 @@ export type AdminShopOrderListItem = {
   paidAtUtc: string | null
   /** ISO UTC when the order was placed. */
   createdAtUtc: string
-  /** ISO UTC when warehouse marked production started; null until stamped. */
+  /** ISO UTC when Admin recorded that preparation started; null until then. */
+  preparationStartedAtUtc: string | null
+  /** ISO UTC when Admin recorded that production started; null until then. */
   productionStartedAtUtc: string | null
+  /** ISO UTC of the dispatch event (carrier handoff); null until dispatched. */
+  dispatchedAtUtc: string | null
+  dispatchCarrierName: string | null
+  dispatchCarrierReference: string | null
+  /** How the dispatch evidence was recorded, for example `legacy_backfill`. */
+  dispatchSource?: string | null
+  /** Admin who recorded the dispatch evidence; null for legacy dispatches. */
+  dispatchedByAdminUserId?: number | null
+  /** ISO UTC of the delivery confirmation; null until delivered. */
+  deliveredAtUtc: string | null
   grossPence: number
   lines: AdminShopOrderLineSummary[]
   printAssets: AdminShopPrintAsset[]
@@ -91,10 +103,12 @@ export type AdminShopOrdersListParams = {
   q?: string
   restaurantId?: number
   fulfilmentStatus?: AdminShopFulfilmentStatus[]
+  /** Only orders stored as Dispatched or Delivered without carrier evidence. */
+  dispatchEvidenceMissing?: boolean
 }
 
+/** Status moves use the transition calls below. The patch sets tracking and notes only. */
 export type AdminShopOrderFulfilmentPatch = {
-  fulfilmentStatus?: AdminShopFulfilmentStatus
   trackingUrl?: string | null
   opsNotes?: string | null
 }
@@ -141,11 +155,89 @@ export async function patchAdminShopOrderFulfilment(
   return response.data
 }
 
+export async function markShopOrderPreparationStarted(
+  orderId: string
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/preparation-started`
+  )
+  return response.data
+}
+
 export async function markShopOrderProductionStarted(
   orderId: string
 ): Promise<AdminShopOrderListItem> {
   const response = await axiosInstance.post<AdminShopOrderListItem>(
     `/admin/shop-orders/${orderId}/production-started`
+  )
+  return response.data
+}
+
+export type AdminShopDispatchBody = {
+  carrierName: string
+  carrierReference: string
+  /** Optional supporting link; a dispatch never needs one. */
+  trackingUrl?: string | null
+}
+
+export async function markShopOrderDispatched(
+  orderId: string,
+  body: AdminShopDispatchBody
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/dispatched`,
+    {
+      carrierName: body.carrierName.trim(),
+      carrierReference: body.carrierReference.trim(),
+      trackingUrl: body.trackingUrl?.trim() || null,
+    }
+  )
+  return response.data
+}
+
+export async function markShopOrderDelivered(
+  orderId: string
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/delivered`
+  )
+  return response.data
+}
+
+export type AdminShopDispatchEvidenceBody = {
+  carrierName: string
+  carrierReference: string
+  /** ISO UTC of the actual dispatch time. */
+  dispatchedAtUtc: string
+}
+
+/**
+ * Backfills carrier evidence for a legacy dispatch. The order keeps its
+ * status and tracking URL.
+ */
+export async function recordShopOrderDispatchEvidence(
+  orderId: string,
+  body: AdminShopDispatchEvidenceBody
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/dispatch-evidence`,
+    {
+      carrierName: body.carrierName.trim(),
+      carrierReference: body.carrierReference.trim(),
+      dispatchedAtUtc: body.dispatchedAtUtc,
+    }
+  )
+  return response.data
+}
+
+/** Returns an order with unsupported dispatch or delivery evidence to its last substantiated state. */
+export async function correctShopOrderStatus(
+  orderId: string,
+  reason: string
+): Promise<AdminShopOrderListItem> {
+  const response = await axiosInstance.post<AdminShopOrderListItem>(
+    `/admin/shop-orders/${orderId}/status-correction`,
+    { reason: reason.trim() }
   )
   return response.data
 }

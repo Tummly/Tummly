@@ -36,5 +36,8 @@ namespace TummlyBackend.Models
         public const string RecoveryDraft = "recovery_draft";
         public const string CampaignDraft = "campaign_draft";
         public const string SimulatedSend = "simulated_send";
+
+        /// <summary>Assistant thread id created by a demo session; only that session may read or continue it.</summary>
+        public const string AssistantConversation = "assistant_conversation";
     }
 }

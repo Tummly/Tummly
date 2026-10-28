@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  MARKETING_FOOTER_BOTTOM_LINKS,
   MARKETING_FOOTER_COMPANY_DISCLOSURE,
   MARKETING_FOOTER_SOCIAL,
 } from "@/constants/marketingNav"
@@ -25,6 +26,20 @@ describe("marketing footer", () => {
         id: "facebook",
         label: "Facebook",
         href: { kind: "external", href: "https://www.facebook.com/Tummlycom" },
+      },
+    ])
+  })
+
+  it("offers one Cookie settings item in the legal row", () => {
+    const cookieSettings = MARKETING_FOOTER_BOTTOM_LINKS.filter(
+      (item) => item.href.kind === "cookie-settings"
+    )
+
+    expect(cookieSettings).toEqual([
+      {
+        id: "cookie-settings",
+        label: "Cookie settings",
+        href: { kind: "cookie-settings" },
       },
     ])
   })

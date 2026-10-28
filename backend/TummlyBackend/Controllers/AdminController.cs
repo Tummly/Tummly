@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -54,6 +55,16 @@ namespace TummlyBackend.Controllers
             var requests =
                 await _adminService
                     .GetAllTrialRequestsAsync();
+
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.TrialRequestsRead,
+                    AdminAuditTargetTypes.TrialRequest,
+                    "list",
+                    StaffReadAudit.Detail(User)
+                )
+            );
 
             return Ok(new
             {
@@ -206,6 +217,19 @@ namespace TummlyBackend.Controllers
             [FromBody] ExtendActivationDto dto
         )
         {
+            // Every extension needs a key: a retry with the same key must replay, not extend again.
+            if (string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = BillingAccountLifecycleService.PilotExtensionIdempotencyKeyRequiredCode,
+                    message = BillingAccountLifecycleService.PilotExtensionRefusalMessage(
+                        BillingAccountLifecycleService.PilotExtensionIdempotencyKeyRequiredCode
+                    ),
+                });
+            }
+
             try
             {
                 var staffId = GetStaffId();
@@ -288,6 +312,16 @@ namespace TummlyBackend.Controllers
         {
             var accounts = await _adminService.ListPilotAccountsAsync();
 
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.OperatorPilotAccountsRead,
+                    AdminAuditTargetTypes.OperatorUser,
+                    "list",
+                    StaffReadAudit.Detail(User)
+                )
+            );
+
             return Ok(new
             {
                 success = true,
@@ -312,6 +346,15 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.OperatorActivationAssetRead,
+                        AdminAuditTargetTypes.OperatorUser,
+                        userId.ToString()
+                    )
+                );
+
                 return File(
                     result.Value.Content,
                     result.Value.ContentType,
@@ -332,6 +375,14 @@ namespace TummlyBackend.Controllers
         public async Task<IActionResult> ListPrintMaterials(int userId)
         {
             var data = await _printReadyQrMaterials.ListReadinessAsync(userId);
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.OperatorPrintMaterialsRead,
+                    AdminAuditTargetTypes.OperatorUser,
+                    userId.ToString()
+                )
+            );
             return Ok(new { success = true, data });
         }
 
@@ -402,6 +453,18 @@ namespace TummlyBackend.Controllers
                         message = "Print-ready QR asset not found.",
                     });
                 }
+
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.OperatorPrintMaterialDownload,
+                        AdminAuditTargetTypes.OperatorUser,
+                        userId.ToString(),
+                        System.Text.Json.JsonSerializer.Serialize(
+                            new { locationId, qrType }
+                        )
+                    )
+                );
 
                 return File(result.Content, result.ContentType, result.FileName);
             }
@@ -763,6 +826,19 @@ namespace TummlyBackend.Controllers
         {
             var result = await _adminAudit.ListAsync(
                 new AdminAuditListQuery(action, restaurantId, from, to, skip, take),
+                cancellationToken
+            );
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.AdminAuditEventsRead,
+                    AdminAuditTargetTypes.AdminAuditEvent,
+                    "list",
+                    StaffReadAudit.Detail(
+                        User,
+                        new { action, restaurantId, from, to, skip, take }
+                    )
+                ),
                 cancellationToken
             );
             return Ok(new { success = true, data = result.Items, totalCount = result.TotalCount });

@@ -21,6 +21,7 @@ import { locationsPageModuleContext } from "@/components/dashboard/operator/Loca
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOperatorLocationsPageModule } from "@/lib/operatorLocations/createOperatorLocationsPageModule"
+import { isPossibleDuplicatePremises } from "@/lib/operatorLocations/importPremisesWarning"
 import { updateAuthAccountType } from "@/pages/utils/authHelpers"
 
 export function LocationsPageModuleProvider({
@@ -39,7 +40,8 @@ export function LocationsPageModuleProvider({
         getList: getLocationsList,
         getActivity: getLocationsActivity,
         createDraft: async (input) => {
-          await createOwnedLocation(input)
+          const created = await createOwnedLocation(input)
+          return { needsReview: isPossibleDuplicatePremises(created.warning) }
         },
         importDrafts: async (rows) => {
           const result = await importOwnedLocations(rows)
@@ -49,6 +51,9 @@ export function LocationsPageModuleProvider({
               rowIndex: row.rowIndex,
               message: row.message,
             })),
+            warnings: result.created
+              .filter((row) => isPossibleDuplicatePremises(row.warning))
+              .map((row) => ({ rowIndex: row.rowIndex })),
           }
         },
         activateDraft: async (locationId) => {

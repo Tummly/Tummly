@@ -25,6 +25,7 @@ namespace TummlyBackend.Services
         private readonly CustomPlanCycleBillingService _customPlanCycleBilling;
         private readonly IPilotStartService _pilotStart;
         private readonly ILogger<GuestLoopProvisioningService> _logger;
+        private readonly IPremisesReviewService _premises;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
@@ -36,10 +37,12 @@ namespace TummlyBackend.Services
             IFirstPaidConversionPaySession firstPaidConversionPaySession,
             CustomPlanCycleBillingService customPlanCycleBilling,
             IPilotStartService pilotStart,
-            ILogger<GuestLoopProvisioningService> logger
+            ILogger<GuestLoopProvisioningService> logger,
+            IPremisesReviewService? premises = null
         )
         {
             _logger = logger;
+            _premises = premises ?? new PremisesReviewService(context);
             _context = context;
             _qrCodeProvisioning = qrCodeProvisioning;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
@@ -770,8 +773,27 @@ namespace TummlyBackend.Services
                     }
                 );
 
+                var flaggedLocations = new List<(RestaurantLocation Location, PremisesCheckResult Check, int? EarlierIndex)>();
+                var keysInThisSignup = new Dictionary<string, int>(StringComparer.Ordinal);
                 foreach (var item in input.Locations)
                 {
+                    // Same server-owned premises check as import and Add
+                    // Location. A match saves the Location as Draft for review
+                    // instead of Active, with no QR codes, Pilot or Starter Kit.
+                    var check = await _premises.CheckAsync(
+                        new PremisesCheckInput(
+                            restaurant.Id,
+                            item.Address,
+                            item.City,
+                            item.Postcode,
+                            FsaEstablishmentId: null
+                        )
+                    );
+                    var earlierIndex = check.PremisesKey != null
+                        && keysInThisSignup.TryGetValue(check.PremisesKey, out var seen)
+                            ? seen
+                            : (int?)null;
+
                     var location = new RestaurantLocation
                     {
                         RestaurantId = restaurant.Id,
@@ -790,6 +812,25 @@ namespace TummlyBackend.Services
                         LocalContact = item.LocalContact,
                         CreatedAt = now,
                     };
+                    if (
+                        _premises.Apply(
+                            location,
+                            check,
+                            alsoFlagged: earlierIndex != null
+                        )
+                    )
+                    {
+                        location.LifecycleStatus = LocationLifecycleStatus.Draft;
+                        flaggedLocations.Add((location, check, earlierIndex));
+                    }
+
+                    if (check.PremisesKey != null)
+                    {
+                        keysInThisSignup.TryAdd(
+                            check.PremisesKey,
+                            provisionedLocations.Count
+                        );
+                    }
 
                     _context.RestaurantLocations.Add(location);
                     provisionedLocations.Add(location);
@@ -798,6 +839,15 @@ namespace TummlyBackend.Services
                 }
 
                 await _context.SaveChangesAsync();
+                if (flaggedLocations.Count > 0)
+                {
+                    foreach (var (flagged, check, earlierIndex) in flaggedLocations)
+                    {
+                        _premises.RecordFlag(flagged, check, earlierIndex);
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
 
                 var guestLoop = new GuestLoopSetup
                 {
@@ -835,6 +885,11 @@ namespace TummlyBackend.Services
             // Capture / print-ready starter ensure mints missing starter QR types.
             foreach (var location in provisionedLocations)
             {
+                if (PremisesReviewGate.Blocks(location))
+                {
+                    continue;
+                }
+
                 await _printReadyQrMaterialsWork.RequestEnsureAsync(location.Id);
             }
 

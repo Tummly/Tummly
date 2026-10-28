@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -263,6 +264,72 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.False(body.GetProperty("success").GetBoolean());
             Assert.Equal("expired", body.GetProperty("reason").GetString());
+        }
+
+        [Fact]
+        public async Task MarkRedeemed_SecondConfirmForSameClaim_FailsAlreadyUsed_KeepsFirstRedeemedAt()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-redeem-twice");
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Jordan");
+            var offerId = await SeedCatalogOfferAsync(seeded.LocationId);
+            var issueId = await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                claimCode: "TUM-TWICE1",
+                claimedAt: null
+            );
+
+            using var first = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-TWICE1",
+                    issueId = issueId.ToString(),
+                }
+            );
+            var firstResponse = await _client.SendAsync(first);
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            var firstBody = await ReadJsonAsync(firstResponse);
+            Assert.True(firstBody.GetProperty("success").GetBoolean());
+
+            DateTime? redeemedAfterFirst;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                redeemedAfterFirst = (await context.OfferIssues.FindAsync(issueId))!
+                    .RedeemedAtUtc;
+            }
+            Assert.NotNull(redeemedAfterFirst);
+
+            using var second = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/redeem",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    code = "TUM-TWICE1",
+                    issueId = issueId.ToString(),
+                }
+            );
+            var secondResponse = await _client.SendAsync(second);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+            var secondBody = await ReadJsonAsync(secondResponse);
+            Assert.False(secondBody.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                OfferRedeemFailureReasons.AlreadyUsed,
+                secondBody.GetProperty("reason").GetString()
+            );
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verify = verifyScope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var issue = await verify.OfferIssues.FindAsync(issueId);
+            Assert.Equal(redeemedAfterFirst, issue!.RedeemedAtUtc);
         }
 
         [Fact]

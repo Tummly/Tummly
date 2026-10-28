@@ -19,7 +19,11 @@ namespace TummlyBackend.DTOs.Locations
         public sealed record FailClosed : ImportOwnedLocationsResult;
     }
 
-    public sealed record ImportCreatedRow(int RowIndex, int LocationId);
+    public sealed record ImportCreatedRow(
+        int RowIndex,
+        int LocationId,
+        PremisesDuplicateWarning? Warning = null
+    );
 
     public sealed record ImportErrorRow(
         int RowIndex,

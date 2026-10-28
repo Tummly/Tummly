@@ -8,6 +8,7 @@ import {
   clearSignupPlanIntent,
   parseSignupPlanIntent,
   readSignupPlanIntent,
+  restoreSignupPlanIntentFromResume,
   saveSignupCustomPlanConfig,
   saveSignupPlanIntent,
   signupStepAfterLocation,
@@ -314,5 +315,90 @@ describe("signupStepAfterLocation", () => {
     expect(signupStepAfterLocation({ plan: "Starter" })).toBe("choosePlan")
     expect(signupStepAfterLocation({ plan: "Pilot" })).toBe("choosePlan")
     expect(signupStepAfterLocation(null)).toBe("choosePlan")
+  })
+})
+
+describe("restoreSignupPlanIntentFromResume", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  const NO_PLAN = { chosenPlan: null, chosenCadence: null, planConfig: null }
+
+  it("restores a saved Custom config when sessionStorage has no intent", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "annual",
+      planConfig: {
+        basePlan: "growth",
+        locations: 3,
+        packs: { qr_10: 2 },
+        quoteHash: "abc",
+      },
+    })
+
+    const expected = {
+      plan: "Custom",
+      cadence: "annual",
+      config: {
+        version: 2,
+        cadence: "annual",
+        basePlan: "growth",
+        locations: 3,
+        packs: { qr_10: 2 },
+        quoteHash: "abc",
+      },
+    }
+    expect(restored).toEqual(expected)
+    expect(readSignupPlanIntent()).toEqual(expected)
+  })
+
+  it("restores a standard catalogue plan with its term", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Starter",
+      chosenCadence: "annual",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Starter", cadence: "annual" })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Starter", cadence: "annual" })
+  })
+
+  it("restores Pilot without a term", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Pilot",
+      chosenCadence: "monthly",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Pilot" })
+  })
+
+  it("keeps the intent already in sessionStorage", () => {
+    saveSignupPlanIntent({ plan: "Group", cadence: "monthly" })
+
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Starter",
+      chosenCadence: "annual",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Group", cadence: "monthly" })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Group", cadence: "monthly" })
+  })
+
+  it("restores nothing when the server has no saved plan", () => {
+    expect(restoreSignupPlanIntentFromResume(NO_PLAN)).toBeNull()
+    expect(readSignupPlanIntent()).toBeNull()
+  })
+
+  it("drops a saved config with an invalid Location count", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "monthly",
+      planConfig: { basePlan: "starter", locations: 0, packs: {}, quoteHash: null },
+    })
+
+    expect(restored).toEqual({ plan: "Custom", cadence: "monthly" })
   })
 })

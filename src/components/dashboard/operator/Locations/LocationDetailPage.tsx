@@ -53,6 +53,7 @@ import {
   LOCATION_DETAIL_PAGE_COPY,
   type LocationDetailTabId,
 } from "@/lib/operatorLocations/locationDetailPresentation"
+import { premisesReviewLabel } from "@/lib/operatorLocations/premisesReviewPresentation"
 import {
   LOCATION_LIFECYCLE_LABELS,
   locationLifecycleBadgeVariant,
@@ -107,6 +108,7 @@ export function LocationDetailPage() {
 
   const lifecycleVariant = locationLifecycleBadgeVariant(snap.lifecycleStatus)
   const lifecycleLabel = LOCATION_LIFECYCLE_LABELS[snap.lifecycleStatus]
+  const reviewLabel = premisesReviewLabel(snap.premisesReviewStatus)
 
   if (snap.loadStatus === "not-found") {
     return (
@@ -202,6 +204,11 @@ export function LocationDetailPage() {
               {lifecycleLabel}
             </Badge>
           )}
+          {reviewLabel != null ? (
+            <span className="text-sm font-medium text-op-text-secondary">
+              {reviewLabel}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

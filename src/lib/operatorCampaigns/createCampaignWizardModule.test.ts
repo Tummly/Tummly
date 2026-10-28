@@ -1003,19 +1003,27 @@ describe("createCampaignWizardModule", () => {
       ...defaultAudienceAdapters({
         loadSmartGroupCounts,
         loadAudienceEligibility: async ({ audienceKey }) =>
-          liveEligibility({
-            matched:
-              audienceKey === "all-eligible-guests"
-                ? 200
-                : audienceKey === "new-guests"
-                  ? 31
-                  : audienceKey === "positive-feedback"
-                    ? 44
-                    : audienceKey === "dormant-guests"
-                      ? 17
-                      : 10,
-            currentlyEligible: 8,
-          }),
+          // Offer-free Campaign: offer-not-redeemed has no Offer to count against.
+          audienceKey === "offer-not-redeemed"
+            ? {
+                ...unavailableCampaignAudienceEligibilityBreakdown(),
+                unavailableReason: "no-offer-attached",
+              }
+            : liveEligibility({
+                matched:
+                  audienceKey === "all-eligible-guests"
+                    ? 200
+                    : audienceKey === "new-guests"
+                      ? 31
+                      : audienceKey === "positive-feedback"
+                        ? 44
+                        : audienceKey === "dormant-guests"
+                          ? 17
+                          : 10,
+                currentlyEligible: 8,
+                lookbackDays:
+                  audienceKey === "recent-redeemers" ? 30 : null,
+              }),
       }),
     })
 
@@ -1050,8 +1058,13 @@ describe("createCampaignWizardModule", () => {
     expect(byId["offer-not-redeemed"]?.matched).toBeNull()
     expect(byId["offer-not-redeemed"]?.currentlyEligible).toBeNull()
     expect(byId["offer-not-redeemed"]?.countLabel).toBe("Counts unavailable")
-    expect(byId["recent-redeemers"]?.countSource).toBe("unavailable")
-    expect(byId["recent-redeemers"]?.matched).toBeNull()
+    expect(byId["recent-redeemers"]?.countSource).toBe("live-eligibility")
+    expect(byId["recent-redeemers"]?.matched).toBe(10)
+
+    wizard.setAudienceId("recent-redeemers")
+    expect(wizard.getSnapshot().audience?.periodLabel).toBe("Last 30 days")
+    wizard.setAudienceId("all-eligible-guests")
+    expect(wizard.getSnapshot().audience?.periodLabel).toBeNull()
     expect(byId["no-recent-tummly-activity"]?.countSource).toBe("unavailable")
     expect(byId["no-recent-tummly-activity"]?.matched).toBeNull()
     expect(byId["no-recent-tummly-activity"]?.title).toBe(
@@ -1084,6 +1097,13 @@ describe("createCampaignWizardModule", () => {
         loadSmartGroupCounts: vi.fn(async () => ({
           smartGroupCounts: { "all-guests": 10, "dormant-guests": 3 },
         })),
+        loadAudienceEligibility: async ({ audienceKey }) =>
+          audienceKey === "offer-not-redeemed"
+            ? {
+                ...unavailableCampaignAudienceEligibilityBreakdown(),
+                unavailableReason: "no-offer-attached",
+              }
+            : liveEligibility(),
       }),
     })
 
@@ -1096,7 +1116,6 @@ describe("createCampaignWizardModule", () => {
 
     for (const audienceId of [
       "offer-not-redeemed",
-      "recent-redeemers",
       "no-recent-tummly-activity",
     ] as const) {
       wizard.setAudienceId(audienceId)
@@ -1104,6 +1123,9 @@ describe("createCampaignWizardModule", () => {
       await wizard.continue()
       expect(wizard.getSnapshot().stepId).toBe("audience")
     }
+
+    wizard.setAudienceId("recent-redeemers")
+    expect(wizard.getSnapshot().canContinue).toBe(true)
 
     wizard.setAudienceId("dormant-guests")
     expect(wizard.getSnapshot().canContinue).toBe(true)
@@ -3778,6 +3800,7 @@ describe("createCampaignWizardModule", () => {
       body: expect.objectContaining({
         rowVersion: "r1",
         scheduleMode: "send-now",
+        confirmed: true,
       }),
     })
     expect(snapshot.stepId).toBe("success")
@@ -3906,120 +3929,150 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.review!.sendAvailable).toBe(true)
   })
 
-  it("opens from recommendation draftPrefill without creating a server Draft", async () => {
-    const createDraft = vi.fn()
-    const loadSmartGroupCounts = vi.fn(async () => ({
-      smartGroupCounts: { "all-guests": 40, "new-guests": 5 },
+  it("opens from recommendation draftPrefill through the server create-or-get and keeps the returned Draft ID", async () => {
+    const createRecommendationDraft = vi.fn(async (input) => ({
+      ...sampleDraftDetail(),
+      id: 77,
+      locationId: input.draft.locationId,
+      name: input.draft.name ?? "Thank recent guests",
+      goalId: input.draft.goalId,
+      audienceKey: input.draft.audienceKey,
+      channel: input.draft.channel,
+      offerStance: input.draft.offerStance,
+      offerId: null,
+      messageSubject: input.draft.messageSubject,
+      messageBody: input.draft.messageBody,
     }))
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-08T12:00:00.000Z"),
-      createDraft,
-      loadSmartGroupCounts,
+      createRecommendationDraft,
     })
 
-    await wizard.openFromRecommendation({
-      locationId: 42,
-      locationName: "Camden",
-      draftPrefill: {
-        goalId: "thank-recent-guests",
-        audienceKey: "new-guests",
-        channel: "email",
-        offerStance: "no-offer",
-        campaignName: "Thank you for joining",
-        messageSubject: "Thanks for joining us",
-        messageBody: "Thank you for joining our guest list.",
-      },
-    })
+    await wizard.openFromRecommendation(recommendationOpenInput())
 
-    let snapshot = wizard.getSnapshot()
+    const snapshot = wizard.getSnapshot()
     expect(snapshot.isOpen).toBe(true)
     expect(snapshot.stepId).toBe("audience")
     expect(snapshot.goalId).toBe("thank-recent-guests")
     expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
     expect(snapshot.templateId).toBeNull()
-    expect(snapshot.draftId).toBeNull()
-    expect(createDraft).not.toHaveBeenCalled()
-    expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
-
-    await wizard.continue()
-    expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("email")
-    await wizard.continue()
-    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("no-offer")
-    await wizard.continue()
-    snapshot = wizard.getSnapshot()
-    expect(snapshot.message?.writeEntry).toBe("editor")
-    expect(snapshot.message?.subject).toBe("Thanks for joining us")
-    expect(snapshot.message?.body).toBe(
-      "Thank you for joining our guest list."
-    )
-    await wizard.continue()
-    expect(wizard.getSnapshot().schedule?.selectedModeId).toBe("send-now")
-
-    wizard.close()
-    expect(wizard.getSnapshot().isOpen).toBe(false)
-    expect(createDraft).not.toHaveBeenCalled()
-  })
-
-  it("Save after recommendation prefill creates a Draft without template id", async () => {
-    const createDraft = vi.fn(async (body) => ({
-      id: 77,
-      locationId: body.locationId,
-      status: "draft" as const,
-      name: body.name ?? "Thank recent guests",
-      goalId: body.goalId ?? null,
-      templateId: body.templateId ?? null,
-      templateVersion: body.templateVersion ?? null,
-      audienceKey: body.audienceKey ?? null,
-      channel: body.channel ?? null,
-      offerStance: body.offerStance ?? null,
-      offerId: body.offerId ?? null,
-      messageSubject: body.messageSubject ?? null,
-      messageBody: body.messageBody ?? null,
-      rowVersion: "AAAAAAAAB9E=",
-      createdAt: "2026-08-08T12:00:00.000Z",
-      updatedAt: "2026-08-08T12:00:00.000Z",
-    }))
-    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft })
-
-    await wizard.openFromRecommendation({
-      locationId: 42,
-      locationName: "Camden",
-      draftPrefill: {
-        goalId: "thank-recent-guests",
-        audienceKey: "new-guests",
-        channel: "sms",
-        offerStance: "no-offer",
-        campaignName: "Thank you for joining",
-        messageSubject: null,
-        messageBody: "Thank you for joining our guest list.",
-      },
-    })
-    expect(createDraft).not.toHaveBeenCalled()
-
-    await wizard.save()
-
-    expect(createDraft).toHaveBeenCalledTimes(1)
-    expect(createDraft).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(snapshot.draftId).toBe(77)
+    expect(snapshot.saveStatus).toBe("saved")
+    expect(createRecommendationDraft).toHaveBeenCalledTimes(1)
+    expect(createRecommendationDraft).toHaveBeenCalledWith({
+      recommendationType: "thank-recent-guests",
+      draft: expect.objectContaining({
         locationId: 42,
         name: "Thank you for joining",
         goalId: "thank-recent-guests",
         audienceKey: "new-guests",
-        channel: "sms",
+        channel: "email",
         offerStance: "no-offer",
         offerId: null,
-        messageSubject: null,
+        messageSubject: "Thanks for joining us",
         messageBody: "Thank you for joining our guest list.",
         templateId: null,
         templateVersion: null,
-      })
-    )
-    const createArg = createDraft.mock.calls[0]![0]
-    expect(createArg).not.toHaveProperty("recipients")
+      }),
+    })
+    expect(createRecommendationDraft.mock.calls[0]![0]).not.toHaveProperty("recipients")
+  })
+
+  it("opens the Draft the server returns for a repeated recommendation, with its saved edits", async () => {
+    const createRecommendationDraft = vi.fn(async () => ({
+      ...sampleDraftDetail(),
+      id: 77,
+      messageBody: "Operator edit kept on reuse",
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      createRecommendationDraft,
+    })
+
+    await wizard.openFromRecommendation(recommendationOpenInput())
+    await wizard.openFromRecommendation(recommendationOpenInput())
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().draftId).toBe(77)
+    expect(wizard.getSnapshot().message?.body).toBe("Operator edit kept on reuse")
+  })
+
+  it("sends one create request while a recommendation open is still in flight", async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const createRecommendationDraft = vi.fn(async () => {
+      await gate
+      return { ...sampleDraftDetail(), id: 77 }
+    })
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      createRecommendationDraft,
+    })
+
+    const first = wizard.openFromRecommendation(recommendationOpenInput())
+    const second = wizard.openFromRecommendation(recommendationOpenInput())
+    release()
+    await Promise.all([first, second])
+
+    expect(createRecommendationDraft).toHaveBeenCalledTimes(1)
     expect(wizard.getSnapshot().draftId).toBe(77)
   })
+
+  it("keeps the wizard open with a save error when the recommendation Draft cannot be created", async () => {
+    const createRecommendationDraft = vi.fn(async () => {
+      throw new Error("create failed")
+    })
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      createRecommendationDraft,
+    })
+
+    await wizard.openFromRecommendation(recommendationOpenInput())
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.draftId).toBeNull()
+    expect(snapshot.saveStatus).toBe("error")
+    expect(snapshot.saveError).not.toBeNull()
+    expect(createRecommendationDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it("opens the prefill without a server Draft when no create-or-get adapter is wired", async () => {
+    const createDraft = vi.fn()
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      createDraft,
+    })
+
+    await wizard.openFromRecommendation(recommendationOpenInput())
+
+    expect(wizard.getSnapshot().isOpen).toBe(true)
+    expect(wizard.getSnapshot().draftId).toBeNull()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
 })
+
+function recommendationOpenInput() {
+  return {
+    locationId: 42,
+    locationName: "Camden",
+    recommendationType: "thank-recent-guests",
+    draftPrefill: {
+      goalId: "thank-recent-guests",
+      audienceKey: "new-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      campaignName: "Thank you for joining",
+      messageSubject: "Thanks for joining us",
+      messageBody: "Thank you for joining our guest list.",
+    },
+  }
+}
 
 describe("resolveCampaignChannelSmsShortfall", () => {
   it("shows a shortfall only when SMS available credits are below required", () => {

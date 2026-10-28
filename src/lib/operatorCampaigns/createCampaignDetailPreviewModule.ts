@@ -25,6 +25,8 @@ export type CampaignDetailPreviewSource = {
   channel: string | null
   offerStance: string | null
   offerId: number | null
+  audienceLookbackDays?: number | null
+  audienceLookbackTimeZone?: string | null
   offerTitle?: string | null
   messageSubject: string | null
   messageBody: string | null
@@ -38,6 +40,9 @@ export type CampaignDetailPreviewAdapters = {
   loadAudienceEligibility?: (input: {
     locationId: number
     audienceKey: string
+    offerId?: number | null
+    lookbackDays?: number | null
+    lookbackTimeZone?: string | null
   }) => Promise<CampaignAudienceEligibilityBreakdown>
 }
 
@@ -244,6 +249,9 @@ async function enrichPreviewSections(
         const breakdown = await adapters.loadAudienceEligibility({
           locationId: campaign.locationId,
           audienceKey: campaign.audienceKey!,
+          offerId: campaign.offerId,
+          lookbackDays: campaign.audienceLookbackDays ?? null,
+          lookbackTimeZone: campaign.audienceLookbackTimeZone ?? null,
         })
         eligibility = {
           emailCount: breakdown.emailEligible,

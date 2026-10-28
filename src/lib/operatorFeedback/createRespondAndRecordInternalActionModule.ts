@@ -9,6 +9,7 @@ import {
   deriveStartRecoveryContactCapability,
   type StartRecoveryContactCapability,
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import { mapRecoveryComposerRefusalCode } from "@/lib/operatorFeedback/recoveryComposerPresentation"
 import { mapResponseSetupSummaryChrome } from "@/lib/operatorFeedback/responseSetupPresentation"
 import {
   INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
@@ -1544,13 +1545,14 @@ export function createRespondAndRecordInternalActionModule(
           draft: emptyDraft(),
         }
         publish()
-      } catch {
+      } catch (error) {
         state = {
           ...state,
           step: "review",
           sendConfirmOpen: true,
           sendStatus: "error",
-          sendError: SEND_ERROR_MESSAGE,
+          sendError:
+            mapRecoveryComposerRefusalCode(error)?.message ?? SEND_ERROR_MESSAGE,
         }
         publish()
       }

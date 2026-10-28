@@ -129,6 +129,16 @@ namespace TummlyBackend.Services
                     ? QrCodeStatus.Paused
                     : requestedStatus;
 
+            // An Active code is live: same plan gate as Resume and Activate.
+            if (status == QrCodeStatus.Active)
+            {
+                var planDeny = await DenyIfFreePlanAsync(location.RestaurantId);
+                if (planDeny != null)
+                {
+                    return planDeny;
+                }
+            }
+
             var normalizedLinkName =
                 DigitalGuestLinkNaming.NormalizeLinkName(linkName);
 
@@ -764,6 +774,8 @@ namespace TummlyBackend.Services
                 .Where(row =>
                     row.RestaurantId == restaurantId
                     && row.CaptureLocationStatus == CaptureLocationStatus.Active
+                    && row.PremisesReviewStatus != PremisesReviewStatus.PendingReview
+                    && row.PremisesReviewStatus != PremisesReviewStatus.Rejected
                 )
                 .ToListAsync(cancellationToken);
             if (locations.Count == 0)
@@ -863,6 +875,11 @@ namespace TummlyBackend.Services
                 .Where(location => location.Id == locationId)
                 .Select(location => location.RestaurantId)
                 .FirstAsync();
+
+            if (await PremisesReviewGate.LocationIsBlockedAsync(_context, locationId))
+            {
+                return QrLifecycleResult.Conflict(PremisesReviewGate.BlockedMessage);
+            }
 
             var decision = await _activeQrCapacity.EvaluateAsync(
                 restaurantId,

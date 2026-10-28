@@ -11,18 +11,21 @@ namespace TummlyBackend.Services
         : IFeedbackRespondAndRecordService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IGuestContactSuppressionService _suppressions;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
         private readonly IGuestReplyLock _replyLock;
         private readonly IGuestReplySmsSendStep _smsSend;
 
         public FeedbackRespondAndRecordService(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             IGuestResponseEmailDeliveryWork emailDelivery,
             IGuestReplyLock replyLock,
             IGuestReplySmsSendStep smsSend
         )
         {
             _context = context;
+            _suppressions = suppressions;
             _emailDelivery = emailDelivery;
             _replyLock = replyLock;
             _smsSend = smsSend;
@@ -165,18 +168,16 @@ namespace TummlyBackend.Services
             const FeedbackGuestResponseChannel channel = FeedbackGuestResponseChannel.Sms;
             var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
 
-            if (
-                !await ServiceReplyEligibility.IsAllowedAsync(
-                    _context,
-                    feedback,
-                    channel,
-                    cancellationToken
-                )
-            )
+            var decision = await ServiceReplyEligibility.EvaluateAsync(
+                _context,
+                _suppressions,
+                feedback,
+                channel,
+                cancellationToken
+            );
+            if (decision != ServiceReplyDecision.Allowed)
             {
-                throw new ArgumentException(
-                    ServiceReplyEligibility.NotAllowedMessage
-                );
+                throw new ServiceReplyRefusedException(decision);
             }
 
             _smsSend.EnsureBillingLive();

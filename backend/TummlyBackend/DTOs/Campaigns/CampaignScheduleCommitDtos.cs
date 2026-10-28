@@ -16,6 +16,12 @@ namespace TummlyBackend.DTOs.Campaigns
 
         /// <summary>Account / restaurant IANA timezone.</summary>
         public string ScheduleTimeZone { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Must be <c>true</c>. Sent only from the operator's explicit confirm
+        /// action. Missing or <c>false</c> is rejected before any Billing Reserve.
+        /// </summary>
+        public bool Confirmed { get; init; }
     }
 
     public sealed class CampaignScheduleCommitDto

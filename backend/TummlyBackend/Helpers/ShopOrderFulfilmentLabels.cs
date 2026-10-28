@@ -2,7 +2,7 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
-    internal static class ShopOrderFulfilmentLabels
+    public static class ShopOrderFulfilmentLabels
     {
         public const string AwaitingPaymentLabel = "Awaiting payment";
 
@@ -10,22 +10,20 @@ namespace TummlyBackend.Helpers
             "Complimentary Starter Kit";
 
         /// <summary>
-        /// Fulfilment label. An order that is not paid yet has no fulfilment,
-        /// so it reads "Awaiting payment" instead of a default "Processing".
+        /// Customer fulfilment label, read from the order's evidence. Each
+        /// stage needs its own evidence timestamp, so a status with no proof
+        /// falls back to the stage before it. The stored status does not change.
         /// </summary>
-        public static string ToDisplayLabel(
-            string? storedStatus,
-            string? paymentStatus = null
-        )
+        public static string ToDisplayLabel(ShopOrder order)
         {
             if (
                 string.Equals(
-                    paymentStatus,
+                    order.PaymentStatus,
                     ShopPaymentStatuses.AwaitingPayment,
                     StringComparison.Ordinal
                 )
                 || string.Equals(
-                    paymentStatus,
+                    order.PaymentStatus,
                     ShopPaymentStatuses.PaymentFailed,
                     StringComparison.Ordinal
                 )
@@ -34,14 +32,42 @@ namespace TummlyBackend.Helpers
                 return AwaitingPaymentLabel;
             }
 
-            return storedStatus switch
+            if (order.FulfilmentStatus == ShopFulfilmentStatuses.Cancelled)
             {
-                ShopFulfilmentStatuses.Processing => "Processing",
-                ShopFulfilmentStatuses.InTransit => "Dispatched",
-                ShopFulfilmentStatuses.Delivered => "Delivered",
-                ShopFulfilmentStatuses.Cancelled => "Cancelled",
-                _ => "Processing",
-            };
+                return "Cancelled";
+            }
+
+            // Dispatched and Delivered need carrier evidence. A dispatch time,
+            // tracking URL or delivery time alone falls back to the stage
+            // before it. Admin sees the missing evidence marker separately.
+            var hasDispatchEvidence = ShopOrderDispatchEvidence.IsComplete(order);
+
+            if (
+                order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                && order.DeliveredAtUtc != null
+                && hasDispatchEvidence
+            )
+            {
+                return "Delivered";
+            }
+
+            if (
+                hasDispatchEvidence
+                && (
+                    order.FulfilmentStatus == ShopFulfilmentStatuses.InTransit
+                    || order.FulfilmentStatus == ShopFulfilmentStatuses.Delivered
+                )
+            )
+            {
+                return "Dispatched";
+            }
+
+            if (order.ProductionStartedAtUtc != null)
+            {
+                return "In production";
+            }
+
+            return order.PreparationStartedAtUtc != null ? "Preparing" : "Confirmed";
         }
 
         public static string ToPaymentDisplayLabel(
@@ -74,15 +100,22 @@ namespace TummlyBackend.Helpers
         public static string? ToOrderKindLabel(bool isComplimentary) =>
             isComplimentary ? ComplimentaryStarterKitLabel : null;
 
-        public static bool IsTrackingVisible(string? storedStatus, string? trackingUrl)
+        /// <summary>
+        /// The tracking link shows only once carrier evidence exists. A link
+        /// without evidence is supporting information for Admin, not proof.
+        /// </summary>
+        public static bool IsTrackingVisible(ShopOrder order)
         {
-            if (string.IsNullOrWhiteSpace(trackingUrl))
+            if (string.IsNullOrWhiteSpace(order.TrackingUrl))
             {
                 return false;
             }
 
-            return storedStatus is ShopFulfilmentStatuses.InTransit
-                or ShopFulfilmentStatuses.Delivered;
+            return (
+                    order.FulfilmentStatus is ShopFulfilmentStatuses.InTransit
+                        or ShopFulfilmentStatuses.Delivered
+                )
+                && ShopOrderDispatchEvidence.IsComplete(order);
         }
     }
 }

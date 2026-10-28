@@ -1,3 +1,5 @@
+using TummlyBackend.Models;
+
 namespace TummlyBackend.DTOs.Campaigns
 {
     /// <summary>
@@ -39,13 +41,46 @@ namespace TummlyBackend.DTOs.Campaigns
         public required string CheckSetVersion { get; init; }
 
         public required DateTime EvaluatedAt { get; init; }
+
+        /// <summary>
+        /// Why the audience cannot be counted when Evaluable is false and the audience
+        /// is blocked by Campaign data (for example offer-not-redeemed without an Offer).
+        /// Null for unevaluable audiences and for evaluable audiences.
+        /// </summary>
+        public string? UnavailableReason { get; init; }
+
+        /// <summary>
+        /// Recent redeemers look-back in days (for example 30 for "Last 30 days").
+        /// Null for audiences that do not use a period.
+        /// </summary>
+        public int? LookbackDays { get; init; }
+
+        /// <summary>IANA timezone that anchors the look-back. Null when no period applies.</summary>
+        public string? LookbackTimeZone { get; init; }
+    }
+
+    /// <summary>
+    /// Campaign-owned inputs for audience filters that need more than the audience key.
+    /// Null fields mean the Campaign has no value: offer-not-redeemed is unavailable
+    /// without an Offer, and recent-redeemers falls back to the default period.
+    /// </summary>
+    public sealed record CampaignAudienceScope(
+        int? OfferId = null,
+        int? RecentRedeemerLookbackDays = null,
+        string? RecentRedeemerTimeZone = null
+    )
+    {
+        public static CampaignAudienceScope None { get; } = new();
+
+        public static CampaignAudienceScope ForCampaign(Campaign campaign) =>
+            new(campaign.OfferId, campaign.AudienceLookbackDays, campaign.AudienceLookbackTimeZone);
     }
 
     public sealed class CampaignExcludedReasonCountDto
     {
         /// <summary>
-        /// Primary reason code: account, soft-lock, opt-out, suppression,
-        /// invalid-contact, channel.
+        /// Primary reason code: account, soft-lock, not-granted, withdrawn, suppressed,
+        /// previous_hard_bounce, invalid-contact.
         /// </summary>
         public required string Reason { get; init; }
 

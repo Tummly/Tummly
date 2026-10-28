@@ -144,6 +144,12 @@ namespace TummlyBackend.Services
             var pool = allowance.WorkspacePool;
             var used = await CountUsedForRestaurantAsync(restaurantId, ct);
 
+            // A Location in premises review never takes a slot.
+            if (await PremisesReviewGate.LocationIsBlockedAsync(_context, locationId, ct))
+            {
+                return new ActiveQrCapacityDecision(true, false, pool, used);
+            }
+
             // Activating a type with a held slot takes over that slot, so it leaves the count.
             var takenOverHeld = activatingType is { } type
                 ? 1 - await ActivationCostAsync(locationId, type, ct)

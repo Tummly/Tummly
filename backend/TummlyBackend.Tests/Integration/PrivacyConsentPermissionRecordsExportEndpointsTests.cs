@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,7 +51,17 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
 
+            // Generic refusal: JSON error body, never a CSV of the other Workspace.
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Equal(
+                "application/json",
+                response.Content.Headers.ContentType?.MediaType
+            );
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(
+                "You do not have access to this location.",
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]

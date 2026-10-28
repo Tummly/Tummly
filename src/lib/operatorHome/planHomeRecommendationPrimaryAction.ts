@@ -22,6 +22,7 @@ export type HomeRecommendationPrimaryNavigatePlan = {
 export type HomeRecommendationPrimaryCampaignPlan = {
   kind: "open-campaign-draft"
   path: string
+  recommendationType: string
   draftPrefill: CampaignRecommendationDraftPrefill
 }
 
@@ -86,6 +87,7 @@ export function planHomeRecommendationPrimaryAction(input: {
     return {
       kind: "open-campaign-draft",
       path: operatorDashboardNavPath(mode, "campaigns", locationId),
+      recommendationType: recommendation.type,
       draftPrefill,
     }
   }

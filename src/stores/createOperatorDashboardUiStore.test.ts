@@ -190,10 +190,10 @@ describe("createOperatorDashboardUiStore", () => {
       messageBody: "Thanks for your feedback.",
     }
     store.getState().setCampaignsIntent({
-      openFromRecommendation: { draftPrefill },
+      openFromRecommendation: { recommendationType: "thank-recent-guests", draftPrefill },
     })
     expect(store.getState().campaignsIntent).toEqual({
-      openFromRecommendation: { draftPrefill },
+      openFromRecommendation: { recommendationType: "thank-recent-guests", draftPrefill },
     })
     store.getState().setCampaignsIntent(null)
     expect(store.getState().campaignsIntent).toBeNull()

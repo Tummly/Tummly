@@ -25,9 +25,10 @@ namespace TummlyBackend.Interfaces
     }
 
     /// <summary>
-    /// Produces <c>weekly-brief-ready</c> after a successful first-write generate
-    /// (Monday job or one-time backfill that reuses that seam). Home lazy generate
-    /// does not notify. Dedupe key is location + week.
+    /// Produces <c>weekly-brief-ready</c> after a successful generate: the Monday
+    /// job first-write, the one-time backfill, and the manual POST generate. Dedupe
+    /// key is location + week, so a brief that was already notified is not notified
+    /// again.
     /// </summary>
     public interface IWeeklyBriefReadyNotifier
     {

@@ -1,5 +1,23 @@
+using TummlyBackend.Helpers;
+
 namespace TummlyBackend.Services
 {
+    /// <summary>
+    /// The shared service-reply gate refused a Feedback guest reply or a
+    /// recovery Offer reply. Carries the refusal code for the response body.
+    /// Derives from ArgumentException so callers that catch it still get a 400.
+    /// </summary>
+    public sealed class ServiceReplyRefusedException : ArgumentException
+    {
+        public ServiceReplyRefusedException(ServiceReplyDecision decision)
+            : base(ServiceReplyEligibility.RefusalMessage(decision) ?? string.Empty)
+        {
+            Code = ServiceReplyEligibility.RefusalCode(decision) ?? string.Empty;
+        }
+
+        public string Code { get; }
+    }
+
     /// <summary>
     /// An identical reply was already sent to the same guest on the same
     /// channel within the last 10 minutes. Nothing is saved or sent.

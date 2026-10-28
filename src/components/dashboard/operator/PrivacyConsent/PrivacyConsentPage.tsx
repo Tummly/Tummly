@@ -5,6 +5,7 @@ import { useWriteActiveTabToSearchParams } from "@/hooks/useWriteActiveTabToSear
 import { GuestPermissionsSection } from "@/components/dashboard/operator/PrivacyConsent/GuestPermissionsSection"
 import { PermissionRecordsSection } from "@/components/dashboard/operator/PrivacyConsent/PermissionRecordsSection"
 import { PrivacyActivitySection } from "@/components/dashboard/operator/PrivacyConsent/PrivacyActivitySection"
+import { PrivacyArchivedActivitySection } from "@/components/dashboard/operator/PrivacyConsent/PrivacyArchivedActivitySection"
 import { PrivacySetupStatusSection } from "@/components/dashboard/operator/PrivacyConsent/PrivacySetupStatusSection"
 import { usePrivacyConsentPageModuleApi } from "@/components/dashboard/operator/PrivacyConsent/utils/privacyConsentPageModuleContext"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
@@ -171,8 +172,14 @@ export function PrivacyConsentPage() {
             />
           </TabsContent>
 
-          <TabsContent value="activity" className="mt-0">
+          <TabsContent value="activity" className="mt-0 flex flex-col gap-5">
             <PrivacyActivitySection items={snap.activityItems} />
+            {snap.actorIsWorkspaceOwner ? (
+              <PrivacyArchivedActivitySection
+                items={snap.archivedActivityItems}
+                accessRestricted={snap.archivedActivityAccessRestricted}
+              />
+            ) : null}
           </TabsContent>
         </div>
       </Tabs>

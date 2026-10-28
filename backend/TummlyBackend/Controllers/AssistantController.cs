@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Assistant;
@@ -5,6 +6,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Middleware;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -16,16 +18,19 @@ namespace TummlyBackend.Controllers
         private readonly IAssistantConversationService _conversations;
         private readonly ISpeechToTextProvider _speechToText;
         private readonly IRestaurantPermissionHelper _permissions;
+        private readonly DemoSessionOverlayService _demoOverlay;
 
         public AssistantController(
             IAssistantConversationService conversations,
             ISpeechToTextProvider speechToText,
-            IRestaurantPermissionHelper permissions
+            IRestaurantPermissionHelper permissions,
+            DemoSessionOverlayService demoOverlay
         )
         {
             _conversations = conversations;
             _speechToText = speechToText;
             _permissions = permissions;
+            _demoOverlay = demoOverlay;
         }
 
         [HttpPost("turns")]
@@ -55,6 +60,16 @@ namespace TummlyBackend.Controllers
                 return deniedView;
             }
 
+            var visibleThreads = await DemoVisibleConversationKeysAsync(cancellationToken);
+            if (
+                visibleThreads != null
+                && body.ConversationId is int threadId
+                && !visibleThreads.Contains(ConversationKey(threadId))
+            )
+            {
+                return ConversationNotFound();
+            }
+
             var denied = await GateAssistantScopeAsync(body.AnalysisScope);
             if (denied != null)
             {
@@ -69,6 +84,19 @@ namespace TummlyBackend.Controllers
                     Request.Headers["Idempotency-Key"].FirstOrDefault(),
                     cancellationToken
                 );
+                if (
+                    outcome is AssistantTurnOutcome.Ok created
+                    && DemoSessionClaims.TryGetSessionId(User) is Guid demoSessionId
+                )
+                {
+                    await _demoOverlay.UpsertAsync(
+                        demoSessionId,
+                        DemoSessionOverlayEntityTypes.AssistantConversation,
+                        ConversationKey(created.Conversation.Id),
+                        new { conversationId = created.Conversation.Id },
+                        cancellationToken
+                    );
+                }
                 return ToActionResult(outcome);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -106,12 +134,17 @@ namespace TummlyBackend.Controllers
                 set.LocationIds,
                 cancellationToken
             );
+            var visibleThreads = await DemoVisibleConversationKeysAsync(cancellationToken);
             return outcome switch
             {
                 AssistantListOutcome.Ok ok => Ok(new
                 {
                     success = true,
-                    conversations = ok.Conversations,
+                    conversations = visibleThreads == null
+                        ? ok.Conversations
+                        : ok.Conversations
+                            .Where(row => visibleThreads.Contains(ConversationKey(row.Id)))
+                            .ToList(),
                 }),
                 _ => StatusCode(500, new
                 {
@@ -131,6 +164,12 @@ namespace TummlyBackend.Controllers
             if (denied != null)
             {
                 return denied;
+            }
+
+            var visibleThreads = await DemoVisibleConversationKeysAsync(cancellationToken);
+            if (visibleThreads != null && !visibleThreads.Contains(ConversationKey(conversationId)))
+            {
+                return ConversationNotFound();
             }
 
             var outcome = await _conversations.GetAsync(
@@ -371,6 +410,42 @@ namespace TummlyBackend.Controllers
             );
             return (userId, decision.ToForbiddenResult());
         }
+
+        /// <summary>
+        /// Demo sessions share one seeded owner, so they see only Assistant threads
+        /// they created. Null for every other caller. A demo caller without a
+        /// session id gets an empty set (fail closed).
+        /// </summary>
+        private async Task<HashSet<string>?> DemoVisibleConversationKeysAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            if (!DemoSessionClaims.IsDemoSession(User))
+            {
+                return null;
+            }
+
+            if (DemoSessionClaims.TryGetSessionId(User) is not Guid sessionId)
+            {
+                return [];
+            }
+
+            return await _demoOverlay.GetEntityKeysAsync(
+                sessionId,
+                DemoSessionOverlayEntityTypes.AssistantConversation,
+                cancellationToken
+            );
+        }
+
+        private static string ConversationKey(int conversationId)
+            => conversationId.ToString(CultureInfo.InvariantCulture);
+
+        private IActionResult ConversationNotFound()
+            => NotFound(new
+            {
+                success = false,
+                message = "Conversation not found.",
+            });
 
         private async Task<IActionResult?> GateAssistantScopeAsync(
             AssistantAnalysisScopeDto scope

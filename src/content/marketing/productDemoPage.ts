@@ -224,7 +224,6 @@ export const PRODUCT_DEMO = {
     primaryTo: buildSignupPath({ plan: "Pilot" }),
     secondaryLabel: "See pricing",
     secondaryTo: MARKETING_PRICING_PATH,
-    continueLabel: "Continue exploring the demo",
     productTo: MARKETING_PRODUCT_PATH,
   },
 } as const

@@ -231,6 +231,24 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // A Pilot waits for the duplicate-premises review of every Location
+            // in the Workspace. Nothing is minted or stamped until it is clear.
+            if (
+                await PremisesReviewGate.WorkspaceHasBlockedLocationAsync(
+                    _context,
+                    restaurantId,
+                    cancellationToken
+                )
+            )
+            {
+                return new PilotStartResult(
+                    Started: false,
+                    RefusedCode: PremisesReviewGate.PilotRefusedCode,
+                    StartedAtUtc: null,
+                    EndsAtUtc: null
+                );
+            }
+
             BillingCreditsService.ApplyPilotSignupBilling(account, nowUtc);
             account.PilotStartedAtUtc = nowUtc;
             var endsAtUtc = account.PilotPeriodEnd!.Value;

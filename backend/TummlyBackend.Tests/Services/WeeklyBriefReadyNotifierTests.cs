@@ -12,9 +12,9 @@ namespace TummlyBackend.Tests.Services
 {
     /// <summary>
     /// Seam under test: <see cref="IWeeklyBriefReadyNotifier.NotifyGeneratedAsync"/>
-    /// (Monday job / one-time backfill first-write → weekly-brief-ready + system
-    /// email). Home lazy POST generate does not call this seam. Preference and
-    /// dedupe are observed through <see cref="IOperatorNotificationsService"/>.
+    /// (Monday job first-write, one-time backfill, and authorised manual POST
+    /// generate → weekly-brief-ready + system email). Preference and dedupe are
+    /// observed through <see cref="IOperatorNotificationsService"/>.
     /// </summary>
     public class WeeklyBriefReadyNotifierTests : IDisposable
     {
@@ -114,6 +114,15 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(1, await _context.Notifications.CountAsync());
             Assert.Single(_email.WeeklyBriefSends);
+        }
+
+        [Fact]
+        public async Task NotifyGeneratedAsync_NoOps_WhenLocationMissing()
+        {
+            await _notifier.NotifyGeneratedAsync(999_999, ClosedWeek);
+
+            Assert.Empty(_context.Notifications);
+            Assert.Empty(_email.WeeklyBriefSends);
         }
 
         [Fact]

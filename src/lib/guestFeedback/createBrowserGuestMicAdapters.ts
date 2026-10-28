@@ -51,6 +51,7 @@ export function createBrowserGuestMicAdapters(
     transcribe: (audio: Blob) => Promise<
       Awaited<ReturnType<GuestMicSttAdapters["transcribe"]>>
     >
+    getComment?: () => string
     replaceComment: (text: string) => void
   }
 ): BrowserGuestMic {
@@ -177,6 +178,7 @@ export function createBrowserGuestMicAdapters(
       resetCapture()
     },
     transcribe: options.transcribe,
+    getComment: options.getComment,
     replaceComment: options.replaceComment,
   }
 
