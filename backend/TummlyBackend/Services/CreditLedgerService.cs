@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Data;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using TummlyBackend.Billing.Pricebook;
@@ -15,6 +18,10 @@ namespace TummlyBackend.Services
             = new();
 
         private const int MaxAuditReasonLength = 500;
+
+        private const int MaxIdempotencyKeyLength = 128;
+
+        private const int MaxEvidenceLength = 500;
 
         private readonly ApplicationDbContext _context;
         private readonly TimeProvider _clock;
@@ -271,6 +278,15 @@ namespace TummlyBackend.Services
                 return CreditLedgerWriteResult.Fail("reason_required");
             }
 
+            var envelopeFailure = CheckStaffWriteEnvelope(
+                request.IdempotencyKey,
+                request.EvidenceReference
+            );
+            if (envelopeFailure != null)
+            {
+                return envelopeFailure;
+            }
+
             if (request.Quantity <= 0)
             {
                 return CreditLedgerWriteResult.Fail("invalid_quantity");
@@ -343,6 +359,15 @@ namespace TummlyBackend.Services
                 return CreditLedgerWriteResult.Fail("reason_required");
             }
 
+            var envelopeFailure = CheckStaffWriteEnvelope(
+                request.IdempotencyKey,
+                request.EvidenceReference
+            );
+            if (envelopeFailure != null)
+            {
+                return envelopeFailure;
+            }
+
             var target = await _context.CreditLedgerEntries
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
@@ -406,6 +431,29 @@ namespace TummlyBackend.Services
                 return await AbortAsync(
                     transaction,
                     "restaurant_not_found",
+                    cancellationToken
+                );
+            }
+
+            var idempotencyKey = request.IdempotencyKey.Trim();
+            var evidence = request.EvidenceReference.Trim();
+            var requestHash = FingerprintStaffWrite(
+                StaffCreditAdjustmentOperations.Reversal,
+                request.ReversedEntryId,
+                reason,
+                evidence,
+                request.HelpCentreQueryId
+            );
+            var stored = await FindStaffWriteIntentAsync(
+                idempotencyKey,
+                cancellationToken
+            );
+            if (stored != null)
+            {
+                return await ReplayStaffWriteAsync(
+                    transaction,
+                    stored,
+                    requestHash,
                     cancellationToken
                 );
             }
@@ -492,6 +540,29 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var balanceBefore = CreditLedgerCalculator.PoolAvailable(
+                CreditLedgerCalculator.Project(entries, now)
+            );
+            var balanceAfter = CreditLedgerCalculator.PoolAvailable(postState);
+            var insertedAllocationId = reversal.AllocationId ?? reversal.Id;
+            _context.StaffCreditAdjustmentIntents.Add(
+                new StaffCreditAdjustmentIntent
+                {
+                    Id = Guid.NewGuid(),
+                    IdempotencyKey = idempotencyKey,
+                    RequestHash = requestHash,
+                    Operation = StaffCreditAdjustmentOperations.Reversal,
+                    RestaurantId = liveTarget.RestaurantId,
+                    ActorStaffUserId = request.ActorStaffUserId,
+                    Quantity = reversal.Quantity,
+                    EvidenceReference = evidence,
+                    BalanceAfter = balanceAfter,
+                    InsertedEntryId = reversal.Id,
+                    InsertedAllocationId = insertedAllocationId,
+                    CreatedAtUtc = now,
+                }
+            );
+
             var identity = await ResolveAdminIdentityAsync(
                 request.ActorStaffUserId,
                 cancellationToken
@@ -506,7 +577,11 @@ namespace TummlyBackend.Services
                     RestaurantId: liveTarget.RestaurantId,
                     DetailJson: BuildCreditReverseDetailJson(
                         liveTarget.Id,
-                        reason
+                        reason,
+                        liveTarget.Channel,
+                        evidence,
+                        balanceBefore,
+                        balanceAfter
                     )
                 )
             );
@@ -524,12 +599,13 @@ namespace TummlyBackend.Services
                     new CreditLedgerInsertedRow
                     {
                         Id = reversal.Id,
-                        AllocationId = reversal.AllocationId ?? reversal.Id,
+                        AllocationId = insertedAllocationId,
                         EntryType = reversal.EntryType,
                         Quantity = reversal.Quantity,
                         ReservationRef = reversal.ReservationRef,
                     },
-                ]
+                ],
+                balanceAfter: balanceAfter
             );
         }
 
@@ -564,6 +640,33 @@ namespace TummlyBackend.Services
             {
                 await _context.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT 1 FROM [BillingAccounts] WITH (UPDLOCK, ROWLOCK) WHERE [RestaurantId] = {request.RestaurantId}",
+                    cancellationToken
+                );
+            }
+
+            var idempotencyKey = request.IdempotencyKey.Trim();
+            var evidence = request.EvidenceReference.Trim();
+            var requestHash = FingerprintStaffWrite(
+                StaffCreditAdjustmentOperations.ManualAdjust,
+                request.RestaurantId,
+                request.Channel,
+                request.Direction,
+                request.Quantity,
+                request.AllocationId,
+                request.HelpCentreQueryId,
+                reason,
+                evidence
+            );
+            var stored = await FindStaffWriteIntentAsync(
+                idempotencyKey,
+                cancellationToken
+            );
+            if (stored != null)
+            {
+                return await ReplayStaffWriteAsync(
+                    transaction,
+                    stored,
+                    requestHash,
                     cancellationToken
                 );
             }
@@ -671,6 +774,24 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var balanceBefore = CreditLedgerCalculator.PoolAvailable(states);
+            var balanceAfter = CreditLedgerCalculator.PoolAvailable(postState);
+            _context.StaffCreditAdjustmentIntents.Add(
+                new StaffCreditAdjustmentIntent
+                {
+                    Id = Guid.NewGuid(),
+                    IdempotencyKey = idempotencyKey,
+                    RequestHash = requestHash,
+                    Operation = StaffCreditAdjustmentOperations.ManualAdjust,
+                    RestaurantId = request.RestaurantId,
+                    ActorStaffUserId = request.ActorStaffUserId,
+                    Quantity = request.Quantity,
+                    EvidenceReference = evidence,
+                    BalanceAfter = balanceAfter,
+                    CreatedAtUtc = now,
+                }
+            );
+
             BillingActivityWriter.TryAppend(
                 _context,
                 new BillingActivityAppendRequest
@@ -702,7 +823,11 @@ namespace TummlyBackend.Services
                     DetailJson: BuildCreditAdjustDetailJson(
                         request.Channel,
                         request.Quantity,
-                        request.Direction
+                        request.Direction,
+                        reason,
+                        evidence,
+                        balanceBefore,
+                        balanceAfter
                     )
                 )
             );
@@ -723,7 +848,8 @@ namespace TummlyBackend.Services
                     EntryType = row.EntryType,
                     Quantity = row.Quantity,
                     ReservationRef = row.ReservationRef,
-                }).ToList()
+                }).ToList(),
+                balanceAfter: balanceAfter
             );
         }
 
@@ -2376,7 +2502,11 @@ namespace TummlyBackend.Services
         private static string BuildCreditAdjustDetailJson(
             string channel,
             int quantity,
-            string direction
+            string direction,
+            string reason,
+            string evidence,
+            int balanceBefore,
+            int balanceAfter
         )
         {
             return System.Text.Json.JsonSerializer.Serialize(
@@ -2385,13 +2515,22 @@ namespace TummlyBackend.Services
                     channel,
                     qty = quantity,
                     direction,
+                    delta = balanceAfter - balanceBefore,
+                    balanceBefore,
+                    balanceAfter,
+                    reason,
+                    evidence,
                 }
             );
         }
 
         private static string BuildCreditReverseDetailJson(
             Guid reversedEntryId,
-            string reason
+            string reason,
+            string channel,
+            string evidence,
+            int balanceBefore,
+            int balanceAfter
         )
         {
             var snippet = reason.Length <= MaxAuditReasonLength
@@ -2403,7 +2542,107 @@ namespace TummlyBackend.Services
                 {
                     reversedEntryId,
                     reason = snippet,
+                    channel,
+                    delta = balanceAfter - balanceBefore,
+                    balanceBefore,
+                    balanceAfter,
+                    evidence,
                 }
+            );
+        }
+
+        /// <summary>
+        /// Key and evidence checks shared by staff adjustments and reversals.
+        /// Returns null when both pass.
+        /// </summary>
+        private static CreditLedgerWriteResult? CheckStaffWriteEnvelope(
+            string? idempotencyKey,
+            string? evidenceReference
+        )
+        {
+            var key = idempotencyKey?.Trim() ?? string.Empty;
+            if (key.Length == 0)
+            {
+                return CreditLedgerWriteResult.Fail("idempotency_key_required");
+            }
+
+            if (key.Length > MaxIdempotencyKeyLength)
+            {
+                return CreditLedgerWriteResult.Fail("idempotency_key_too_long");
+            }
+
+            var evidence = evidenceReference?.Trim() ?? string.Empty;
+            if (evidence.Length is < 1 or > MaxEvidenceLength)
+            {
+                return CreditLedgerWriteResult.Fail("evidence_required");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// SHA-256 over the operation and normalised request fields. Same key with a
+        /// different fingerprint is a conflict, not a replay.
+        /// </summary>
+        private static string FingerprintStaffWrite(params object?[] parts)
+        {
+            var canonical = string.Join(
+                '\u001f',
+                parts.Select(part =>
+                    Convert.ToString(part, CultureInfo.InvariantCulture)
+                    ?? string.Empty
+                )
+            );
+            var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+            return Convert.ToHexString(digest).ToLowerInvariant();
+        }
+
+        private async Task<StaffCreditAdjustmentIntent?> FindStaffWriteIntentAsync(
+            string idempotencyKey,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.StaffCreditAdjustmentIntents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row => row.IdempotencyKey == idempotencyKey,
+                    cancellationToken
+                );
+        }
+
+        /// <summary>
+        /// Same key and same body: return the first result and write nothing.
+        /// Same key and another body: refuse with <c>idempotency_key_reused</c>.
+        /// </summary>
+        private static async Task<CreditLedgerWriteResult> ReplayStaffWriteAsync(
+            IDbContextTransaction transaction,
+            StaffCreditAdjustmentIntent stored,
+            string requestHash,
+            CancellationToken cancellationToken
+        )
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            if (!string.Equals(stored.RequestHash, requestHash, StringComparison.Ordinal))
+            {
+                return CreditLedgerWriteResult.Fail("idempotency_key_reused");
+            }
+
+            var inserted = stored.InsertedEntryId is Guid insertedId
+                ? new List<CreditLedgerInsertedRow>
+                {
+                    new()
+                    {
+                        Id = insertedId,
+                        AllocationId = stored.InsertedAllocationId ?? insertedId,
+                        EntryType = CreditLedgerEntryTypes.Reversal,
+                        Quantity = stored.Quantity,
+                    },
+                }
+                : [];
+            return CreditLedgerWriteResult.Ok(
+                inserted,
+                balanceAfter: stored.BalanceAfter,
+                replayed: true
             );
         }
 

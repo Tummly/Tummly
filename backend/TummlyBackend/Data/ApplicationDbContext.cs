@@ -144,6 +144,12 @@ namespace TummlyBackend.Data
 
         public DbSet<ExternalAuthTicket> ExternalAuthTickets { get; set; }
 
+        public DbSet<StaffCreditAdjustmentIntent> StaffCreditAdjustmentIntents
+        {
+            get;
+            set;
+        }
+
         public DbSet<AdminPaymentRefundIntent> AdminPaymentRefundIntents
         {
             get;
@@ -1333,6 +1339,21 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(row => row.RestaurantId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             STAFF CREDIT ADJUSTMENT IDEMPOTENCY (Lane 6)
+             =========================================
+             */
+
+            modelBuilder.Entity<StaffCreditAdjustmentIntent>()
+                .Property(row => row.IdempotencyKey)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            modelBuilder.Entity<StaffCreditAdjustmentIntent>()
+                .HasIndex(row => row.IdempotencyKey)
+                .IsUnique();
 
             modelBuilder.Entity<AdminPaymentRefundIntent>()
                 .HasIndex(row => row.IdempotencyKey)
