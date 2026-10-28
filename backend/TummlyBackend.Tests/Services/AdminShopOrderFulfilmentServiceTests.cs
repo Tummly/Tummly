@@ -152,6 +152,157 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task GetList_ExposesReviewReasonAndHeldReviewReservations()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var order = await db.ShopOrders.SingleAsync(row => row.Id == orderId);
+            order.ReviewReason =
+                ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment;
+            var createdAt = new DateTime(2026, 9, 20, 9, 30, 0, DateTimeKind.Utc);
+            db.ShopQrSlotReservations.AddRange(
+                new ShopQrSlotReservation
+                {
+                    Id = Guid.NewGuid(),
+                    ShopOrderId = orderId,
+                    RestaurantLocationId = order.LocationId,
+                    QrType = QrType.GuestCard,
+                    Status = ShopQrSlotReservationStatuses.Review,
+                    LastReconcileError = "revolut_state:processing",
+                    ReconcileAfterUtc = createdAt.AddHours(25),
+                    CreatedAtUtc = createdAt,
+                    UpdatedAtUtc = createdAt,
+                },
+                // Only a held `review` row needs Admin attention.
+                new ShopQrSlotReservation
+                {
+                    Id = Guid.NewGuid(),
+                    ShopOrderId = orderId,
+                    RestaurantLocationId = order.LocationId,
+                    QrType = QrType.TableTalker,
+                    Status = ShopQrSlotReservationStatuses.Open,
+                    ReconcileAfterUtc = createdAt.AddMinutes(30),
+                    CreatedAtUtc = createdAt,
+                    UpdatedAtUtc = createdAt,
+                }
+            );
+            await db.SaveChangesAsync();
+            var service = CreateService(db);
+
+            var list = await service.GetListAsync(
+                new AdminShopOrdersListQuery { RestaurantId = seeded.RestaurantId }
+            );
+
+            var item = Assert.Single(list.Items, row => row.Id == orderId);
+            Assert.Equal(
+                ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment,
+                item.ReviewReason
+            );
+            var held = Assert.Single(item.ReviewQrReservations);
+            Assert.Equal(ShopQrSlotReservationStatuses.Review, held.Status);
+            Assert.Equal("GuestCard", held.QrType);
+            Assert.Equal("revolut_state:processing", held.LastReconcileError);
+            Assert.Equal(createdAt, held.CreatedAtUtc);
+        }
+
+        [Fact]
+        public async Task GetList_OrderWithoutReview_HasNoReviewFields()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var service = CreateService(db);
+
+            var list = await service.GetListAsync(
+                new AdminShopOrdersListQuery { RestaurantId = seeded.RestaurantId }
+            );
+
+            var item = Assert.Single(list.Items, row => row.Id == orderId);
+            Assert.Null(item.ReviewReason);
+            Assert.Empty(item.ReviewQrReservations);
+        }
+
+        [Fact]
+        public async Task GetList_ExposesRestaurantNameAndCreatedAtUtc()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+            var createdAt = new DateTime(2026, 9, 19, 8, 15, 0, DateTimeKind.Utc);
+            (await db.ShopOrders.SingleAsync(row => row.Id == orderId))
+                .CreatedAtUtc = createdAt;
+            await db.SaveChangesAsync();
+            var service = CreateService(db);
+
+            var list = await service.GetListAsync(
+                new AdminShopOrdersListQuery { RestaurantId = seeded.RestaurantId }
+            );
+
+            var item = Assert.Single(list.Items, row => row.Id == orderId);
+            Assert.Equal("Mark Production Venue", item.RestaurantName);
+            Assert.Equal(createdAt, item.CreatedAtUtc);
+            Assert.Equal(DateTimeKind.Utc, item.CreatedAtUtc.Kind);
+        }
+
+        [Fact]
+        public async Task GetList_NoStatusFilter_ReturnsAllFulfilmentStatuses()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            var statuses = new[]
+            {
+                ShopFulfilmentStatuses.Processing,
+                ShopFulfilmentStatuses.InTransit,
+                ShopFulfilmentStatuses.Delivered,
+                ShopFulfilmentStatuses.Cancelled,
+            };
+            foreach (var status in statuses)
+            {
+                var orderId = await InsertPaidProcessingOrderAsync(db, seeded);
+                (await db.ShopOrders.SingleAsync(row => row.Id == orderId))
+                    .FulfilmentStatus = status;
+                await db.SaveChangesAsync();
+            }
+
+            var service = CreateService(db);
+
+            var list = await service.GetListAsync(
+                new AdminShopOrdersListQuery { RestaurantId = seeded.RestaurantId }
+            );
+
+            Assert.Equal(4, list.TotalCount);
+            Assert.Equal(
+                statuses.OrderBy(status => status),
+                list.Items.Select(row => row.FulfilmentStatus).OrderBy(status => status)
+            );
+        }
+
+        [Fact]
+        public async Task GetList_ExplicitStatusFilter_StillNarrows()
+        {
+            await using var db = CreateContext();
+            var seeded = await SeedAsync(db);
+            await InsertPaidProcessingOrderAsync(db, seeded);
+            var deliveredId = await InsertPaidProcessingOrderAsync(db, seeded);
+            (await db.ShopOrders.SingleAsync(row => row.Id == deliveredId))
+                .FulfilmentStatus = ShopFulfilmentStatuses.Delivered;
+            await db.SaveChangesAsync();
+            var service = CreateService(db);
+
+            var list = await service.GetListAsync(
+                new AdminShopOrdersListQuery
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    FulfilmentStatus = [ShopFulfilmentStatuses.Delivered],
+                }
+            );
+
+            var item = Assert.Single(list.Items);
+            Assert.Equal(deliveredId, item.Id);
+        }
+
+        [Fact]
         public async Task MarkProductionStarted_OrderMissing_ReturnsNotFound()
         {
             await using var db = CreateContext();

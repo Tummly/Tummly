@@ -40,7 +40,7 @@ namespace TummlyBackend.Interfaces
     {
         public ShopReorderPrefillDto? Prefill { get; init; }
 
-        public IReadOnlyList<string>? UnavailableSkuIds { get; init; }
+        public IReadOnlyList<ShopReorderUnavailableLineDto>? UnavailableLines { get; init; }
 
         public string? ErrorCode { get; init; }
 
@@ -49,14 +49,14 @@ namespace TummlyBackend.Interfaces
         public static ShopOrderReorderResult Ok(ShopReorderPrefillDto prefill) =>
             new() { Prefill = prefill };
 
-        public static ShopOrderReorderResult SkuUnavailable(
-            IReadOnlyList<string> skuIds
+        public static ShopOrderReorderResult NoAvailableLines(
+            IReadOnlyList<ShopReorderUnavailableLineDto> unavailableLines
         ) =>
             new()
             {
-                ErrorCode = "catalog_sku_unavailable",
-                ErrorMessage = "One or more catalog skus are no longer available.",
-                UnavailableSkuIds = skuIds,
+                ErrorCode = "reorder_no_available_lines",
+                ErrorMessage = "None of the items in this order are available to reorder.",
+                UnavailableLines = unavailableLines,
             };
 
         public static ShopOrderReorderResult Fail(string code, string message) =>

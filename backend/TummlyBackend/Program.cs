@@ -407,6 +407,10 @@ builder.Services.AddScoped<CaptureArchiveListService>();
 builder.Services.AddScoped<ICaptureArchiveListService>(sp =>
     sp.GetRequiredService<CaptureArchiveListService>()
 );
+builder.Services.AddScoped<IActiveQrCapacity, ActiveQrCapacity>();
+builder.Services.AddScoped<IQrPlacementResolver, QrPlacementResolver>();
+builder.Services.AddScoped<IShopQrSlotReservationService, ShopQrSlotReservationService>();
+builder.Services.AddScoped<IPostCommitActions, PostCommitActions>();
 builder.Services.AddScoped<CaptureQrLifecycleService>();
 builder.Services.AddScoped<ICaptureQrLifecycleService>(sp =>
     sp.GetRequiredService<CaptureQrLifecycleService>()
@@ -725,6 +729,7 @@ builder.Services.AddScoped<
     ComplimentaryStarterShopOrderService
 >();
 builder.Services.AddScoped<IShopMaterialsOrderPaySession, ShopMaterialsOrderPaySessionService>();
+builder.Services.AddScoped<IShopOrderPaymentConfirmService, ShopOrderPaymentConfirmService>();
 builder.Services.AddScoped<IShopOrdersListService, ShopOrdersListService>();
 builder.Services.AddScoped<IShopOrderCancelReorderService, ShopOrderCancelReorderService>();
 builder.Services.AddScoped<IAdminShopOrderFulfilmentService, AdminShopOrderFulfilmentService>();
@@ -1209,6 +1214,7 @@ builder.Services.AddSingleton<
 >();
 builder.Services.AddHostedService<GuestResponseEmailDeliveryBackgroundService>();
 builder.Services.AddHostedService<CreditReservationSweeperBackgroundService>();
+builder.Services.AddHostedService<ShopQrSlotReservationSweeperBackgroundService>();
 
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,

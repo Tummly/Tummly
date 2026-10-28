@@ -32,8 +32,10 @@ export type CaptureGuestExperienceFacts = {
   locationAddress: string
   /** Guest form thank-you catalog attach from Capture snapshot. */
   thankYouOffer?: CaptureThankYouOfferFact | null
-  /** Active QR plan cap from snapshot entitlements. */
+  /** Workspace active QR pool (plan limit) from snapshot entitlements. */
   activeQrCap?: number | null
+  /** Workspace active QR slots used (all Locations) from snapshot entitlements. */
+  activeQrWorkspaceUsed?: number | null
 }
 
 export type CaptureGuestExperiencePreviewEntry =
@@ -170,8 +172,10 @@ export function buildCaptureGuestExperience(
     guestFormsText: `1 published form · Used by ${activeCount} of ${activeCount} active placements`,
     qrPlacementsText: `${activeCount} of ${totalCount} placements active`,
     activeQrPlanUsageText:
-      facts.activeQrCap != null && facts.activeQrCap > 0
-        ? `${activeCount} of ${facts.activeQrCap} active QR placements (plan limit)`
+      facts.activeQrCap != null
+      && facts.activeQrCap > 0
+      && facts.activeQrWorkspaceUsed != null
+        ? `${facts.activeQrWorkspaceUsed} of ${facts.activeQrCap} active QR placements across your Workspace (plan limit)`
         : "",
     connectedOffersText,
     needsAttentionText:

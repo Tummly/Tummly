@@ -114,7 +114,7 @@ namespace TummlyBackend.Services
 
             var locationName = offerRow.LocationName ?? string.Empty;
             var utcNow = DateTime.UtcNow;
-            var venueToday = CatalogOfferStatus.VenueLocalToday(utcNow, 0);
+            var venueToday = CatalogOfferStatus.LondonToday(utcNow);
             var effectiveStatus = CatalogOfferStatus.ResolveEffectiveStatus(
                 offerRow.Status,
                 offerRow.Validity,

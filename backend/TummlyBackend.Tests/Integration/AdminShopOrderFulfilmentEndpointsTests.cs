@@ -8,6 +8,8 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -26,7 +28,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task ListShopOrders_DefaultsToProcessingFilter()
+        public async Task ListShopOrders_DefaultsToAllStatuses_AndExposesRestaurantNameAndCreatedAt()
         {
             var seeded = await SeedWorkspaceAsync();
             await InsertOrderAsync(
@@ -39,25 +41,37 @@ namespace TummlyBackend.Tests.Integration
                 trackingUrl: "https://track.example/1"
             );
 
+            // Scope to this workspace: the in-memory store is shared across tests.
             using var request = AuthorizedGet(
-                "/api/admin/shop-orders",
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
                 seeded.AdminJwt
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await ReadJsonAsync(response);
-            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(2, body.GetProperty("totalCount").GetInt32());
             Assert.Equal(1, body.GetProperty("page").GetInt32());
             Assert.Equal(25, body.GetProperty("pageSize").GetInt32());
+            var items = body.GetProperty("items").EnumerateArray().ToList();
             Assert.Equal(
-                ShopFulfilmentStatuses.Processing,
-                body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
+                new[]
+                {
+                    ShopFulfilmentStatuses.InTransit,
+                    ShopFulfilmentStatuses.Processing,
+                },
+                items
+                    .Select(item => item.GetProperty("fulfilmentStatus").GetString()!)
+                    .OrderBy(status => status)
             );
-            Assert.True(body.GetProperty("items")[0].TryGetProperty("opsNotes", out _));
-            Assert.True(
-                body.GetProperty("items")[0].TryGetProperty("revolutOrderId", out _)
+            var first = items[0];
+            Assert.True(first.TryGetProperty("opsNotes", out _));
+            Assert.True(first.TryGetProperty("revolutOrderId", out _));
+            Assert.False(
+                string.IsNullOrWhiteSpace(first.GetProperty("restaurantName").GetString())
             );
+            var createdAt = first.GetProperty("createdAtUtc").GetString();
+            Assert.EndsWith("Z", createdAt);
         }
 
         [Fact]
@@ -70,6 +84,44 @@ namespace TummlyBackend.Tests.Integration
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ListShopOrders_CounterDisplayAsset_CarriesProductTitleNotOfferCardMapping()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                titleSnapshot: "Offer Card",
+                quantity: 10
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                await scope.ServiceProvider
+                    .GetRequiredService<IPrintReadyQrMaterialsService>()
+                    .EnsureShopOrderMaterialsAsync(orderId);
+            }
+
+            using var list = AuthorizedGet(
+                $"/api/admin/shop-orders?restaurantId={seeded.RestaurantId}",
+                seeded.AdminJwt
+            );
+            var listResponse = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var listBody = await ReadJsonAsync(listResponse);
+            var asset = Assert.Single(
+                listBody.GetProperty("items")[0]
+                    .GetProperty("printAssets")
+                    .EnumerateArray()
+            );
+
+            Assert.Equal("OfferCard", asset.GetProperty("qrType").GetString());
+            Assert.Equal(
+                "QR Counter Display",
+                asset.GetProperty("productTitle").GetString()
+            );
         }
 
         [Fact]
@@ -170,7 +222,8 @@ namespace TummlyBackend.Tests.Integration
         public async Task CounterDisplay_EmbeddedPdf_DownloadsAfterApprove()
         {
             // Ticket 04 binds QR Counter Display to OfferCard placement + EmbeddedPdf.
-            // Offer Card print generation waits until a catalog offer is attached.
+            // Counter Display never needs a card offer, so its PDF generates
+            // without one. Approval is still required before download.
             var seeded = await SeedWorkspaceAsync();
             var orderId = await InsertOrderAsync(
                 seeded,
@@ -181,27 +234,6 @@ namespace TummlyBackend.Tests.Integration
             );
             using (var scope = _factory.Services.CreateScope())
             {
-                var context = scope.ServiceProvider
-                    .GetRequiredService<ApplicationDbContext>();
-                var location = await context.RestaurantLocations
-                    .SingleAsync(row => row.Id == seeded.LocationId);
-                var offer = new CatalogOffer
-                {
-                    RestaurantLocationId = seeded.LocationId,
-                    Title = "Counter launch offer",
-                    Description = "Counter print offer",
-                    Status = CatalogOfferStatus.Active,
-                    Validity = CatalogOfferValidity.Days30AfterIssue,
-                    OfferType = CatalogOfferType.FreeItem,
-                    FreeItemText = "Drink",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                };
-                context.CatalogOffers.Add(offer);
-                await context.SaveChangesAsync();
-                location.OfferCardCatalogOfferId = offer.Id;
-                await context.SaveChangesAsync();
-
                 await scope.ServiceProvider
                     .GetRequiredService<IPrintReadyQrMaterialsService>()
                     .EnsureShopOrderMaterialsAsync(orderId);
@@ -244,25 +276,200 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
+        public async Task CounterDisplay_PaidOrderPdf_ReadyWithoutAttachedOffer()
         {
             var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-counter-display",
+                titleSnapshot: "QR Counter Display",
+                quantity: 2
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var counter = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("OfferCard", counter.QrType);
+            Assert.Equal("Ready", counter.Status);
+        }
+
+        [Fact]
+        public async Task StarterKit_CounterPdf_ReadyWithoutAttachedOffer()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            Guid orderId;
             using (var scope = _factory.Services.CreateScope())
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                context.QrCodes.Add(
-                    new QrCode
-                    {
-                        RestaurantLocationId = seeded.LocationId,
-                        QrType = QrType.GuestCard,
-                        Token = $"admin-shop-guest-{Guid.NewGuid():N}",
-                        Status = QrCodeStatus.Active,
-                        CreatedAt = DateTime.UtcNow,
-                    }
-                );
+                var billing = await context.BillingAccounts
+                    .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+                billing.SubscriptionPlan = BillingSubscriptionPlans.Starter;
+                await context.SaveChangesAsync();
+
+                var starter = await scope.ServiceProvider
+                    .GetRequiredService<IComplimentaryStarterShopOrderService>()
+                    .EnsureForLocationAsync(
+                        seeded.RestaurantId,
+                        seeded.LocationId,
+                        seeded.OwnerUserId,
+                        "Admin Shop Owner"
+                    );
+                Assert.True(starter.Created);
+                orderId = starter.ShopOrderId;
+            }
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var counter = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("OfferCard", counter.QrType);
+            Assert.Equal("Ready", counter.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWithoutOffer()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 250
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWhenAttachedOfferExpired()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                // Attached while live, expired since: checkout would refuse it.
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Title = "Expired Dessert Friday",
+                    Description = "Guest card offer",
+                    Status = CatalogOfferStatus.Active,
+                    Validity = CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate = DateOnly.FromDateTime(
+                        DateTime.UtcNow.AddDays(-3)
+                    ),
+                    OfferType = CatalogOfferType.FreeItem,
+                    FreeItemText = "Dessert",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(row => row.Id == seeded.LocationId);
+                location.OfferCardCatalogOfferId = offer.Id;
                 await context.SaveChangesAsync();
             }
+
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_StaysPreparingWhenAttachedOfferBelongsToAnotherLocation()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            var otherLocationId = await ShopTestSeed.AddLocationAsync(
+                _factory,
+                seeded.RestaurantId,
+                "Other Site"
+            );
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.LocationId,
+                new ShopTestSeed.CardOfferSetup(OfferLocationId: otherLocationId)
+            );
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Preparing", guestCards.Status);
+        }
+
+        [Fact]
+        public async Task GuestCard_ShopOrderAsset_BecomesReadyWithOwnLocationOffer()
+        {
+            // Positive control for the test above: same QR and order, offer at
+            // this location, so the gate opens and the asset becomes Ready.
+            var seeded = await SeedWorkspaceAsync();
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
+            await ShopTestSeed.AttachActiveCardOfferAsync(_factory, seeded.LocationId);
+            var orderId = await InsertOrderAsync(
+                seeded,
+                ShopFulfilmentStatuses.Processing,
+                catalogSkuId: "qr-guest-cards",
+                titleSnapshot: "QR Guest Cards",
+                quantity: 12
+            );
+
+            await EnsureShopMaterialsAsync(orderId);
+
+            var guestCards = Assert.Single(await ListShopReadinessAsync(orderId));
+            Assert.Equal("GuestCard", guestCards.QrType);
+            Assert.Equal("Ready", guestCards.Status);
+        }
+
+        private async Task AddActiveGuestCardQrAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = locationId,
+                    QrType = QrType.GuestCard,
+                    Token = $"admin-shop-guest-{Guid.NewGuid():N}",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task GuestCardCsv_IncludesOfferHeadline_AfterApprove()
+        {
+            var seeded = await SeedWorkspaceAsync();
+            await AddActiveGuestCardQrAsync(seeded.LocationId);
 
             var orderId = await InsertOrderAsync(
                 seeded,
@@ -851,6 +1058,24 @@ namespace TummlyBackend.Tests.Integration
                 failStored.FulfilmentStatus
             );
             Assert.Null(failStored.CancelledAtUtc);
+        }
+
+        private async Task EnsureShopMaterialsAsync(Guid orderId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            await scope.ServiceProvider
+                .GetRequiredService<IPrintReadyQrMaterialsService>()
+                .EnsureShopOrderMaterialsAsync(orderId);
+        }
+
+        private async Task<IReadOnlyList<ShopPrintAssetReadinessDto>> ListShopReadinessAsync(
+            Guid orderId
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            return await scope.ServiceProvider
+                .GetRequiredService<IPrintReadyQrMaterialsService>()
+                .ListShopOrderReadinessAsync(orderId);
         }
 
         private async Task<ShopOrder> ReadOrderAsync(Guid orderId)

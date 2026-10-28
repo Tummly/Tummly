@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
@@ -29,13 +30,15 @@ namespace TummlyBackend.Services
         private readonly IConfiguration _configuration;
         private readonly TimeProvider _clock;
         private readonly TummlySellerVatSettings _sellerVat;
+        private readonly ILogger<ShopMaterialsOrderPaySessionService> _logger;
 
         public ShopMaterialsOrderPaySessionService(
             ApplicationDbContext context,
             IRevolutMerchantClient merchant,
             IConfiguration configuration,
             TimeProvider clock,
-            IOptions<TummlySellerVatSettings> sellerVat
+            IOptions<TummlySellerVatSettings> sellerVat,
+            ILogger<ShopMaterialsOrderPaySessionService> logger
         )
         {
             _context = context;
@@ -43,6 +46,7 @@ namespace TummlyBackend.Services
             _configuration = configuration;
             _clock = clock;
             _sellerVat = sellerVat.Value;
+            _logger = logger;
         }
 
         public async Task<string> StartAsync(
@@ -159,6 +163,8 @@ namespace TummlyBackend.Services
                 }
             );
 
+            await TrySyncCustomerEmailAsync(billingAccount, cancellationToken);
+
             var created = await _merchant.CreateOrderAsync(
                 new RevolutCreateOrderRequest(
                     AmountMinor: gross,
@@ -262,16 +268,71 @@ namespace TummlyBackend.Services
             {
                 items.Add(
                     new RevolutOrderLineItem(
-                        Name: ShopMaterialsOrderLineCopy.ExpressDeliveryLineName,
+                        Name: ShopMaterialsOrderLineCopy.DeliveryLineName(
+                            order.DeliveryMethod
+                        ),
                         UnitPriceAmount: order.DeliveryNetPence,
                         Quantity: 1,
                         TotalAmount: order.DeliveryNetPence,
-                        Taxes: []
+                        Taxes: [],
+                        Type: "service"
                     )
                 );
             }
 
             return items;
+        }
+
+        /// <summary>
+        /// Puts the billing contact email on the Revolut customer so the
+        /// payment receipt goes there. Revolut customer email is not stored
+        /// locally, so the update runs on every new pay session. A failure
+        /// never blocks payment.
+        /// </summary>
+        private async Task TrySyncCustomerEmailAsync(
+            BillingAccount billingAccount,
+            CancellationToken cancellationToken
+        )
+        {
+            var email = billingAccount.BillingEmail?.Trim();
+            if (
+                string.IsNullOrWhiteSpace(email)
+                || string.IsNullOrWhiteSpace(billingAccount.RevolutCustomerId)
+            )
+            {
+                return;
+            }
+
+            try
+            {
+                var updated = await _merchant.UpdateCustomerAsync(
+                    billingAccount.RevolutCustomerId,
+                    email,
+                    cancellationToken
+                );
+                if (!updated.Succeeded)
+                {
+                    _logger.LogWarning(
+                        "Revolut customer email update failed for restaurant {RestaurantId}: {ErrorCode}",
+                        billingAccount.RestaurantId,
+                        updated.ErrorCode
+                    );
+                }
+            }
+            catch (Exception ex) when (
+                !(ex is OperationCanceledException
+                    && cancellationToken.IsCancellationRequested)
+            )
+            {
+                // Any failure here (HTTP, timeout, bad payload) must not block
+                // payment. Only the exception type is logged: the message can
+                // echo the billing email.
+                _logger.LogWarning(
+                    "Revolut customer email update threw {ExceptionType} for restaurant {RestaurantId}",
+                    ex.GetType().Name,
+                    billingAccount.RestaurantId
+                );
+            }
         }
 
         private async Task<string?> TryReuseCheckoutAsync(
@@ -285,10 +346,14 @@ namespace TummlyBackend.Services
             );
             if (!CreditTopUpPaySessionService.IsPayableOrder(order))
             {
+                // The session could not be read, which does not prove the payment
+                // ended, so the QR slot reservation stays.
                 await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
                     _context,
                     intent.OrderId,
-                    cancellationToken
+                    cancellationToken,
+                    releaseQrReservations: false,
+                    nowUtc: _clock.GetUtcNow().UtcDateTime
                 );
                 return null;
             }

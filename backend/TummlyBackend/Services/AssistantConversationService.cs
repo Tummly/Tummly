@@ -5677,7 +5677,7 @@ namespace TummlyBackend.Services
             bool includeStoredDraft = false
         )
         {
-            var today = CatalogOfferStatus.VenueLocalToday(DateTime.UtcNow, 0);
+            var today = CatalogOfferStatus.LondonToday(DateTime.UtcNow);
             var ids = ownedLocationIds.Count == 0
                 ? (IReadOnlyList<int>)[locationId]
                 : ownedLocationIds;

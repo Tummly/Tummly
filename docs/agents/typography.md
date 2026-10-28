@@ -86,6 +86,14 @@ A text style token is the full stack, not family alone:
 - Reuse existing `--op-*` typography tokens on Operator surfaces before adding parallel values.
 - When Figma introduces a hex or size with no token, add the closest token (or a new named token) in `src/index.css` — same rule as colour tokens in `AGENTS.md`.
 
+**Letter-spacing and body line-height (site-wide)**
+
+- Figma frames set body text in Inter at 0 tracking. Helvetica Neue is 3–5% narrower at the same size, so at 0 tracking it reads crowded. `--tracking-functional: 0.02em` is set on `html` (`src/index.css`), which resolves against the 16px root to **0.32px** and is inherited by all text (≈0.023em at 14px, 0.027em at 12px). This brings Helvetica Neue line widths to within about ±2% of Inter.
+- *headline* text (`font-jakarta` / `font-heading`, Operator `h1`–`h3` and dialog/drawer/sheet titles) resets to **0** tracking in the base layer. Do not add `tracking-tight` on headings; use an explicit `tracking-[…]` value only when Figma sets one.
+- Marketing controls (Inter) keep 0 tracking (see below).
+- An explicit `tracking-*` class on an element always wins (the defaults live in `@layer base`).
+- Multi-line body copy (descriptions, helper text) uses `leading-body` (`--leading-body: 1.5`). Short labels and single lines keep the Figma line-height.
+
 **Hierarchy consistency**
 
 - H1 / H2 / H3 / body / label / button stay the same roles across breakpoints.

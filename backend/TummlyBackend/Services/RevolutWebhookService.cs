@@ -61,6 +61,7 @@ namespace TummlyBackend.Services
         private readonly RevolutSettings _settings;
         private readonly ILogger<RevolutWebhookService> _logger;
         private readonly IPrintReadyQrMaterialsWork? _printReadyQrMaterialsWork;
+        private readonly IPostCommitActions? _postCommit;
 
         public RevolutWebhookService(
             ApplicationDbContext context,
@@ -75,7 +76,8 @@ namespace TummlyBackend.Services
             ICreditLedger? ledger = null,
             ITummlyVatInvoiceService? vatInvoices = null,
             IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
-            IOptions<TummlySellerVatSettings>? sellerVat = null
+            IOptions<TummlySellerVatSettings>? sellerVat = null,
+            IPostCommitActions? postCommitActions = null
         )
         {
             _context = context;
@@ -93,6 +95,7 @@ namespace TummlyBackend.Services
             // reads mode via ITummlyVatInvoiceService / applier.
             _ = sellerVat;
             _printReadyQrMaterialsWork = printReadyQrMaterialsWork;
+            _postCommit = postCommitActions;
             _logger =
                 logger
                 ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RevolutWebhookService>.Instance;
@@ -274,7 +277,13 @@ namespace TummlyBackend.Services
                 await ShopMaterialsOrderPaymentFailure.TryMarkFailedAsync(
                     _context,
                     orderId,
-                    cancellationToken
+                    cancellationToken,
+                    // A webhook never gives the QR slot back, even for a final
+                    // ORDER_FAILED or ORDER_CANCELLED: it covers one Revolut order,
+                    // and a newer one for the same Shop order may still be paid.
+                    // Only the sweeper releases, after it confirmed every attempt.
+                    releaseQrReservations: false,
+                    nowUtc: _clock.GetUtcNow().UtcDateTime
                 );
 
                 await transaction.CommitAsync(cancellationToken);
@@ -839,6 +848,8 @@ namespace TummlyBackend.Services
                         ? RevolutWebhookClaimDispositions.Recorded
                         : RevolutWebhookClaimDispositions.SkippedUnknownBillingReason;
 
+            // Side effects such as emails wait for the commit below.
+            _postCommit?.BeginDeferral();
             await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
 
@@ -915,6 +926,12 @@ namespace TummlyBackend.Services
                 await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
+                // Committed: now the queued emails may leave.
+                if (_postCommit != null)
+                {
+                    await _postCommit.RunAsync(cancellationToken);
+                }
+
                 await TryQueueShopPrintMaterialsAfterCommitAsync(intent);
 
                 if (!isRefundFamily && (isMintable || isOneTimeIntent))
@@ -961,6 +978,12 @@ namespace TummlyBackend.Services
             {
                 await AbortClaimTransactionAsync(claimId, cancellationToken);
                 throw;
+            }
+            finally
+            {
+                // Anything still queued here belongs to a transaction that did
+                // not commit.
+                _postCommit?.Discard();
             }
         }
 

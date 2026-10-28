@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
@@ -19,20 +18,23 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
-        private readonly IPricebookCatalog _pricebookCatalog;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
+        private readonly IActiveQrCapacity _activeQrCapacity;
 
         public CaptureQrLifecycleService(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
             IPricebookCatalog pricebookCatalog,
-            IPrintReadyQrMaterialsService printReadyQrMaterials
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
+            IActiveQrCapacity? activeQrCapacity = null
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
-            _pricebookCatalog = pricebookCatalog;
             _printReadyQrMaterials = printReadyQrMaterials;
+            // DI supplies the shared instance; the fallback keeps the four-argument construction working.
+            _activeQrCapacity =
+                activeQrCapacity ?? new ActiveQrCapacity(context, pricebookCatalog);
         }
 
         public async Task<QrLifecycleResult> CreateDigitalGuestLinkAsync(
@@ -680,7 +682,8 @@ namespace TummlyBackend.Services
                 {
                     var denied = await DenyIfActiveQrWouldExceedAsync(
                         command.LocationId,
-                        increment: 1
+                        increment: 1,
+                        activatingType: qrCode.QrType
                     );
                     if (denied != null)
                     {
@@ -739,20 +742,23 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var billingAccount = await _context.BillingAccounts.FirstOrDefaultAsync(
-                row => row.RestaurantId == restaurantId,
+            await using var transaction = await BeginEntitlementTransactionAsync();
+
+            var billingAccount = await _activeQrCapacity.LockBillingAccountAsync(
+                restaurantId,
                 cancellationToken
             );
-            if (
-                !TryResolveActiveQrCap(
-                    billingAccount,
-                    out var perLocationCap,
-                    out _
-                )
-            )
+            // The pool is Workspace-wide (Commercial V4), so no Location is passed.
+            var allowance = await _activeQrCapacity.GetAllowanceAsync(
+                billingAccount,
+                cancellationToken
+            );
+            if (allowance == null)
             {
                 return 0;
             }
+
+            var workspacePool = allowance.WorkspacePool;
 
             var locations = await _context.RestaurantLocations
                 .Where(row =>
@@ -766,19 +772,6 @@ namespace TummlyBackend.Services
             }
 
             var locationIds = locations.Select(row => row.Id).ToList();
-            var activeByLocation = await _context.QrCodes
-                .Where(qr =>
-                    locationIds.Contains(qr.RestaurantLocationId)
-                    && qr.Status == QrCodeStatus.Active
-                )
-                .GroupBy(qr => qr.RestaurantLocationId)
-                .Select(g => new { LocationId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(
-                    row => row.LocationId,
-                    row => row.Count,
-                    cancellationToken
-                );
-
             var pausedCodes = await _context.QrCodes
                 .Where(qr =>
                     locationIds.Contains(qr.RestaurantLocationId)
@@ -788,6 +781,12 @@ namespace TummlyBackend.Services
                 .ThenBy(qr => qr.Id)
                 .ToListAsync(cancellationToken);
 
+            // Count the Workspace once under the lock, then add each activation's
+            // cost. Held reservations at any Location are already in this count.
+            var used = await _activeQrCapacity.CountUsedForRestaurantAsync(
+                restaurantId,
+                cancellationToken
+            );
             var activated = 0;
             foreach (var qr in pausedCodes)
             {
@@ -802,20 +801,27 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                var active = activeByLocation.GetValueOrDefault(qr.RestaurantLocationId);
-                if (active >= perLocationCap)
+                // Headroom is Workspace-wide, so held reservations at any Location count.
+                var cost = await _activeQrCapacity.ActivationCostAsync(
+                    qr.RestaurantLocationId,
+                    qr.QrType,
+                    cancellationToken
+                );
+                if (used + cost > workspacePool)
                 {
                     continue;
                 }
 
                 qr.Status = QrCodeStatus.Active;
-                activeByLocation[qr.RestaurantLocationId] = active + 1;
+                used += cost;
                 activated++;
+                // Save each activation so the next cost check sees it.
+                await _context.SaveChangesAsync(cancellationToken);
             }
 
-            if (activated > 0)
+            if (transaction != null)
             {
-                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
 
             return activated;
@@ -844,7 +850,8 @@ namespace TummlyBackend.Services
 
         private async Task<QrLifecycleResult?> DenyIfActiveQrWouldExceedAsync(
             int locationId,
-            int increment
+            int increment,
+            QrType? activatingType = null
         )
         {
             if (increment <= 0)
@@ -857,146 +864,29 @@ namespace TummlyBackend.Services
                 .Select(location => location.RestaurantId)
                 .FirstAsync();
 
-            var billingAccount = await LoadBillingAccountForUpdateAsync(
-                restaurantId
+            var decision = await _activeQrCapacity.EvaluateAsync(
+                restaurantId,
+                locationId,
+                increment,
+                activatingType,
+                CancellationToken.None
             );
-            if (
-                !TryResolveActiveQrCap(
-                    billingAccount,
-                    out var perLocCap,
-                    out var accountExtra
-                )
-            )
+            if (!decision.EntitlementsAvailable)
             {
                 return QrLifecycleResult.Conflict(
                     "Plan entitlements are unavailable."
                 );
             }
 
-            var current = await _context.QrCodes.CountAsync(qr =>
-                qr.RestaurantLocationId == locationId
-                && qr.Status == QrCodeStatus.Active
-            );
-
-            if (current + increment <= perLocCap)
+            if (decision.Fits)
             {
                 return null;
             }
 
-            if (accountExtra <= 0)
-            {
-                return QrLifecycleResult.ActiveQrCapReached(perLocCap, current);
-            }
-
-            // Account-wide pool: Σ max(0, active_l − perLocCap) may use accountExtra.
-            var locationIds = await _context.RestaurantLocations
-                .Where(row => row.RestaurantId == restaurantId)
-                .Select(row => row.Id)
-                .ToListAsync();
-
-            var activeByLocation = await _context.QrCodes
-                .Where(qr =>
-                    locationIds.Contains(qr.RestaurantLocationId)
-                    && qr.Status == QrCodeStatus.Active
-                )
-                .GroupBy(qr => qr.RestaurantLocationId)
-                .Select(g => new { LocationId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(row => row.LocationId, row => row.Count);
-
-            var totalOverflow = 0;
-            foreach (var locId in locationIds)
-            {
-                var active = activeByLocation.GetValueOrDefault(locId);
-                if (locId == locationId)
-                {
-                    active = current + increment;
-                }
-
-                totalOverflow += Math.Max(0, active - perLocCap);
-            }
-
-            if (totalOverflow <= accountExtra)
-            {
-                return null;
-            }
-
-            return QrLifecycleResult.ActiveQrCapReached(perLocCap, current);
-        }
-
-        private async Task<BillingAccount?> LoadBillingAccountForUpdateAsync(
-            int restaurantId
-        )
-        {
-            if (_context.Database.IsSqlServer())
-            {
-                return await _context.BillingAccounts
-                    .FromSqlInterpolated(
-                        $"SELECT * FROM BillingAccounts WITH (UPDLOCK, ROWLOCK) WHERE RestaurantId = {restaurantId}"
-                    )
-                    .FirstOrDefaultAsync();
-            }
-
-            return await _context.BillingAccounts.FirstOrDefaultAsync(
-                row => row.RestaurantId == restaurantId
+            return QrLifecycleResult.ActiveQrCapReached(
+                decision.WorkspacePool,
+                decision.Used
             );
-        }
-
-        private bool TryResolveActiveQrCap(
-            BillingAccount? billingAccount,
-            out int perLocationCap,
-            out int accountExtra
-        )
-        {
-            perLocationCap = 0;
-            accountExtra = 0;
-            if (
-                billingAccount == null
-                || string.IsNullOrWhiteSpace(
-                    billingAccount.ContractedPricebookId
-                )
-            )
-            {
-                return false;
-            }
-
-            var key = billingAccount.SubscriptionPlan.Trim().ToLowerInvariant();
-            if (key == "custom")
-            {
-                var custom = CustomPlanConfig.TryParse(
-                    billingAccount.CustomPlanConfigJson
-                );
-                if (custom == null)
-                {
-                    return false;
-                }
-
-                perLocationCap = Math.Max(0, custom.Quantities.QrPlacements);
-                accountExtra = Math.Max(
-                    0,
-                    custom.Quantities.QrPlacementsAccountExtra
-                );
-                return true;
-            }
-
-            PricebookSnapshot book;
-            try
-            {
-                book = _pricebookCatalog.GetRequired(
-                    billingAccount.ContractedPricebookId
-                );
-            }
-            catch (InvalidOperationException)
-            {
-                return false;
-            }
-
-            if (!book.Plans.TryGetValue(key, out var plan))
-            {
-                return false;
-            }
-
-            perLocationCap = plan.ActiveQrPlacementsPerLocation;
-            return true;
         }
 
         private async Task<string?> ResolveActorDisplayNameAsync(int userId)

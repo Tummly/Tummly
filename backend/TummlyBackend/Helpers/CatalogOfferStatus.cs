@@ -27,6 +27,14 @@ namespace TummlyBackend.Helpers
             int utcOffsetMinutes
         ) => DateOnly.FromDateTime(utcNow.AddMinutes(utcOffsetMinutes));
 
+        /// <summary>
+        /// Offer "today" for the UK venue calendar (Tummly is UK-only). Uses the
+        /// London wall-clock date, so between 23:00Z and 23:59Z in BST the date
+        /// is already the next day.
+        /// </summary>
+        public static DateOnly LondonToday(DateTime utcNow) =>
+            DateOnly.FromDateTime(LondonDateFormat.ToLondonLocal(utcNow));
+
         public static string ResolveEffectiveStatus(
             string storedStatus,
             CatalogOfferValidity validity,
@@ -213,6 +221,28 @@ namespace TummlyBackend.Helpers
                 customExpiryDate,
                 venueLocalToday
             );
+        }
+
+        /// <summary>
+        /// True when <paramref name="offer"/> belongs to the location and may
+        /// receive a live attach (<see cref="IsAttachable"/> on the venue-local
+        /// date). Null offer is not attachable. Shared by the offer catalog
+        /// lookup and the Shop card-offer rule.
+        /// </summary>
+        public static bool IsAttachableAtLocation(
+            CatalogOffer? offer,
+            int locationId,
+            DateTime utcNow
+        )
+        {
+            return offer != null
+                && offer.RestaurantLocationId == locationId
+                && IsAttachable(
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    LondonToday(utcNow)
+                );
         }
 
         /// <summary>

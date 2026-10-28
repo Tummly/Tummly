@@ -21,6 +21,7 @@ import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboard
 import tummlyStickerImg from "@/assets/images/shop/tummly-sticker.png"
 import tummlyBagImg from "@/assets/images/shop/tummly-bag.png"
 import {
+  SHOP_BODY_TEXT_CLASS,
   SHOP_PRODUCT_DETAIL_CARD_CLASS,
   SHOP_PRODUCT_SPEC_DIVIDER_CLASS,
 } from "@/lib/operatorShop/shopSurfacePresentation"
@@ -43,7 +44,6 @@ type PackageOption = {
   label: string
   quantity: number
   pricePounds: number
-  isRecommended?: boolean
 }
 
 type ShopProductScreenProps = {
@@ -89,17 +89,15 @@ export function ShopProductScreen({
       product.packs.length > 0
         ? product.packs
         : [{ qty: product.minOrderQty || 1, netPence: product.unitNetPence }]
-    const midIndex = Math.floor((packs.length - 1) / 2)
-    return packs.map((pack, index) => ({
+    return packs.map((pack) => ({
       id: `pack-${pack.qty}`,
       label: `Pack of ${pack.qty.toLocaleString("en-GB")}`,
       quantity: pack.qty,
       pricePounds: pack.netPence / 100,
-      isRecommended: index === midIndex,
     }))
   }, [product.packs, product.minOrderQty, product.unitNetPence])
 
-  const defaultPackId = packageOptions[packageOptions.length - 1]?.id ?? ""
+  const defaultPackId = packageOptions[0]?.id ?? ""
   const [selectedPackId, setSelectedPackId] = useState<string>(defaultPackId)
   const [activeImageIdx, setActiveImageIdx] = useState<number>(0)
 
@@ -127,7 +125,6 @@ export function ShopProductScreen({
   const calculatedPrice = (selectedPack?.pricePounds ?? product.price).toFixed(
     2
   )
-  const recommendedPack = packageOptions.find((pack) => pack.isRecommended)
 
   const relatedProducts = catalogProducts
     .filter((p) => p.id !== product.id)
@@ -151,7 +148,7 @@ export function ShopProductScreen({
             Tummly Shop
           </button>
           <ChevronRight className="size-3.5 text-op-text-muted" />
-          <span className="text-op-text-secondary capitalize">
+          <span className="text-op-text-body capitalize">
             {product.category === "tabletop" ? "Table and dine-in" : product.category}
           </span>
           <ChevronRight className="size-3.5 text-op-text-muted" />
@@ -212,7 +209,7 @@ export function ShopProductScreen({
               <h3 className="text-lg font-medium text-op-text-primary">
                 About the {product.title.toLowerCase()}
               </h3>
-              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
+              <p className={cn("text-sm font-medium leading-[19px]", SHOP_BODY_TEXT_CLASS)}>
                 {product.aboutBody}
               </p>
             </div>
@@ -223,10 +220,10 @@ export function ShopProductScreen({
         <div className="flex flex-col gap-6 lg:col-span-6">
           {/* Title & Description */}
           <div className="flex flex-col gap-2">
-            <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+            <h1 className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
               {product.title}
             </h1>
-            <p className="text-sm leading-relaxed text-op-text-secondary">
+            <p className={cn("text-sm leading-relaxed", SHOP_BODY_TEXT_CLASS)}>
               {product.description}
             </p>
           </div>
@@ -237,7 +234,7 @@ export function ShopProductScreen({
               <h3 className="text-base font-semibold text-op-text-primary">
                 Prepared for
               </h3>
-              <p className="text-xs text-op-text-secondary">
+              <p className={cn("text-xs", SHOP_BODY_TEXT_CLASS)}>
                 The printed QR code will connect guests to the selected guest form and track activity for this location.
               </p>
             </div>
@@ -266,23 +263,9 @@ export function ShopProductScreen({
 
           {/* Box 2: Choose a quantity */}
           <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
-            <div className="flex flex-col gap-1">
-              <h3 className="text-base font-semibold text-op-text-primary">
-                Choose a pack
-              </h3>
-              <p className="text-xs text-op-text-secondary">
-                {recommendedPack ? (
-                  <>
-                    <strong className="text-op-text-primary">
-                      {recommendedPack.label} recommended
-                    </strong>{" "}
-                    — Prices come from the live shop catalog for this product.
-                  </>
-                ) : (
-                  "Prices come from the live shop catalog for this product."
-                )}
-              </p>
-            </div>
+            <h3 className="text-base font-semibold text-op-text-primary">
+              Choose a pack
+            </h3>
 
             <div className="flex flex-col gap-2.5">
               {packageOptions.map((pack) => {
@@ -296,18 +279,13 @@ export function ShopProductScreen({
                       "flex items-center justify-between rounded-md border p-3.5 text-xs transition-colors",
                       isSelected
                         ? "border-op-action-primary bg-op-surface-secondary/80 font-medium text-op-text-primary"
-                        : "border-op-border-default bg-op-background-primary text-op-text-secondary hover:border-op-action-tertiary"
+                        : cn("border-op-border-default bg-op-background-primary hover:border-op-action-tertiary", SHOP_BODY_TEXT_CLASS)
                     )}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="text-sm font-medium text-op-text-primary">
                         {pack.label}
                       </span>
-                      {pack.isRecommended && (
-                        <span className="rounded-xs border border-op-action-primary/40 bg-op-action-primary/10 px-2 py-0.5 text-[11px] font-semibold text-op-text-success">
-                          Recommended
-                        </span>
-                      )}
                     </div>
                     <span className="text-sm font-semibold text-op-text-primary">
                       £{pack.pricePounds.toFixed(2)}
@@ -319,12 +297,12 @@ export function ShopProductScreen({
           </div>
 
           {/* Box 3: Order summary */}
-          <div className={cn(SHOP_PRODUCT_DETAIL_CARD_CLASS, "flex flex-col gap-4 p-5")}>
+          <div className="flex flex-col gap-4 rounded-op-lg border border-op-border-default bg-op-surface-secondary p-5">
             <h3 className="text-base font-semibold text-op-text-primary">
               Order summary
             </h3>
 
-            <div className="flex flex-col gap-2.5 text-xs text-op-text-secondary">
+            <div className={cn("flex flex-col gap-2.5 text-xs", SHOP_BODY_TEXT_CLASS)}>
               <div className="flex justify-between">
                 <span>Material</span>
                 <span className="font-medium text-op-text-primary">{product.title}</span>
@@ -363,7 +341,7 @@ export function ShopProductScreen({
                 <span className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
                   £{calculatedPrice}
                 </span>
-                <span className="text-xs text-op-text-muted">
+                <span className={cn("text-xs", SHOP_BODY_TEXT_CLASS)}>
                   {showVatChrome
                     ? "Excluding VAT and delivery"
                     : "Excluding delivery"}
@@ -371,7 +349,7 @@ export function ShopProductScreen({
               </div>
 
               {comingSoon ? (
-                <p className="text-sm font-medium text-op-text-secondary">
+                <p className={cn("text-sm font-medium", SHOP_BODY_TEXT_CLASS)}>
                   Coming soon — this material is not available to order yet.
                 </p>
               ) : (
@@ -423,7 +401,7 @@ export function ShopProductScreen({
               ).map((row, index, rows) => (
                 <div key={`${row.label}-${index}`} className="flex flex-col gap-3.5">
                   <div className="flex items-center justify-between gap-4">
-                    <span className="font-semibold text-[var(--op-color-gray-550)]">
+                    <span className={cn("font-semibold", SHOP_BODY_TEXT_CLASS)}>
                       {row.label}
                     </span>
                     <span className="font-medium text-op-text-primary text-right">
@@ -443,7 +421,7 @@ export function ShopProductScreen({
               <h3 className="text-lg font-medium text-op-text-primary">
                 Connected QR tracking
               </h3>
-              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
+              <p className={cn("text-sm font-medium leading-[19px]", SHOP_BODY_TEXT_CLASS)}>
                 The QR code printed on this material is connected to one location and one QR placement. Tummly records scans, form starts and completed submissions against that placement.
               </p>
             </div>
@@ -454,7 +432,7 @@ export function ShopProductScreen({
               <h3 className="text-lg font-medium text-op-text-primary">
                 Production and delivery
               </h3>
-              <p className="text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]">
+              <p className={cn("text-sm font-medium leading-[19px]", SHOP_BODY_TEXT_CLASS)}>
                 Materials enter production after the order, artwork and location connection have been confirmed. Delivery estimates are shown at checkout and may vary by quantity and delivery address.
               </p>
             </div>
@@ -468,7 +446,7 @@ export function ShopProductScreen({
           <h3 className="text-lg font-semibold text-op-text-primary">
             You may also need
           </h3>
-          <p className="text-xs text-op-text-muted">
+          <p className={cn("text-xs", SHOP_BODY_TEXT_CLASS)}>
             Complementary materials commonly paired with table prompts.
           </p>
         </div>

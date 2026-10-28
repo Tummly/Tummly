@@ -1,4 +1,7 @@
-import type { AdminShopFulfilmentStatus } from "@/api/adminShopOrdersApi"
+import type {
+  AdminShopFulfilmentStatus,
+  AdminShopOrderListItem,
+} from "@/api/adminShopOrdersApi"
 
 export const ADMIN_SHOP_FULFILMENT_STATUS_LABELS: Record<
   AdminShopFulfilmentStatus,
@@ -18,7 +21,7 @@ export const ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS: Array<{
   { id: "in_transit", label: "Dispatched" },
   { id: "delivered", label: "Delivered" },
   { id: "cancelled", label: "Cancelled" },
-  { id: "all", label: "All statuses" },
+  { id: "all", label: "All" },
 ]
 
 export const ALL_ADMIN_SHOP_FULFILMENT_STATUSES: AdminShopFulfilmentStatus[] = [
@@ -66,4 +69,51 @@ export function canEditAdminShopOpsNotes(status: string): boolean {
     status === "in_transit" ||
     status === "delivered"
   )
+}
+
+export type AdminShopOrderReviewNotice = {
+  title: string
+  lines: string[]
+}
+
+const ADMIN_SHOP_REVIEW_REASON_LABELS: Record<string, string> = {
+  qr_capacity_unavailable_after_payment:
+    "paid, but the plan had no room for a new QR code.",
+}
+
+function formatReviewSince(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return iso
+  }
+  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`
+}
+
+/**
+ * Warning for Admin when a paid Shop order needs a manual look: the review
+ * reason, or QR slot reservations held in `review`. Null when none.
+ */
+export function adminShopOrderReviewNotice(
+  order: Pick<AdminShopOrderListItem, "reviewReason" | "reviewQrReservations">
+): AdminShopOrderReviewNotice | null {
+  const reservations = order.reviewQrReservations ?? []
+  const reason = order.reviewReason?.trim() || null
+
+  if (!reason && reservations.length === 0) {
+    return null
+  }
+
+  const title = reason
+    ? `Needs review: ${ADMIN_SHOP_REVIEW_REASON_LABELS[reason] ?? reason}`
+    : "Needs review: a QR slot has been held for over 24 hours."
+
+  return {
+    title,
+    lines: reservations.map(
+      (row) =>
+        `${row.qrType} held since ${formatReviewSince(row.createdAtUtc)} (${
+          row.lastReconcileError?.trim() || "no error recorded"
+        })`
+    ),
+  }
 }

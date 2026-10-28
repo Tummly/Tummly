@@ -23,7 +23,7 @@ import {
   saveShopLocationDetails,
   type ShopLocationRecommendations,
 } from "@/api/shopRecommendationsApi"
-import type { CheckoutLine, ShopShipToPayload } from "@/api/shopOrdersApi"
+import type { CheckoutLine } from "@/api/shopOrdersApi"
 import { ShopHeader } from "@/components/dashboard/operator/Shop/ShopHeader"
 import { ShopToolbar } from "@/components/dashboard/operator/Shop/ShopToolbar"
 import { ShopBanner } from "@/components/dashboard/operator/Shop/ShopBanner"
@@ -56,15 +56,19 @@ import {
   type ShopProduct,
 } from "@/lib/operatorShop/shopCatalogTypes"
 import {
+  confirmShopOrderPayment,
   pollShopOrderUntilPaid,
 } from "@/api/shopOrdersApi"
+import { resolveShopOrderOnPaymentReturn } from "@/lib/operatorShop/resolveShopOrderOnPaymentReturn"
 import { useGateFreeProductWrite } from "@/components/dashboard/operator/useGateFreeProductWrite"
 import { shouldGateFreeProductWrite } from "@/lib/operatorHome/freeProductWriteGate"
 import { createShopOfferCardSetupModule } from "@/lib/operatorShop/createShopOfferCardSetupModule"
 import {
   SHOP_OFFER_CARD_SETUP_COPY,
-  SHOP_OFFER_CARD_SKU_ID,
+  SHOP_GUEST_CARD_SKU_ID,
 } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
+import { shouldOpenOfferCardSetupForError } from "@/lib/operatorShop/shouldOpenOfferCardSetupForError"
+import { buildShopReorderUnavailableMessage } from "@/lib/operatorShop/shopReorderUnavailablePresentation"
 import type { ShopPaidWriteChrome } from "@/lib/operatorShop/shopPaidWriteChrome"
 import { shouldShowShopRecommendations } from "@/lib/operatorShop/shouldShowShopRecommendations"
 import type { ShopLocationOption } from "@/components/dashboard/operator/Shop/ShopLocationPicker"
@@ -79,10 +83,8 @@ type ShopPageProps = {
   subscriptionPlan: string
 }
 
-type ExpressCheckoutState = {
+type DirectCheckoutState = {
   lines: CheckoutLine[]
-  shipTo?: ShopShipToPayload
-  deliveryMethod?: "standard" | "express"
   sourceOrderNumber?: string
 }
 
@@ -154,8 +156,8 @@ export function ShopPage({
   const [isMaterialsPackOpen, setIsMaterialsPackOpen] = useState<boolean>(false)
   const [isLocationDetailsOpen, setIsLocationDetailsOpen] = useState<boolean>(false)
   const [checkoutFromCart, setCheckoutFromCart] = useState(false)
-  const [expressCheckout, setExpressCheckout] =
-    useState<ExpressCheckoutState | null>(null)
+  const [directCheckout, setDirectCheckout] =
+    useState<DirectCheckoutState | null>(null)
 
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null)
   const [recommendations, setRecommendations] =
@@ -165,11 +167,16 @@ export function ShopPage({
     ShopInterestProduct[]
   >([])
 
+  const guestCardAvailable =
+    findShopProductById(catalogProducts, SHOP_GUEST_CARD_SKU_ID)
+      ?.availableInShop === true
+
   const offerCardSetupModule = useMemo(
     () =>
       createShopOfferCardSetupModule({
         locationId: () => selectedLocationId,
         isEnabled: () => offerCardSetupEnabled,
+        isGuestCardAvailable: () => guestCardAvailable,
         getAttached: () => fetchShopOfferCardOffer(selectedLocationId),
         createCatalogOffer: async (body) => {
           const created = await createCatalogOffer(body)
@@ -180,13 +187,29 @@ export function ShopPage({
         onError: (message) => toast.error(message),
         onSuccess: (message) => toast.success(message),
       }),
-    [offerCardSetupEnabled, selectedLocationId]
+    [guestCardAvailable, offerCardSetupEnabled, selectedLocationId]
   )
   const offerCardSetup = useSyncExternalStore(
     offerCardSetupModule.subscribe,
     offerCardSetupModule.getSnapshot,
     offerCardSetupModule.getSnapshot
   )
+
+  /** Opens the card-offer dialog. A noop (Guest Cards unavailable) gets the guard toast. */
+  const openOfferCardSetup = (): void => {
+    if (offerCardSetupModule.open() === "noop") {
+      toast.error(SHOP_OFFER_CARD_SETUP_COPY.guardToast)
+    }
+  }
+
+  /** Server refused a Guest Card line until a card offer is attached. */
+  const openOfferCardSetupIfRequired = (error: unknown): boolean => {
+    if (!shouldOpenOfferCardSetupForError(error)) {
+      return false
+    }
+    openOfferCardSetup()
+    return true
+  }
 
   const requireOfferCardAttach = (): boolean => {
     if (!offerCardSetupEnabled) {
@@ -422,9 +445,17 @@ export function ShopPage({
 
     void (async () => {
       toast.message("Confirming your Revolut payment…")
-      const paidOrder = await pollShopOrderUntilPaid({
-        orderId: shopOrderId,
-        locationId: selectedLocationId,
+      const paidOrder = await resolveShopOrderOnPaymentReturn({
+        confirmPayment: () =>
+          confirmShopOrderPayment({
+            orderId: shopOrderId,
+            locationId: selectedLocationId,
+          }),
+        pollUntilPaid: () =>
+          pollShopOrderUntilPaid({
+            orderId: shopOrderId,
+            locationId: selectedLocationId,
+          }),
       })
       if (cancelled) {
         return
@@ -482,7 +513,7 @@ export function ShopPage({
     }
 
     if (
-      product.id === SHOP_OFFER_CARD_SKU_ID
+      product.id === SHOP_GUEST_CARD_SKU_ID
       && !requireOfferCardAttach()
     ) {
       return
@@ -497,8 +528,10 @@ export function ShopPage({
       // One line per SKU: selected pack qty replaces any prior pack on the line.
       await putAbsoluteQuantity(product.id, packQty)
       toast.success(`Added ${product.title} to cart`)
-    } catch {
-      toast.error("Could not update cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not update cart.")
+      }
     }
   }
 
@@ -509,8 +542,10 @@ export function ShopPage({
 
     try {
       await putAbsoluteQuantity(productId, quantity)
-    } catch {
-      toast.error("Could not update cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not update cart.")
+      }
     }
   }
 
@@ -546,7 +581,7 @@ export function ShopPage({
     }
 
     const includesOfferCard = SHOP_MATERIALS_PACK_LINES.some(
-      (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+      (line) => line.skuId === SHOP_GUEST_CARD_SKU_ID
     )
     if (includesOfferCard && !requireOfferCardAttach()) {
       return
@@ -561,8 +596,10 @@ export function ShopPage({
       }
       toast.success(`Materials pack added to cart for ${locationName}`)
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add materials pack.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add materials pack.")
+      }
     }
   }
 
@@ -578,7 +615,7 @@ export function ShopPage({
     }
 
     if (
-      lines.some((line) => line.skuId === SHOP_OFFER_CARD_SKU_ID)
+      lines.some((line) => line.skuId === SHOP_GUEST_CARD_SKU_ID)
       && !requireOfferCardAttach()
     ) {
       return
@@ -591,8 +628,10 @@ export function ShopPage({
 
       toast.success(`Recommended materials kit added to cart for ${locationName}`)
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add recommended kit.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add recommended kit.")
+      }
     }
   }
 
@@ -604,7 +643,7 @@ export function ShopPage({
       return
     }
 
-    if (skuId === SHOP_OFFER_CARD_SKU_ID && !requireOfferCardAttach()) {
+    if (skuId === SHOP_GUEST_CARD_SKU_ID && !requireOfferCardAttach()) {
       return
     }
 
@@ -612,8 +651,10 @@ export function ShopPage({
       await putAbsoluteQuantity(skuId, quantity)
       toast.success("Item added to cart")
       setIsCartOpen(true)
-    } catch {
-      toast.error("Could not add item to cart.")
+    } catch (error) {
+      if (!openOfferCardSetupIfRequired(error)) {
+        toast.error("Could not add item to cart.")
+      }
     }
   }
 
@@ -623,8 +664,8 @@ export function ShopPage({
         ? cartItems.map((item) =>
             toCheckoutLine(item.product, item.quantity)
           )
-        : (expressCheckout?.lines ?? []),
-    [cartItems, checkoutFromCart, expressCheckout]
+        : (directCheckout?.lines ?? []),
+    [cartItems, checkoutFromCart, directCheckout]
   )
 
   const handleCheckout = () => {
@@ -638,7 +679,7 @@ export function ShopPage({
     }
 
     if (
-      cartItems.some((item) => item.product.id === SHOP_OFFER_CARD_SKU_ID)
+      cartItems.some((item) => item.product.id === SHOP_GUEST_CARD_SKU_ID)
       && !requireOfferCardAttach()
     ) {
       return
@@ -646,7 +687,7 @@ export function ShopPage({
 
     setIsCartOpen(false)
     setCheckoutFromCart(true)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
     setSearchParams({ view: "checkout" })
     scrollShopPaneToTop()
   }
@@ -667,15 +708,15 @@ export function ShopPage({
     }
 
     if (
-      product.id === SHOP_OFFER_CARD_SKU_ID
+      product.id === SHOP_GUEST_CARD_SKU_ID
       && !requireOfferCardAttach()
     ) {
       return
     }
 
-    // Express path (lock 05): do not merge into the server cart.
+    // Direct (non-cart) checkout, lock 05: do not merge into the server cart.
     setCheckoutFromCart(false)
-    setExpressCheckout({
+    setDirectCheckout({
       lines: [toCheckoutLine(product, quantity)],
     })
     setSearchParams({ view: "checkout" })
@@ -684,14 +725,14 @@ export function ShopPage({
 
   const handleBackToShop = () => {
     setCheckoutFromCart(false)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
     setSearchParams({})
     scrollShopPaneToTop()
   }
 
   const clearCheckoutSession = () => {
     setCheckoutFromCart(false)
-    setExpressCheckout(null)
+    setDirectCheckout(null)
   }
 
   return (
@@ -701,8 +742,6 @@ export function ShopPage({
           locationId={selectedLocationId}
           lines={checkoutLines}
           fromCart={checkoutFromCart}
-          initialShipTo={expressCheckout?.shipTo}
-          initialDeliveryMethod={expressCheckout?.deliveryMethod}
           selectedLocationName={locationName}
           selectedLocationAddress={locationAddress}
           locations={locations}
@@ -710,12 +749,13 @@ export function ShopPage({
           mode={mode}
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
+          onOfferCardRequired={openOfferCardSetup}
           onBackToProduct={() => {
             const wasFromCart = checkoutFromCart
-            const expressSkuId = expressCheckout?.lines[0]?.skuId
+            const directSkuId = directCheckout?.lines[0]?.skuId
             clearCheckoutSession()
-            if (!wasFromCart && expressSkuId) {
-              setSearchParams({ product: expressSkuId })
+            if (!wasFromCart && directSkuId) {
+              setSearchParams({ product: directSkuId })
             } else {
               setSearchParams({})
             }
@@ -749,16 +789,21 @@ export function ShopPage({
           onSelectLocation={onSelectLocation}
           onBackToShop={handleBackToShop}
           onReorder={({ prefill }) => {
+            if (prefill.unavailableLines && prefill.unavailableLines.length > 0) {
+              toast.error(
+                buildShopReorderUnavailableMessage(prefill.unavailableLines)
+              )
+            }
             if (
               prefill.lines.some(
-                (line) => line.skuId === SHOP_OFFER_CARD_SKU_ID
+                (line) => line.skuId === SHOP_GUEST_CARD_SKU_ID
               )
               && !requireOfferCardAttach()
             ) {
               return
             }
             setCheckoutFromCart(false)
-            setExpressCheckout({
+            setDirectCheckout({
               lines: prefill.lines.map((line) => ({
                 skuId: line.skuId,
                 title: line.title,
@@ -766,8 +811,6 @@ export function ShopPage({
                 unitNetPence: line.unitNetPence,
                 lineNetPence: line.lineNetPence,
               })),
-              shipTo: prefill.shipTo,
-              deliveryMethod: prefill.deliveryMethod,
               sourceOrderNumber: prefill.sourceOrderNumber,
             })
             setSearchParams({ view: "checkout" })

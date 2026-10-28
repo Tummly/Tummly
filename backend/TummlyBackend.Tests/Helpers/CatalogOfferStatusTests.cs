@@ -73,6 +73,53 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void LondonToday_BstLateEvening_IsNextLondonDay()
+        {
+            var utc = new DateTime(2026, 7, 15, 23, 30, 0, DateTimeKind.Utc);
+            Assert.Equal(
+                new DateOnly(2026, 7, 16),
+                CatalogOfferStatus.LondonToday(utc)
+            );
+        }
+
+        [Fact]
+        public void LondonToday_GmtLateEvening_IsSameDay()
+        {
+            var utc = new DateTime(2026, 1, 15, 23, 30, 0, DateTimeKind.Utc);
+            Assert.Equal(
+                new DateOnly(2026, 1, 15),
+                CatalogOfferStatus.LondonToday(utc)
+            );
+        }
+
+        [Fact]
+        public void IsAttachableAtLocation_FixedExpiryToday_NotAttachableOnceLondonIsNextDay()
+        {
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = 5,
+                Status = CatalogOfferStatus.Active,
+                Validity = CatalogOfferValidity.ChooseExpiryDate,
+                CustomExpiryDate = new DateOnly(2026, 7, 15),
+            };
+
+            Assert.False(
+                CatalogOfferStatus.IsAttachableAtLocation(
+                    offer,
+                    5,
+                    new DateTime(2026, 7, 15, 23, 30, 0, DateTimeKind.Utc)
+                )
+            );
+            Assert.True(
+                CatalogOfferStatus.IsAttachableAtLocation(
+                    offer,
+                    5,
+                    new DateTime(2026, 7, 15, 22, 30, 0, DateTimeKind.Utc)
+                )
+            );
+        }
+
+        [Fact]
         public void IsNeedsAttention_WithinSevenDays_NotClosed()
         {
             var today = new DateOnly(2026, 8, 11);

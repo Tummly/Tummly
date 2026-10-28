@@ -22,6 +22,14 @@
    * marketing Figma, which sets them in Inter (500 / inputs 400, 0 tracking).
    */
   --font-inter: "Inter Variable", Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /*
+   * *functional* letter-spacing: Figma frames set body text in Inter at 0
+   * tracking. Helvetica Neue is 3–5% narrower at the same size, so it reads
+   * crowded; +0.02em matches Inter's line width (Medium ~101%, Regular ~99%).
+   */
+  --tracking-functional: 0.02em;
+  /* Multi-line body copy (descriptions, helper text). */
+  --leading-body: 1.5;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -89,6 +97,7 @@
   --color-op-text-muted: var(--op-text-muted);
   --color-op-text-inverse: var(--op-text-inverse);
   --color-op-text-success: var(--op-text-success);
+  --color-op-text-body: var(--op-text-body);
   --color-op-icon-default: var(--op-icon-default);
   --color-op-action-primary: var(--op-action-primary);
   --color-op-action-primary-hover: var(--op-action-primary-hover);
@@ -509,6 +518,8 @@ html.op {
   --op-text-primary: var(--op-color-black);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-650);
+  /* Body copy — gray-650 light; dark uses gray-500 for contrast on dark surfaces. */
+  --op-text-body: var(--op-color-gray-650);
   --op-text-inverse: var(--op-color-white);
   --op-text-success: var(--op-color-green-600);
   --op-icon-default: var(--op-color-gray-650);
@@ -695,6 +706,7 @@ html.op.dark {
   --op-text-primary: var(--op-color-white);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-600);
+  --op-text-body: var(--op-color-gray-500);
   --op-text-inverse: var(--op-color-black);
   --op-text-success: var(--op-color-green-600);
   --op-empty-title-color: var(--op-color-white);
@@ -816,6 +828,22 @@ html.op :is(
   }
   html {
     @apply font-sans;
+    letter-spacing: var(--tracking-functional);
+  }
+  /*
+   * *headline* (Plus Jakarta Sans) keeps Figma's 0 tracking. Base layer, so an
+   * explicit tracking-* class on the element still wins.
+   */
+  :where(.font-jakarta, .font-heading),
+  :where(html.op) :where(h1, h2, h3),
+  :where(html.op)
+    :where(
+      [data-slot="dialog-title"],
+      [data-slot="alert-dialog-title"],
+      [data-slot="drawer-title"],
+      [data-slot="sheet-title"]
+    ) {
+    letter-spacing: 0;
   }
 }
 

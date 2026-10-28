@@ -7,6 +7,7 @@ using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 using TummlyBackend.Shop.MaterialsCatalog;
 
 namespace TummlyBackend.Services
@@ -349,6 +350,19 @@ namespace TummlyBackend.Services
                 }
             }
 
+            // Refuse an update that removes the last QR path from an available SKU.
+            // Runs before any mutation so a rejected update changes nothing.
+            var starter = sku.PlacementRecipe.IncludeInComplimentaryStarter;
+            var mintAfter = request.MintOnShopFulfilment ?? sku.MintOnShopFulfilment;
+            if (
+                sku.AvailableInShop
+                && ShopQrPathRules.HasQrPath(sku.MintOnShopFulfilment, starter)
+                && !ShopQrPathRules.HasQrPath(mintAfter, starter)
+            )
+            {
+                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
+            }
+
             if (request.Title != null)
             {
                 var title = request.Title.Trim();
@@ -511,6 +525,18 @@ namespace TummlyBackend.Services
             if (sku.AvailableInShop == availableInShop)
             {
                 return (await MapSkuAsync(sku, cancellationToken), null);
+            }
+
+            if (
+                availableInShop
+                && !await ShopQrPathRules.HasQrPathAsync(
+                    _context,
+                    sku,
+                    cancellationToken
+                )
+            )
+            {
+                return (null, ShopQrPathRules.SkuHasNoQrPathCode);
             }
 
             sku.AvailableInShop = availableInShop;

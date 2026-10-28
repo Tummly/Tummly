@@ -20,11 +20,20 @@ namespace TummlyBackend.DTOs.Shop
         public int LineNetPence { get; init; }
     }
 
+    public sealed class ShopReorderUnavailableLineDto
+    {
+        public required string SkuId { get; init; }
+
+        public required string Title { get; init; }
+    }
+
     public sealed class ShopReorderPrefillDto
     {
         public int LocationId { get; init; }
 
         public required IReadOnlyList<ShopReorderPrefillLineDto> Lines { get; init; }
+
+        public required IReadOnlyList<ShopReorderUnavailableLineDto> UnavailableLines { get; init; }
 
         public required ShopOrderShipToDto ShipTo { get; init; }
 

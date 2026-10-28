@@ -95,6 +95,40 @@ namespace TummlyBackend.Tests.Shop
         }
 
         [Fact]
+        public async Task Seed_NonStarterRecipes_DefaultMintOnFulfilmentTrue()
+        {
+            Assert.All(
+                ShopMaterialsCatalogSeed.DefaultRecipes.Where(recipe =>
+                    !recipe.IncludeInComplimentaryStarter
+                ),
+                recipe => Assert.True(recipe.MintDefault)
+            );
+
+            await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);
+
+            foreach (
+                var skuId in new[]
+                {
+                    "table-tents",
+                    "table-talker",
+                    "window-stickers",
+                    "qr-guest-cards",
+                }
+            )
+            {
+                var sku = await _context.ShopMaterialSkus.SingleAsync(row =>
+                    row.SkuId == skuId
+                );
+                Assert.True(sku.MintOnShopFulfilment, skuId);
+            }
+
+            var counterDisplay = await _context.ShopMaterialSkus.SingleAsync(row =>
+                row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId
+            );
+            Assert.False(counterDisplay.MintOnShopFulfilment);
+        }
+
+        [Fact]
         public async Task EnsureSeeded_DoesNotOverwriteAdminPacksOrAvailability_OnSecondRun()
         {
             await ShopMaterialsCatalogSeed.EnsureSeededAsync(_context);

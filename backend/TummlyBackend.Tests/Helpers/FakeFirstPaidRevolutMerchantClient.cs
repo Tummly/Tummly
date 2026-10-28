@@ -65,13 +65,19 @@ namespace TummlyBackend.Tests.Helpers
             return Task.FromResult(
                 new RevolutMerchantCreateResult(
                     Succeeded: true,
-                    Id: $"ord_pm_{CreateOrderCallCount}",
+                    Id: $"{OrderIdPrefix}{CreateOrderCallCount}",
                     CheckoutUrl: CheckoutUrl
                 )
             );
         }
 
         public int CreateOrderCallCount { get; private set; }
+
+        /// <summary>
+        /// Prefix of created order ids. Tests sharing one SQL database set a
+        /// unique prefix so intents do not collide across factories.
+        /// </summary>
+        public string OrderIdPrefix { get; set; } = "ord_pm_";
 
         public RevolutCreateOrderRequest? LastCreateOrderRequest { get; private set; }
 
@@ -138,29 +144,73 @@ public Task<RevolutMerchantCreateResult> CancelSubscriptionAsync(
             );
         }
 
-        public Task<RevolutOrderRetrieveResult> GetOrderAsync(
+        /// <summary>
+        /// Runs inside <see cref="GetOrderAsync"/> before it answers, so a test
+        /// can change the database between a caller's read and its write.
+        /// </summary>
+        public Func<string, Task>? OnGetOrderAsync { get; set; }
+
+        public int GetOrderCallCount { get; private set; }
+
+        public async Task<RevolutOrderRetrieveResult> GetOrderAsync(
             string orderId,
             CancellationToken cancellationToken = default
         )
         {
+            GetOrderCallCount++;
+            if (OnGetOrderAsync != null)
+            {
+                await OnGetOrderAsync(orderId);
+            }
+
             if (Orders.TryGetValue(orderId, out var configured))
             {
-                return Task.FromResult(configured);
+                return configured;
+            }
+
+            return new RevolutOrderRetrieveResult(
+                Succeeded: true,
+                Id: orderId,
+                State: "pending",
+                AmountMinor: 1200,
+                CheckoutUrl: CheckoutUrl
+            );
+        }
+
+        public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
+            new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// Scripted <see cref="CancelOrderAsync"/> answers by Revolut order id.
+        /// An order with no entry cancels successfully.
+        /// </summary>
+        public Dictionary<string, RevolutOrderRetrieveResult> CancelResults { get; } =
+            new(StringComparer.Ordinal);
+
+        public int CancelOrderCallCount { get; private set; }
+
+        public List<string> CancelledOrderIds { get; } = [];
+
+        public Task<RevolutOrderRetrieveResult> CancelOrderAsync(
+            string orderId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            CancelOrderCallCount++;
+            CancelledOrderIds.Add(orderId);
+            if (CancelResults.TryGetValue(orderId, out var scripted))
+            {
+                return Task.FromResult(scripted);
             }
 
             return Task.FromResult(
                 new RevolutOrderRetrieveResult(
                     Succeeded: true,
                     Id: orderId,
-                    State: "pending",
-                    AmountMinor: 1200,
-                    CheckoutUrl: CheckoutUrl
+                    State: "cancelled"
                 )
             );
         }
-
-        public Dictionary<string, RevolutOrderRetrieveResult> Orders { get; } =
-            new(StringComparer.Ordinal);
 
         public int RefundOrderCallCount { get; private set; }
 

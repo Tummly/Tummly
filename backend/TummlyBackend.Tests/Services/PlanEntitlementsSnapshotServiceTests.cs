@@ -1,3 +1,4 @@
+using TummlyBackend.Tests.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TummlyBackend.Billing.Pricebook;
@@ -24,7 +25,8 @@ namespace TummlyBackend.Tests.Services
             _context = new ApplicationDbContext(options);
             _service = new PlanEntitlementsSnapshotService(
                 _context,
-                PricebookCatalog.LoadFromDirectory(PackDirectory())
+                PricebookCatalog.LoadFromDirectory(PackDirectory()),
+                TestActiveQrCapacity.For(_context)
             );
         }
 
@@ -130,6 +132,105 @@ namespace TummlyBackend.Tests.Services
             Assert.True(snapshot.PublishedGuestForms.Available);
             Assert.Equal(1, snapshot.PublishedGuestForms.Cap);
         }
+
+        [Fact]
+        public async Task GetLocationAsync_Growth_ReportsWorkspacePoolForEveryLocation()
+        {
+            // B7: Workspace limit and Workspace used, the same for every Location.
+            var restaurantId = await SeedRestaurantAsync(
+                BillingSubscriptionPlans.Growth
+            );
+            var first = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .SingleAsync();
+            var second = new RestaurantLocation
+            {
+                RestaurantId = restaurantId,
+                LocationName = "Second",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.Add(second);
+            await _context.SaveChangesAsync();
+            for (var i = 0; i < 20; i++)
+            {
+                _context.QrCodes.Add(NewActiveCode(first));
+            }
+
+            for (var i = 0; i < 3; i++)
+            {
+                _context.QrCodes.Add(NewActiveCode(second.Id));
+            }
+
+            _context.QrCodes.Add(
+                new QrCode
+                {
+                    RestaurantLocationId = second.Id,
+                    QrType = QrType.TableTent,
+                    Token = Guid.NewGuid().ToString("N"),
+                    Status = QrCodeStatus.Paused,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            _context.ShopQrSlotReservations.Add(
+                new ShopQrSlotReservation
+                {
+                    Id = Guid.NewGuid(),
+                    ShopOrderId = Guid.NewGuid(),
+                    RestaurantLocationId = first,
+                    QrType = QrType.GuestCard,
+                    Status = ShopQrSlotReservationStatuses.Open,
+                    ReconcileAfterUtc = DateTime.UtcNow.AddMinutes(30),
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var atFirst = await _service.GetLocationAsync(restaurantId, first);
+            var atSecond = await _service.GetLocationAsync(restaurantId, second.Id);
+
+            foreach (var snapshot in new[] { atFirst, atSecond })
+            {
+                Assert.NotNull(snapshot);
+                var qr = snapshot!.ActiveQrPlacements;
+                Assert.True(qr.Available);
+                Assert.Equal(25, qr.Cap);
+                Assert.Equal(24, qr.Current);
+                Assert.False(qr.AtCap);
+            }
+        }
+
+        [Fact]
+        public async Task GetLocationAsync_GroupWithPaidExtraLocations_ReportsV4Pool()
+        {
+            var restaurantId = await SeedRestaurantAsync(
+                BillingSubscriptionPlans.Group
+            );
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            account.PaidExtraLocationCount = 3;
+            await _context.SaveChangesAsync();
+            var locationId = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            var snapshot = await _service.GetLocationAsync(restaurantId, locationId);
+
+            Assert.Equal(80, snapshot!.ActiveQrPlacements.Cap);
+        }
+
+        private static QrCode NewActiveCode(int locationId) =>
+            new()
+            {
+                RestaurantLocationId = locationId,
+                QrType = QrType.DigitalGuestLink,
+                Token = Guid.NewGuid().ToString("N"),
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
 
         private async Task<int> SeedRestaurantAsync(string subscriptionPlan)
         {

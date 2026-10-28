@@ -72,7 +72,8 @@ namespace TummlyBackend.Helpers
                 ),
                 FulfilmentStatus = order.FulfilmentStatus,
                 FulfilmentStatusLabel = ShopOrderFulfilmentLabels.ToDisplayLabel(
-                    order.FulfilmentStatus
+                    order.FulfilmentStatus,
+                    order.PaymentStatus
                 ),
                 DeliveryMethod = order.DeliveryMethod,
                 MaterialsNetPence = order.MaterialsNetPence,
@@ -81,6 +82,9 @@ namespace TummlyBackend.Helpers
                 GrossPence = order.GrossPence,
                 Currency = CurrencyGbp,
                 IsComplimentary = order.IsComplimentary,
+                OrderKindLabel = ShopOrderFulfilmentLabels.ToOrderKindLabel(
+                    order.IsComplimentary
+                ),
                 Lines = MapLines(order),
                 ShipTo = MapShipTo(order),
                 PaymentSummary = new ShopOrderPaymentSummaryDto

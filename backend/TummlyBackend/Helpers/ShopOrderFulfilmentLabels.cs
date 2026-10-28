@@ -4,8 +4,36 @@ namespace TummlyBackend.Helpers
 {
     internal static class ShopOrderFulfilmentLabels
     {
-        public static string ToDisplayLabel(string? storedStatus)
+        public const string AwaitingPaymentLabel = "Awaiting payment";
+
+        public const string ComplimentaryStarterKitLabel =
+            "Complimentary Starter Kit";
+
+        /// <summary>
+        /// Fulfilment label. An order that is not paid yet has no fulfilment,
+        /// so it reads "Awaiting payment" instead of a default "Processing".
+        /// </summary>
+        public static string ToDisplayLabel(
+            string? storedStatus,
+            string? paymentStatus = null
+        )
         {
+            if (
+                string.Equals(
+                    paymentStatus,
+                    ShopPaymentStatuses.AwaitingPayment,
+                    StringComparison.Ordinal
+                )
+                || string.Equals(
+                    paymentStatus,
+                    ShopPaymentStatuses.PaymentFailed,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return AwaitingPaymentLabel;
+            }
+
             return storedStatus switch
             {
                 ShopFulfilmentStatuses.Processing => "Processing",
@@ -37,9 +65,14 @@ namespace TummlyBackend.Helpers
             {
                 ShopPaymentStatuses.Paid => "Paid",
                 ShopPaymentStatuses.Refunded => "Refunded",
+                ShopPaymentStatuses.AwaitingPayment => AwaitingPaymentLabel,
+                ShopPaymentStatuses.PaymentFailed => "Payment failed",
                 _ => storedStatus,
             };
         }
+
+        public static string? ToOrderKindLabel(bool isComplimentary) =>
+            isComplimentary ? ComplimentaryStarterKitLabel : null;
 
         public static bool IsTrackingVisible(string? storedStatus, string? trackingUrl)
         {

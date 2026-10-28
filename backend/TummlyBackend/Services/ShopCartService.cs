@@ -4,6 +4,7 @@ using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Services
 {
@@ -62,21 +63,17 @@ namespace TummlyBackend.Services
                 throw new ShopSkuNotAvailableException();
             }
 
-            if (string.Equals(skuId, "offer-card", StringComparison.Ordinal))
+            if (
+                ShopCardOfferRules.RequiresCardOffer(detail)
+                && !await ShopCardOfferRules.HasAttachableOfferAsync(
+                    _context,
+                    restaurantId,
+                    locationId,
+                    cancellationToken
+                )
+            )
             {
-                var hasOfferCardOffer = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .AnyAsync(
-                        row =>
-                            row.Id == locationId
-                            && row.RestaurantId == restaurantId
-                            && row.OfferCardCatalogOfferId != null,
-                        cancellationToken
-                    );
-                if (!hasOfferCardOffer)
-                {
-                    throw new OfferCardOfferRequiredException();
-                }
+                throw new OfferCardOfferRequiredException();
             }
 
             var now = DateTime.UtcNow;

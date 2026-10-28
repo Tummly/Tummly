@@ -27,7 +27,8 @@ export type ShopOrderWire = {
   locationName: string
   paymentStatus: string
   fulfilmentStatus: string | null
-  deliveryMethod: string
+  /** "express" is read-only: it appears on orders placed before Express was removed. */
+  deliveryMethod: "standard" | "express"
   materialsNetPence: number
   vatPence: number
   deliveryNetPence: number
@@ -51,6 +52,9 @@ export type ShopOrderListItemWire = {
   totalGrossPence: number
   paymentStatus: string
   fulfilmentStatus: string
+  paymentStatusLabel: string
+  fulfilmentStatusLabel: string
+  orderKindLabel: string | null
   isComplimentary?: boolean
   updatedAtUtc: string
 }
@@ -86,6 +90,7 @@ export type ShopOrderDetailWire = ShopOrderWire & {
   placedBy: string
   paymentStatusLabel: string
   fulfilmentStatusLabel: string
+  orderKindLabel: string | null
   paymentSummary: ShopOrderPaymentSummaryWire
   progress: ShopOrderProgressWire
   updatedAtUtc: string
@@ -104,8 +109,11 @@ export type ShopReorderPrefillWire = {
     lineNetPence: number
   }>
   shipTo: ShopShipToPayload
-  deliveryMethod: "standard" | "express"
+  /** Express is removed; the backend always returns "standard". */
+  deliveryMethod: "standard"
   sourceOrderNumber: string
+  /** Lines dropped from the prefill because they are no longer sold in the Shop. */
+  unavailableLines?: { skuId: string; title: string }[]
 }
 
 export type ShopDeliveryDefaultsWire = {
@@ -123,7 +131,7 @@ export type PlaceShopOrderInput = {
   locationId: number
   fromCart?: true
   lines?: Array<{ skuId: string; quantity: number }>
-  deliveryMethod: "standard" | "express"
+  deliveryMethod: "standard"
   expectedGrossPence: number
   shipTo: ShopShipToPayload
 }
@@ -135,7 +143,7 @@ export type CheckoutLine = {
   unitNetPence: number
   lineNetPence: number
   specification?: string
-  /** Catalog pack tiers for express checkout quantity edits. */
+  /** Catalog pack tiers for direct checkout quantity edits. */
   packs?: Array<{ qty: number; netPence: number }>
   /** Per-SKU standard delivery net (pence). */
   deliveryNetPence?: number
@@ -212,6 +220,28 @@ export async function payShopOrder(input: {
   return response.data
 }
 
+/** Revolut check on return can be slower than a normal read. */
+const CONFIRM_PAYMENT_TIMEOUT_MS = 15_000
+
+/**
+ * Asks the server to check Revolut for an order that is still awaiting payment
+ * (used on return from Revolut). Never releases a reservation or refunds.
+ */
+export async function confirmShopOrderPayment(input: {
+  orderId: string
+  locationId: number
+}): Promise<ShopOrderDetailWire> {
+  const response = await axiosInstance.post<ShopOrderDetailWire>(
+    `/shop/orders/${input.orderId}/confirm-payment`,
+    {},
+    {
+      params: { locationId: input.locationId },
+      timeout: CONFIRM_PAYMENT_TIMEOUT_MS,
+    }
+  )
+  return response.data
+}
+
 export async function pollShopOrderUntilPaid(input: {
   orderId: string
   locationId: number
@@ -272,12 +302,9 @@ export async function reorderShopOrder(input: {
   return response.data
 }
 
-const EXPRESS_DELIVERY_SURCHARGE_PENCE = 2000
-
 /** Matches backend TummlyVatMath (exclusive, half-up AwayFromZero). */
 export function computeShopCheckoutTotalsPence(input: {
   materialsNetPence: number
-  deliveryMethod: "standard" | "express"
   /** Catalog / seller effective rate in basis points; 0 = net-only (launch OFF). */
   vatRateBps?: number
   /** Max of per-SKU standard delivery nets on the order. */
@@ -288,14 +315,7 @@ export function computeShopCheckoutTotalsPence(input: {
   deliveryNetPence: number
   grossPence: number
 } {
-  const standardDeliveryNetPence = Math.max(
-    0,
-    input.standardDeliveryNetPence ?? 0
-  )
-  const deliveryNetPence =
-    input.deliveryMethod === "express"
-      ? standardDeliveryNetPence + EXPRESS_DELIVERY_SURCHARGE_PENCE
-      : standardDeliveryNetPence
+  const deliveryNetPence = Math.max(0, input.standardDeliveryNetPence ?? 0)
   const vatRateBps = input.vatRateBps ?? 0
   const vatPence = Math.round(input.materialsNetPence * (vatRateBps / 10_000))
   return {

@@ -194,6 +194,20 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Full Workspace pool: the starter code minted Paused, and the print
+            // path only takes an Active code. Do not exceed the pool; flag the
+            // order so Admin sees why it has no asset yet.
+            if (
+                await HasPausedStarterCodeWithoutActiveAsync(
+                    location.Id,
+                    starterSkus,
+                    cancellationToken
+                )
+            )
+            {
+                order.ReviewReason = ShopOrderReviewReasons.QrCapacityUnavailable;
+            }
+
             _context.ShopOrders.Add(order);
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -246,8 +260,62 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// One published SKU per starter placement recipe (Admin can replace commerce
-        /// while keeping the recipe slot).
+        /// True when a starter QR type has a Paused code at the Location and no
+        /// Active code of that type (the pool-full mint).
+        /// </summary>
+        private async Task<bool> HasPausedStarterCodeWithoutActiveAsync(
+            int locationId,
+            IReadOnlyList<ShopMaterialSku> starterSkus,
+            CancellationToken cancellationToken
+        )
+        {
+            var starterTypes = new HashSet<QrType>();
+            foreach (var sku in starterSkus)
+            {
+                if (
+                    sku.PlacementRecipe != null
+                    && Enum.TryParse<QrType>(
+                        sku.PlacementRecipe.PlacementKey,
+                        ignoreCase: false,
+                        out var qrType
+                    )
+                )
+                {
+                    starterTypes.Add(qrType);
+                }
+            }
+
+            if (starterTypes.Count == 0)
+            {
+                return false;
+            }
+
+            var codes = await _context.QrCodes
+                .AsNoTracking()
+                .Where(row =>
+                    row.RestaurantLocationId == locationId
+                    && starterTypes.Contains(row.QrType)
+                    && (
+                        row.Status == QrCodeStatus.Active
+                        || row.Status == QrCodeStatus.Paused
+                    )
+                )
+                .Select(row => new { row.QrType, row.Status })
+                .ToListAsync(cancellationToken);
+            var activeTypes = codes
+                .Where(row => row.Status == QrCodeStatus.Active)
+                .Select(row => row.QrType)
+                .ToHashSet();
+            return codes.Any(row =>
+                row.Status == QrCodeStatus.Paused
+                && !activeTypes.Contains(row.QrType)
+            );
+        }
+
+        /// <summary>
+        /// One published, available-in-shop SKU per starter placement recipe (Admin
+        /// can replace commerce while keeping the recipe slot). Filtering lives in
+        /// <see cref="StarterQrMaterialTypes.QueryPublishedStarterSkus"/>.
         /// </summary>
         private async Task<IReadOnlyList<ShopMaterialSku>> LoadComplimentaryStarterSkusAsync(
             CancellationToken cancellationToken

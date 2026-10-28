@@ -41,6 +41,21 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Theory]
+        [InlineData("standard", "Tummly Shop · Standard delivery")]
+        [InlineData("express", "Tummly Shop · Express delivery")]
+        [InlineData(null, "Tummly Shop · Standard delivery")]
+        public void DeliveryLineName_FollowsDeliveryMethod(
+            string? method,
+            string expected
+        )
+        {
+            Assert.Equal(
+                expected,
+                ShopMaterialsOrderLineCopy.DeliveryLineName(method)
+            );
+        }
+
         [Fact]
         public void ExpressDeliveryLineName_IsFriendly()
         {

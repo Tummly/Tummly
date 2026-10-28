@@ -10,10 +10,20 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static class ShopMaterialsOrderPaymentFailure
     {
+        /// <param name="releaseQrReservations">
+        /// Release the order's open QR slot reservations. Pass true only from
+        /// the reservation sweeper, under the billing-account lock, after it
+        /// confirmed that every Revolut attempt of the order is cancelled or
+        /// failed. Webhooks, the /pay reuse path and unreadable sessions pass
+        /// false: one Revolut order ending does not prove no other can be paid.
+        /// </param>
+        /// <param name="nowUtc">Clock reading of the caller; defaults to UTC now.</param>
         public static async Task<bool> TryMarkFailedAsync(
             ApplicationDbContext context,
             string revolutOrderId,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            bool releaseQrReservations = false,
+            DateTime? nowUtc = null
         )
         {
             var trimmed = revolutOrderId.Trim();
@@ -47,7 +57,7 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            var now = DateTime.UtcNow;
+            var now = nowUtc ?? DateTime.UtcNow;
             var changed = false;
 
             if (
@@ -60,6 +70,26 @@ namespace TummlyBackend.Helpers
             {
                 shopOrder.PaymentStatus = ShopPaymentStatuses.PaymentFailed;
                 shopOrder.UpdatedAtUtc = now;
+                changed = true;
+            }
+
+            // A paid order's reservations are converted and final. Only an
+            // order that is not paid gives its open slots back.
+            if (
+                releaseQrReservations
+                && !string.Equals(
+                    shopOrder.PaymentStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+                && await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                    context,
+                    shopOrder.Id,
+                    now,
+                    cancellationToken
+                ) > 0
+            )
+            {
                 changed = true;
             }
 

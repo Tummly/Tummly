@@ -10,6 +10,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Shop.MaterialsCatalog;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -242,6 +243,163 @@ namespace TummlyBackend.Tests.Integration
                 second.GetProperty("lines")[0].GetProperty("skuId").GetString()
             );
             Assert.Equal(2, second.GetProperty("lines")[0].GetProperty("quantity").GetInt32());
+        }
+
+        [Fact]
+        public async Task GuestCards_Available_CartWithoutOffer_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "Set up your card offer before ordering Guest Cards.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_ComingSoon_Cart_Returns400SkuNotAvailable()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", false);
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                ShopSkuNotAvailableException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_OfferBelongsToAnotherLocation_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    OfferLocationId: seeded.OutOfScopeLocationId
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_ArchivedCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Status: CatalogOfferStatus.Archived
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_ExpiredCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Validity: CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate: new DateOnly(2020, 1, 1)
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
+        }
+
+        [Fact]
+        public async Task GuestCards_PausedCardOffer_Cart_Returns409OfferRequired()
+        {
+            var seeded = await SeedOwnerAndMemberAsync(
+                PermissionRoles.Admin,
+                namedInScopeOnly: false
+            );
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Status: CatalogOfferStatus.Paused
+                )
+            );
+
+            var response = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                "qr-guest-cards",
+                250
+            );
+
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(response);
         }
 
         private async Task<HttpResponseMessage> PutLineAsync(

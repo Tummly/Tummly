@@ -7,6 +7,7 @@ using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Controllers
 {
@@ -22,6 +23,9 @@ namespace TummlyBackend.Controllers
         private readonly IRestaurantPermissionHelper _permissions;
         private readonly ApplicationDbContext _context;
         private readonly IShopOrderCancelReorderService _cancelReorder;
+        private readonly IMaterialsCatalog _catalog;
+        private readonly IShopQrSlotReservationService _qrSlots;
+        private readonly IShopOrderPaymentConfirmService _paymentConfirm;
 
         public ShopOrdersController(
             IShopOrderPlaceService orders,
@@ -30,7 +34,10 @@ namespace TummlyBackend.Controllers
             IGuestsEffectiveLocationService effectiveLocations,
             IRestaurantPermissionHelper permissions,
             ApplicationDbContext context,
-            IShopOrderCancelReorderService cancelReorder
+            IShopOrderCancelReorderService cancelReorder,
+            IMaterialsCatalog catalog,
+            IShopQrSlotReservationService qrSlots,
+            IShopOrderPaymentConfirmService paymentConfirm
         )
         {
             _orders = orders;
@@ -40,6 +47,9 @@ namespace TummlyBackend.Controllers
             _permissions = permissions;
             _context = context;
             _cancelReorder = cancelReorder;
+            _catalog = catalog;
+            _qrSlots = qrSlots;
+            _paymentConfirm = paymentConfirm;
         }
 
         [HttpGet("orders")]
@@ -166,6 +176,37 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
+                if (result.ErrorCode == OfferCardOfferRequiredException.ErrorCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == ShopQrLimit.ErrorCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                        limit = result.Limit,
+                    });
+                }
+
+                if (result.ErrorCode == ShopQrLimit.EntitlementsUnavailableCode)
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                    });
+                }
+
                 return BadRequest(new
                 {
                     success = false,
@@ -220,6 +261,77 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            return Ok(
+                await ShopOrderDtoMapper.MapOperatorDetailAsync(
+                    _context,
+                    order,
+                    cancellationToken
+                )
+            );
+        }
+
+        /// <summary>
+        /// Return-page check after Revolut Hosted Checkout. Reads Revolut and,
+        /// when the payment completed, applies the paid path now instead of
+        /// waiting for the webhook. Safe to repeat. Never releases a QR slot
+        /// reservation and never refunds.
+        /// </summary>
+        [HttpPost("orders/{orderId:guid}/confirm-payment")]
+        public async Task<IActionResult> ConfirmPayment(
+            Guid orderId,
+            [FromQuery] int? locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var gate = await AuthorizeShopAsync(
+                locationId,
+                PermissionLevel.Scoped
+            );
+            if (gate.Denied != null)
+            {
+                return gate.Denied;
+            }
+
+            var owned = await _context.ShopOrders
+                .AsNoTracking()
+                .Where(row =>
+                    row.Id == orderId && row.RestaurantId == gate.RestaurantId
+                )
+                .Select(row => new { row.LocationId })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (owned == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Shop order was not found.",
+                });
+            }
+
+            if (!gate.LocationIds.Contains(owned.LocationId))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    success = false,
+                    message = "You do not have access to this location.",
+                });
+            }
+
+            await _paymentConfirm.ConfirmAsync(
+                orderId,
+                gate.RestaurantId,
+                cancellationToken
+            );
+
+            var order = await _context.ShopOrders
+                .AsNoTracking()
+                .Include(row => row.Lines)
+                .FirstAsync(
+                    row =>
+                        row.Id == orderId
+                        && row.RestaurantId == gate.RestaurantId,
+                    cancellationToken
+                );
             return Ok(
                 await ShopOrderDtoMapper.MapOperatorDetailAsync(
                     _context,
@@ -338,17 +450,6 @@ namespace TummlyBackend.Controllers
                     });
                 }
 
-                if (result.ErrorCode == "catalog_sku_unavailable")
-                {
-                    return Conflict(new
-                    {
-                        success = false,
-                        code = result.ErrorCode,
-                        message = result.ErrorMessage,
-                        unavailableSkuIds = result.UnavailableSkuIds,
-                    });
-                }
-
                 if (result.ErrorCode == "shop_order_not_reorderable")
                 {
                     return Conflict(new
@@ -356,6 +457,17 @@ namespace TummlyBackend.Controllers
                         success = false,
                         code = result.ErrorCode,
                         message = result.ErrorMessage,
+                    });
+                }
+
+                if (result.ErrorCode == "reorder_no_available_lines")
+                {
+                    return Conflict(new
+                    {
+                        success = false,
+                        code = result.ErrorCode,
+                        message = result.ErrorMessage,
+                        unavailableLines = result.UnavailableLines,
                     });
                 }
 
@@ -471,6 +583,87 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = "Restaurant was not found.",
+                });
+            }
+
+            // Only an awaiting-payment order can open a session. Checked before any
+            // reservation so a failed or paid order never gets an open slot.
+            if (
+                !string.Equals(
+                    order.PaymentStatus,
+                    ShopPaymentStatuses.AwaitingPayment,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "shop_order_not_payable",
+                    message = "shop_order_not_payable",
+                });
+            }
+
+            var payBlock = await ShopCardOfferRules.FirstPayBlockAsync(
+                _context,
+                _catalog,
+                order,
+                cancellationToken
+            );
+            if (payBlock == ShopSkuNotAvailableException.ErrorCode)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = payBlock,
+                    message = "This product is not available for order.",
+                });
+            }
+
+            if (payBlock == OfferCardOfferRequiredException.ErrorCode)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = payBlock,
+                    message = OfferCardOfferRequiredException.ErrorMessage,
+                });
+            }
+
+            // Reserve any new QR slot before a Revolut order exists. A reservation
+            // stays open if the session call below fails; the sweeper settles it.
+            var capacity = await _qrSlots.ReserveForPayAsync(
+                order,
+                cancellationToken
+            );
+            if (!capacity.OrderPayable)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "shop_order_not_payable",
+                    message = "shop_order_not_payable",
+                });
+            }
+
+            if (!capacity.EntitlementsAvailable)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ShopQrLimit.EntitlementsUnavailableCode,
+                    message = ShopQrLimit.EntitlementsUnavailableMessage,
+                });
+            }
+
+            if (!capacity.Ok)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    code = ShopQrLimit.ErrorCode,
+                    message = ShopQrLimit.Message,
+                    limit = capacity.Limit,
                 });
             }
 

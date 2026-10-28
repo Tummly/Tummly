@@ -2,13 +2,15 @@ import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCa
 import {
   canConfirmCampaignCatalogOfferDetails,
   emptyCampaignCatalogOfferDetailsDraft,
-  mergeCampaignCatalogOfferDraftPatch,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
   type CampaignCatalogOfferTypeId,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 import type { ConfirmCatalogOfferWriteResult } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
-import { SHOP_OFFER_CARD_SETUP_COPY } from "@/lib/operatorShop/shopOfferCardSetupPresentation"
+import {
+  mergeShopOfferCardDraftPatch,
+  SHOP_OFFER_CARD_SETUP_COPY,
+} from "@/lib/operatorShop/shopOfferCardSetupPresentation"
 import type { ShopOfferCardOfferFact } from "@/api/shopOfferCardOfferApi"
 
 export type ShopOfferCardSetupSnapshot = {
@@ -26,6 +28,8 @@ export type ShopOfferCardSetupAdapters = {
   locationId: () => number | null
   /** False on Free — no Starter materials / offer creation. */
   isEnabled: () => boolean
+  /** False when the Guest Cards SKU is not available in the Shop catalog. */
+  isGuestCardAvailable: () => boolean
   getAttached: () => Promise<ShopOfferCardOfferFact>
   createCatalogOffer: (
     body: CreateCatalogOfferRequestBody
@@ -42,7 +46,6 @@ export type ShopOfferCardSetupModule = {
   getSnapshot: () => ShopOfferCardSetupSnapshot
   subscribe: (listener: () => void) => () => void
   loadForLocation: () => Promise<void>
-  openIfNeeded: () => "opened" | "noop"
   open: () => "opened" | "noop"
   close: () => void
   patchDraft: (patch: Partial<CampaignCatalogOfferDetailsDraft>) => void
@@ -54,18 +57,20 @@ function emptyAttached(): ShopOfferCardOfferFact {
   return { offerId: null, title: null, live: false }
 }
 
+/**
+ * Hidden fields (description, validity, expiry, staff instructions) are never
+ * shown in the Shop dialog, so confirm always sends their defaults.
+ */
 function withSetupDefaults(
   draft: CampaignCatalogOfferDetailsDraft
 ): CampaignCatalogOfferDetailsDraft {
-  const next = { ...draft }
-  if (next.description.trim() === "") {
-    next.description = SHOP_OFFER_CARD_SETUP_COPY.defaultDescription
-  }
-  if (
-    next.offerType === "percentage_discount"
-    && next.discountPercentage.trim() === ""
-  ) {
-    next.discountPercentage = "20"
+  const defaults = emptyCampaignCatalogOfferDetailsDraft()
+  const next: CampaignCatalogOfferDetailsDraft = {
+    ...draft,
+    description: SHOP_OFFER_CARD_SETUP_COPY.defaultDescription,
+    validity: defaults.validity,
+    expiryDate: defaults.expiryDate,
+    staffInstructions: defaults.staffInstructions,
   }
   if (
     next.offerType === "free_item"
@@ -77,16 +82,15 @@ function withSetupDefaults(
 }
 
 function initialDraft(): CampaignCatalogOfferDetailsDraft {
-  return mergeCampaignCatalogOfferDraftPatch(
-    emptyCampaignCatalogOfferDetailsDraft(),
-    {
-      offerType: null,
-      title: SHOP_OFFER_CARD_SETUP_COPY.titlePlaceholder,
-      titleTouched: true,
-      description: SHOP_OFFER_CARD_SETUP_COPY.defaultDescription,
-      discountPercentage: "20",
-    }
-  )
+  const empty = emptyCampaignCatalogOfferDetailsDraft()
+  return {
+    ...empty,
+    offerType: null,
+    title: "",
+    titleTouched: false,
+    description: SHOP_OFFER_CARD_SETUP_COPY.defaultDescription,
+    discountPercentage: "20",
+  }
 }
 
 export function createShopOfferCardSetupModule(
@@ -172,9 +176,12 @@ export function createShopOfferCardSetupModule(
         return
       }
 
+      // A reload never opens the card-offer dialog. It closes any dialog
+      // left open for the previous location.
       state = {
         ...state,
         loadStatus: "loading",
+        isOpen: false,
         saveStatus: "idle",
         saveError: null,
       }
@@ -190,7 +197,7 @@ export function createShopOfferCardSetupModule(
           ...state,
           loadStatus: "ready",
           attached,
-          isOpen: !hasAttach,
+          isOpen: false,
           draft: hasAttach ? state.draft : initialDraft(),
         }
         publish()
@@ -208,26 +215,12 @@ export function createShopOfferCardSetupModule(
         adapters.onError?.(SHOP_OFFER_CARD_SETUP_COPY.loadError)
       }
     },
-    openIfNeeded() {
+    open() {
       if (
         !adapters.isEnabled()
-        || state.attached.offerId != null
         || adapters.locationId() == null
+        || !adapters.isGuestCardAvailable()
       ) {
-        return "noop"
-      }
-      state = {
-        ...state,
-        isOpen: true,
-        draft: initialDraft(),
-        saveStatus: "idle",
-        saveError: null,
-      }
-      publish()
-      return "opened"
-    },
-    open() {
-      if (!adapters.isEnabled() || adapters.locationId() == null) {
         return "noop"
       }
       state = {
@@ -255,7 +248,7 @@ export function createShopOfferCardSetupModule(
       }
       state = {
         ...state,
-        draft: mergeCampaignCatalogOfferDraftPatch(state.draft, {
+        draft: mergeShopOfferCardDraftPatch(state.draft, {
           ...patch,
           titleTouched:
             patch.title != null ? true : (patch.titleTouched ?? state.draft.titleTouched),
@@ -283,7 +276,7 @@ export function createShopOfferCardSetupModule(
       }
       state = {
         ...state,
-        draft: mergeCampaignCatalogOfferDraftPatch(state.draft, patch),
+        draft: mergeShopOfferCardDraftPatch(state.draft, patch),
         saveStatus: state.saveStatus === "error" ? "idle" : state.saveStatus,
         saveError: state.saveStatus === "error" ? null : state.saveError,
       }

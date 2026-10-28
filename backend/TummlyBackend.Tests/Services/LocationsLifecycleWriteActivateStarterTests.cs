@@ -52,7 +52,8 @@ namespace TummlyBackend.Tests.Services
                     _context,
                     configuration,
                     new NoOpBillingAccountLifecycle()
-                )
+                ),
+                TestActiveQrCapacity.For(_context)
             );
             _write = new LocationsLifecycleWriteService(
                 _context,
@@ -60,7 +61,8 @@ namespace TummlyBackend.Tests.Services
                 _complimentary,
                 _printWork,
                 new RestaurantAccountTypePromotion(_context),
-                TestPricebookPaths.LoadV3()
+                TestPricebookPaths.LoadV3(),
+                TestActiveQrCapacity.For(_context)
             );
 
             SeedDraftLocation();
@@ -130,7 +132,73 @@ namespace TummlyBackend.Tests.Services
             var order = await _context.ShopOrders.SingleAsync(o => o.IsComplimentary);
             Assert.Equal(_locationId, order.LocationId);
             Assert.Equal(0, order.GrossPence);
+            Assert.Null(order.ReviewReason);
             Assert.Contains(order.Id, _printWork.RequestedShopOrderIds);
+        }
+
+        [Fact]
+        public async Task ComplimentaryStarter_FullWorkspace_SetsReviewReason_NoAsset()
+        {
+            // Pilot pool is 5. Another Active Location holds all 5 slots, so the
+            // starter codes of this Location mint Paused and the pool is not exceeded.
+            var other = new RestaurantLocation
+            {
+                RestaurantId = _restaurantId,
+                LocationName = "Full site",
+                Address = "9 High Street",
+                City = "Leeds",
+                Postcode = "LS1 1AB",
+                LifecycleStatus = LocationLifecycleStatus.Active,
+                CaptureLocationStatus = CaptureLocationStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.Add(other);
+            await _context.SaveChangesAsync();
+            for (var i = 0; i < 5; i++)
+            {
+                _context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocationId = other.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = Guid.NewGuid().ToString("N"),
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                });
+            }
+            await _context.SaveChangesAsync();
+
+            var result = await _write.ActivateDraftAsync(
+                _restaurantId,
+                _locationId,
+                _userId
+            );
+
+            Assert.IsType<LocationLifecycleWriteResult.Ok>(result);
+            var order = await _context.ShopOrders.SingleAsync(o =>
+                o.IsComplimentary && o.LocationId == _locationId
+            );
+            Assert.Equal(
+                ShopOrderReviewReasons.QrCapacityUnavailable,
+                order.ReviewReason
+            );
+            Assert.Equal(
+                0,
+                await _context.PrintReadyQrAssets.CountAsync(a =>
+                    a.ShopOrderId == order.Id
+                )
+            );
+            Assert.Equal(
+                5,
+                await _context.QrCodes.CountAsync(q =>
+                    q.Status == QrCodeStatus.Active
+                )
+            );
+            Assert.True(
+                await _context.QrCodes.AnyAsync(q =>
+                    q.RestaurantLocationId == _locationId
+                    && q.Status == QrCodeStatus.Paused
+                )
+            );
         }
 
         [Fact]

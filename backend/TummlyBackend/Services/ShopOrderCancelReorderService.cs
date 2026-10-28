@@ -102,6 +102,12 @@ namespace TummlyBackend.Services
             order.CancelledAtUtc = now;
             order.CancelledByUserId = userId;
             order.UpdatedAtUtc = now;
+            await ShopQrSlotReservationRelease.ReleaseOpenForOrderAsync(
+                _context,
+                order.Id,
+                now,
+                cancellationToken
+            );
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -147,20 +153,19 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var unavailable = new List<string>();
+            var unavailableLines = new List<ShopReorderUnavailableLineDto>();
             var lines = new List<ShopReorderPrefillLineDto>();
 
+            // A line is unavailable when its SKU has no catalog entry, no usable
+            // pack for the stored quantity, or AvailableInShop is off. Unavailable
+            // lines never enter the prefill; they are reported with the order line title.
             foreach (var line in order.Lines.OrderBy(row => row.CatalogSkuId))
             {
                 var detail = _catalog.TryBuildDetail(line.CatalogSkuId);
-                if (detail == null)
-                {
-                    unavailable.Add(line.CatalogSkuId);
-                    continue;
-                }
-
                 if (
-                    !ShopMaterialPacks.TryResolve(
+                    detail == null
+                    || !detail.AvailableInShop
+                    || !ShopMaterialPacks.TryResolve(
                         detail.Packs,
                         line.Quantity,
                         out var pack
@@ -168,7 +173,11 @@ namespace TummlyBackend.Services
                     || pack == null
                 )
                 {
-                    unavailable.Add(line.CatalogSkuId);
+                    unavailableLines.Add(new ShopReorderUnavailableLineDto
+                    {
+                        SkuId = line.CatalogSkuId,
+                        Title = line.TitleSnapshot,
+                    });
                     continue;
                 }
 
@@ -182,17 +191,19 @@ namespace TummlyBackend.Services
                 });
             }
 
-            if (unavailable.Count > 0)
+            if (lines.Count == 0 && unavailableLines.Count > 0)
             {
-                return ShopOrderReorderResult.SkuUnavailable(unavailable);
+                return ShopOrderReorderResult.NoAvailableLines(unavailableLines);
             }
 
             return ShopOrderReorderResult.Ok(new ShopReorderPrefillDto
             {
                 LocationId = order.LocationId,
                 Lines = lines,
+                UnavailableLines = unavailableLines,
                 ShipTo = ShopOrderDtoMapper.MapShipTo(order),
-                DeliveryMethod = order.DeliveryMethod,
+                // Express delivery is retired; an old express order reorders as standard.
+                DeliveryMethod = ShopDeliveryMethods.Standard,
                 SourceOrderNumber = order.OrderNumber,
             });
         }

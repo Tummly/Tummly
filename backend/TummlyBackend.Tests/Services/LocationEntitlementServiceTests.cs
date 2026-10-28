@@ -74,7 +74,9 @@ namespace TummlyBackend.Tests.Services
             _insert = new OwnedLocationInsertService(
                 _context,
                 catalog,
-                new QrCodeProvisioningService(_context, smartGuestLink),
+                new QrCodeProvisioningService(_context, smartGuestLink,
+                TestActiveQrCapacity.For(_context)
+            ),
                 NoOpPrintReadyQrMaterialsWork.Instance
             );
             _lifecycle = new CaptureQrLifecycleService(

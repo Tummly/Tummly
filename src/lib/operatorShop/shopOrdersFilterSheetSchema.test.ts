@@ -26,7 +26,10 @@ const MOCK_ORDERS: DetailedShopOrder[] = [
     total: "£82.80",
     totalNumeric: 82.8,
     paymentStatus: "Paid",
+    paymentStatusLabel: "Paid",
     fulfilmentStatus: "Processing",
+    fulfilmentStatusLabel: "Processing",
+    orderKindLabel: null,
     updatedDate: "30 Jul 2026",
   },
   {
@@ -42,7 +45,10 @@ const MOCK_ORDERS: DetailedShopOrder[] = [
     total: "£45.00",
     totalNumeric: 45.0,
     paymentStatus: "Paid",
+    paymentStatusLabel: "Paid",
     fulfilmentStatus: "Dispatched",
+    fulfilmentStatusLabel: "Dispatched",
+    orderKindLabel: null,
     updatedDate: "28 Jul 2026",
   },
   {
@@ -58,7 +64,10 @@ const MOCK_ORDERS: DetailedShopOrder[] = [
     total: "£112.00",
     totalNumeric: 112.0,
     paymentStatus: "Refunded",
+    paymentStatusLabel: "Refunded",
     fulfilmentStatus: "Cancelled",
+    fulfilmentStatusLabel: "Cancelled",
+    orderKindLabel: null,
     updatedDate: "05 May 2026",
   },
 ]

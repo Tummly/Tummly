@@ -40,6 +40,9 @@ namespace TummlyBackend.Services
             private readonly IPrintReadyQrMaterialsWork _printReadyQrMaterialsWork;
             private readonly IEmailService _emailService;
             private readonly ICaptureQrLifecycleService _captureQrLifecycle;
+            private readonly IShopQrSlotReservationService? _shopQrSlots;
+            private readonly IActiveQrCapacity? _activeQrCapacity;
+            private readonly IPostCommitActions? _postCommit;
             private readonly ILogger<RevolutOrderCompletedApplier> _logger;
 
             public RevolutOrderCompletedApplier(
@@ -59,7 +62,10 @@ namespace TummlyBackend.Services
                 IComplimentaryStarterShopOrderService? complimentaryStarterShopOrders =
                     null,
                 IPrintReadyQrMaterialsWork? printReadyQrMaterialsWork = null,
-                ILogger<RevolutOrderCompletedApplier>? logger = null
+                ILogger<RevolutOrderCompletedApplier>? logger = null,
+                IShopQrSlotReservationService? shopQrSlots = null,
+                IActiveQrCapacity? activeQrCapacity = null,
+                IPostCommitActions? postCommitActions = null
             )
             {
                 _context = context;
@@ -82,6 +88,9 @@ namespace TummlyBackend.Services
                     printReadyQrMaterialsWork
                     ?? NoOpPrintReadyQrMaterialsWork.Instance;
                 _logger = logger ?? NullLogger<RevolutOrderCompletedApplier>.Instance;
+                _shopQrSlots = shopQrSlots;
+                _activeQrCapacity = activeQrCapacity;
+                _postCommit = postCommitActions;
             }
 
         public static bool IsMintableBillingReason(string? billingReason)
@@ -1100,17 +1109,46 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            if (!intent.IsOpen)
+            if (
+                intent.RestaurantId is not int restaurantId
+                || intent.ShopOrderId is not Guid shopOrderId
+            )
             {
-                return;
-            }
+                if (!intent.IsOpen)
+                {
+                    return;
+                }
 
-            var restaurantId = RequireRestaurantId(intent);
-            if (intent.ShopOrderId is not Guid shopOrderId)
-            {
+                RequireRestaurantId(intent);
                 throw new InvalidOperationException("invalid_shop_order_intent");
             }
 
+            // Paid status, invoice and QR conversion commit together under the
+            // billing lock that Capture and /pay also take.
+            await using var capacityTransaction = _shopQrSlots == null
+                ? null
+                : await QrCapacityTransaction.BeginIfNeededAsync(
+                    _context,
+                    cancellationToken
+                );
+            if (_shopQrSlots != null && _activeQrCapacity != null)
+            {
+                await _activeQrCapacity.LockBillingAccountAsync(
+                    restaurantId,
+                    cancellationToken
+                );
+            }
+
+            // Rows the caller read before the lock may be stale: a webhook or the
+            // sweeper can have paid this order meanwhile. Re-read, then decide.
+            if (_context.Entry(intent).State != EntityState.Detached)
+            {
+                await _context.Entry(intent).ReloadAsync(cancellationToken);
+            }
+
+            var orderWasTracked = _context.ChangeTracker
+                .Entries<ShopOrder>()
+                .Any(entry => entry.Entity.Id == shopOrderId);
             var shopOrder = await _context.ShopOrders
                 .Include(row => row.Lines)
                 .FirstOrDefaultAsync(
@@ -1124,6 +1162,46 @@ namespace TummlyBackend.Services
                 throw new InvalidOperationException("shop_order_missing");
             }
 
+            if (orderWasTracked)
+            {
+                await _context.Entry(shopOrder).ReloadAsync(cancellationToken);
+            }
+
+            if (
+                string.Equals(
+                    shopOrder.PaymentStatus,
+                    ShopPaymentStatuses.Paid,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                // Already applied by the webhook or the sweeper.
+                return;
+            }
+
+            if (!intent.IsOpen)
+            {
+                // A failure webhook or the sweeper closed the intent, yet the
+                // payment completed. The money is taken, so the order is paid
+                // (spec 4.4.5). Any other closed intent was already applied.
+                if (
+                    !string.Equals(
+                        shopOrder.PaymentStatus,
+                        ShopPaymentStatuses.PaymentFailed,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    return;
+                }
+
+                _logger.LogWarning(
+                    "Revolut order {OrderId} completed after shop order {ShopOrderId} was marked payment_failed",
+                    intent.OrderId,
+                    shopOrderId
+                );
+            }
+
             var nowUtc = _clock.GetUtcNow().UtcDateTime;
             shopOrder.PaymentStatus = ShopPaymentStatuses.Paid;
             shopOrder.FulfilmentStatus = ShopFulfilmentStatuses.Processing;
@@ -1131,6 +1209,14 @@ namespace TummlyBackend.Services
             shopOrder.ProcessingStartedAtUtc = nowUtc;
             shopOrder.RevolutOrderId = intent.OrderId;
             shopOrder.UpdatedAtUtc = nowUtc;
+
+            if (_shopQrSlots != null)
+            {
+                await _shopQrSlots.ConvertForPaidOrderAsync(
+                    shopOrder,
+                    cancellationToken
+                );
+            }
 
             var billingAccount = await _context.BillingAccounts
                 .AsNoTracking()
@@ -1150,7 +1236,7 @@ namespace TummlyBackend.Services
                 ? "Paid"
                 : paymentMethodSummary.Trim();
 
-            var invoice = await MintInvoiceAndDeliverEmailAsync(
+            var (invoice, invoiceWasNewlyMinted) = await MintInvoiceWithoutEmailAsync(
                 new TummlyVatInvoiceMintRequest(
                     RevolutOrderId: intent.OrderId,
                     RevolutSubscriptionId: null,
@@ -1190,11 +1276,35 @@ namespace TummlyBackend.Services
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+            if (capacityTransaction != null)
+            {
+                await capacityTransaction.CommitAsync(cancellationToken);
+            }
 
-            await _shopOrderEmail.TryNotifyConfirmedAsync(
-                shopOrder.Id,
-                cancellationToken
-            );
+            // Emails leave only after the outermost commit, never under the
+            // billing lock. The webhook runs the queue after its transaction.
+            var confirmedOrderId = shopOrder.Id;
+            async Task SendEmailsAsync(CancellationToken ct)
+            {
+                if (invoice != null)
+                {
+                    await _invoiceEmail.DeliverIfNewAsync(
+                        invoice,
+                        invoiceWasNewlyMinted,
+                        ct
+                    );
+                }
+
+                await _shopOrderEmail.TryNotifyConfirmedAsync(confirmedOrderId, ct);
+            }
+
+            if (_postCommit is { IsDeferring: true })
+            {
+                _postCommit.Enqueue(SendEmailsAsync);
+                return;
+            }
+
+            await SendEmailsAsync(cancellationToken);
         }
 
         private static IReadOnlyList<TummlyVatInvoiceLineItemDto> BuildShopInvoiceLineItems(
@@ -1325,6 +1435,26 @@ namespace TummlyBackend.Services
                 CycleEndUtc: null,
                 RenewalDateUtc: monthEnd
             );
+        }
+
+        /// <summary>
+        /// Mints (or finds) the invoice without sending its email, so the caller
+        /// can send after commit.
+        /// </summary>
+        private async Task<(TummlyVatInvoice? Invoice, bool WasNewlyMinted)> MintInvoiceWithoutEmailAsync(
+            TummlyVatInvoiceMintRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            var preexisting = await _vatInvoices.FindByRevolutOrderIdAsync(
+                request.RevolutOrderId,
+                cancellationToken
+            );
+            var invoice = await _vatInvoices.MintForCompletedOrderAsync(
+                request,
+                cancellationToken
+            );
+            return (invoice, preexisting == null);
         }
 
         private async Task<TummlyVatInvoice?> MintInvoiceAndDeliverEmailAsync(

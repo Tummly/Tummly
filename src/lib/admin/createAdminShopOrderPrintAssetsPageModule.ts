@@ -76,7 +76,7 @@ function mapRow(asset: AdminShopPrintAsset): AdminShopOrderPrintAssetRow {
   }
 }
 
-function defaultDownloadName(
+export function defaultDownloadName(
   orderId: string,
   qrType: AdminShopPrintAsset["qrType"],
   fileName: string | null

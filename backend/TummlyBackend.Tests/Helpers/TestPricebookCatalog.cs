@@ -104,3 +104,22 @@ namespace TummlyBackend.Tests.Helpers
         }
     }
 }
+
+namespace TummlyBackend.Tests.Helpers
+{
+    /// <summary>
+    /// The real Workspace active-QR capacity service over the test pricebook.
+    /// </summary>
+    internal static class TestActiveQrCapacity
+    {
+        private static readonly Lazy<IPricebookCatalog> Pricebook = new(
+            () => PricebookCatalog.LoadFromDirectory(
+                TestPricebookPaths.PackDirectory()
+            )
+        );
+
+        public static TummlyBackend.Services.ActiveQrCapacity For(
+            TummlyBackend.Data.ApplicationDbContext context
+        ) => new(context, Pricebook.Value);
+    }
+}

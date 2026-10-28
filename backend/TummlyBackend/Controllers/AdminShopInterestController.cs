@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Controllers
 {
@@ -31,6 +32,8 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     items = result.Items,
+                    counts = result.CountsByProduct,
+                    // Same list under the name the first admin screen reads.
                     countsByProduct = result.CountsByProduct,
                 }
             );
@@ -164,6 +167,18 @@ namespace TummlyBackend.Controllers
 
         private IActionResult MapError(string error)
         {
+            if (error == ShopQrPathRules.SkuHasNoQrPathCode)
+            {
+                return Conflict(
+                    new
+                    {
+                        success = false,
+                        code = error,
+                        message = ShopQrPathRules.SkuHasNoQrPathMessage,
+                    }
+                );
+            }
+
             if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
             {
                 return NotFound(new { success = false, message = error });

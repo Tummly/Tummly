@@ -35,6 +35,8 @@ namespace TummlyBackend.DTOs.Admin
 
         public int RestaurantId { get; set; }
 
+        public string RestaurantName { get; set; } = string.Empty;
+
         public int LocationId { get; set; }
 
         public string LocationNameSnapshot { get; set; } = string.Empty;
@@ -52,6 +54,9 @@ namespace TummlyBackend.DTOs.Admin
 
         public string? OpsNotes { get; set; }
 
+        /// <summary>When the order was placed (UTC).</summary>
+        public DateTime CreatedAtUtc { get; set; }
+
         public DateTime? PaidAtUtc { get; set; }
 
         /// <summary>
@@ -64,6 +69,29 @@ namespace TummlyBackend.DTOs.Admin
         public List<AdminShopOrderLineSummaryDto> Lines { get; set; } = [];
 
         public List<AdminShopPrintAssetDto> PrintAssets { get; set; } = [];
+
+        /// <summary>
+        /// Why the paid order needs Admin attention (for example
+        /// <c>qr_capacity_unavailable_after_payment</c>); null when none.
+        /// </summary>
+        public string? ReviewReason { get; set; }
+
+        /// <summary>
+        /// QR slot reservations held in <c>review</c> after 24 h without a
+        /// final Revolut answer (spec 4.4.5).
+        /// </summary>
+        public List<AdminShopQrReservationReviewDto> ReviewQrReservations { get; set; } = [];
+    }
+
+    public sealed class AdminShopQrReservationReviewDto
+    {
+        public string Status { get; set; } = string.Empty;
+
+        public string QrType { get; set; } = string.Empty;
+
+        public string? LastReconcileError { get; set; }
+
+        public DateTime CreatedAtUtc { get; set; }
     }
 
     public sealed class AdminShopOrderLineSummaryDto
@@ -82,6 +110,9 @@ namespace TummlyBackend.DTOs.Admin
     public sealed class AdminShopPrintAssetDto
     {
         public string QrType { get; set; } = string.Empty;
+
+        /// <summary>The ordered product title, for example "QR Counter Display".</summary>
+        public string ProductTitle { get; set; } = string.Empty;
 
         public int Quantity { get; set; }
 

@@ -60,6 +60,21 @@ function displayName(fact: CapturePlacementItem, isDigital: boolean): string {
   return QR_TYPE_LABELS[fact.qrType]
 }
 
+const SHOP_PRINTED_MATERIALS_PAUSE_WARNING =
+  "Printed materials from your Tummly Shop orders use this QR code. Guests who scan them will not reach your form while it is paused."
+
+function pauseWarningText(
+  fact: CapturePlacementItem,
+  isDigital: boolean
+): string | null {
+  if (isDigital) {
+    return null
+  }
+  return fact.hasShopPrintedMaterials === true
+    ? SHOP_PRINTED_MATERIALS_PAUSE_WARNING
+    : PRINT_WARNING
+}
+
 export type BuildPauseActivateConfirmInput = {
   fact: CapturePlacementItem
   action: PauseActivateConfirmAction
@@ -96,7 +111,7 @@ export function buildPauseActivateConfirm(
       lastScanText,
       connectedGuestForm: null,
       connectedOfferText: null,
-      warningText: isDigital ? null : PRINT_WARNING,
+      warningText: pauseWarningText(fact, isDigital),
       primaryLabel: isDigital ? "Pause link" : "Pause placement",
       cancelLabel: "Cancel",
       successToastMessage: `${name} is now paused. You can activate it again at any time.`,

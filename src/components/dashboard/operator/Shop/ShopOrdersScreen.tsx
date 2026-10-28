@@ -7,6 +7,7 @@ import {
   Inbox,
 } from "lucide-react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
@@ -21,6 +22,11 @@ import {
 } from "@/lib/operatorShop/shopOrdersFilterSheetSchema"
 import { buildShopOrdersListQueryParams } from "@/lib/operatorShop/shopOrdersListQueryParams"
 import { mapShopOrdersListResponse, mapShopOrderDetailToRow } from "@/lib/operatorShop/mapShopOrdersApiResponse"
+import { readShopApiErrorCode } from "@/lib/operatorShop/readShopApiErrorCode"
+import {
+  buildShopReorderUnavailableMessage,
+  readShopReorderUnavailableLines,
+} from "@/lib/operatorShop/shopReorderUnavailablePresentation"
 import { fetchShopOrdersList, fetchShopOrder, cancelShopOrder, reorderShopOrder, type ShopReorderPrefillWire } from "@/api/shopOrdersApi"
 import {
   emptySelection,
@@ -266,9 +272,13 @@ export function ShopOrdersScreen({
       }
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
-        const code = error.response.data?.code
-        if (code === "catalog_sku_unavailable") {
-          toast.error("One or more materials are no longer available.")
+        if (readShopApiErrorCode(error) === "reorder_no_available_lines") {
+          const unavailable = readShopReorderUnavailableLines(error)
+          toast.error(
+            unavailable.length > 0
+              ? buildShopReorderUnavailableMessage(unavailable)
+              : "This order cannot be reordered."
+          )
           return
         }
         toast.error("This order cannot be reordered.")
@@ -296,7 +306,7 @@ export function ShopOrdersScreen({
       {/* Header & Location Switcher */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="font-jakarta text-2xl font-bold tracking-tight text-op-text-primary sm:text-3xl">
+          <h1 className="font-jakarta text-2xl font-bold text-op-text-primary sm:text-3xl">
             Orders
           </h1>
           <p className="text-sm font-normal text-op-text-muted">
@@ -322,7 +332,7 @@ export function ShopOrdersScreen({
       <div className="rounded-md border border-op-border-default bg-op-card-background p-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Orders in progress
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -334,7 +344,7 @@ export function ShopOrdersScreen({
           </div>
 
           <div className="flex flex-col gap-1 sm:border-l sm:border-op-border-default/60 sm:pl-6">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Dispatched
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -346,7 +356,7 @@ export function ShopOrdersScreen({
           </div>
 
           <div className="flex flex-col gap-1 sm:border-l sm:border-op-border-default/60 sm:pl-6">
-            <span className="text-sm font-medium text-op-text-secondary">
+            <span className="text-sm font-medium text-op-text-body">
               Delivered
             </span>
             <span className="font-jakarta text-3xl font-extrabold leading-none text-op-text-primary">
@@ -497,27 +507,32 @@ export function ShopOrdersScreen({
                         <td className="px-4 py-3.5 font-normal text-op-text-primary">
                           {order.orderNumber} · {order.orderDate}
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.locationName}
                         </td>
                         <td className="px-4 py-3.5 text-op-text-primary">
-                          {order.materials}
+                          <div className="flex flex-col items-start gap-1.5">
+                            <span>{order.materials}</span>
+                            {order.orderKindLabel ? (
+                              <Badge variant="tag">{order.orderKindLabel}</Badge>
+                            ) : null}
+                          </div>
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.placedBy}
                         </td>
                         <td className="px-4 py-3.5 font-medium text-op-text-primary">
                           {order.total}
                         </td>
                         <td className="px-4 py-3.5 text-op-text-primary">
-                          {order.paymentStatus}
+                          {order.paymentStatusLabel}
                         </td>
                         <td className="px-4 py-3.5">
                           <span className="inline-flex items-center rounded-xs border border-op-border-default bg-op-surface-secondary px-2.5 py-1 text-[11px] font-medium text-op-text-primary">
-                            {order.fulfilmentStatus}
+                            {order.fulfilmentStatusLabel}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-op-text-secondary">
+                        <td className="px-4 py-3.5 text-op-text-body">
                           {order.updatedDate}
                         </td>
                         <td className="px-4 py-3.5 text-center">

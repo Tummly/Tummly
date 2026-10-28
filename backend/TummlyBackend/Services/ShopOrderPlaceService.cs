@@ -6,26 +6,28 @@ using TummlyBackend.DTOs.Shop;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Shop;
 
 namespace TummlyBackend.Services
 {
     public sealed class ShopOrderPlaceService : IShopOrderPlaceService
     {
         private const string UkCountry = "United Kingdom";
-        private const int ExpressDeliveryNetPence = 2000;
 
         private readonly ApplicationDbContext _context;
         private readonly IMaterialsCatalog _catalog;
         private readonly IShopCartService _carts;
         private readonly IShopOrderNumberAllocator _orderNumbers;
         private readonly TummlySellerVatSettings _sellerVat;
+        private readonly IShopQrSlotReservationService? _qrSlots;
 
         public ShopOrderPlaceService(
             ApplicationDbContext context,
             IMaterialsCatalog catalog,
             IShopCartService carts,
             IShopOrderNumberAllocator orderNumbers,
-            IOptions<TummlySellerVatSettings> sellerVat
+            IOptions<TummlySellerVatSettings> sellerVat,
+            IShopQrSlotReservationService? qrSlots = null
         )
         {
             _context = context;
@@ -33,6 +35,7 @@ namespace TummlyBackend.Services
             _carts = carts;
             _orderNumbers = orderNumbers;
             _sellerVat = sellerVat.Value;
+            _qrSlots = qrSlots;
         }
 
         public async Task<ShopDeliveryDefaultsDto?> GetDeliveryDefaultsAsync(
@@ -109,16 +112,11 @@ namespace TummlyBackend.Services
                     ShopDeliveryMethods.Standard,
                     StringComparison.Ordinal
                 )
-                && !string.Equals(
-                    request.DeliveryMethod,
-                    ShopDeliveryMethods.Express,
-                    StringComparison.Ordinal
-                )
             )
             {
                 return ShopOrderPlaceResult.Fail(
                     "invalid_delivery_method",
-                    "deliveryMethod must be standard or express."
+                    "deliveryMethod must be standard."
                 );
             }
 
@@ -173,19 +171,6 @@ namespace TummlyBackend.Services
                     .ToList();
             }
 
-            if (
-                rawLines.Any(line =>
-                    string.Equals(line.SkuId, "offer-card", StringComparison.Ordinal)
-                )
-                && location.OfferCardCatalogOfferId == null
-            )
-            {
-                return ShopOrderPlaceResult.Fail(
-                    OfferCardOfferRequiredException.ErrorCode,
-                    "Set up your card offer before ordering Offer Cards."
-                );
-            }
-
             var priced = PriceLines(rawLines);
             if (priced.Error != null)
             {
@@ -193,15 +178,54 @@ namespace TummlyBackend.Services
             }
 
             var pricedLines = priced.Lines!;
-            var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);
-            var standardDeliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
-            var deliveryNetPence = string.Equals(
-                request.DeliveryMethod,
-                ShopDeliveryMethods.Express,
-                StringComparison.Ordinal
+            if (
+                pricedLines.Any(line => line.RequiresCardOffer)
+                && !await ShopCardOfferRules.HasAttachableOfferAsync(
+                    _context,
+                    restaurantId,
+                    location.Id,
+                    cancellationToken
+                )
             )
-                ? checked(standardDeliveryNetPence + ExpressDeliveryNetPence)
-                : standardDeliveryNetPence;
+            {
+                return ShopOrderPlaceResult.Fail(
+                    OfferCardOfferRequiredException.ErrorCode,
+                    OfferCardOfferRequiredException.ErrorMessage
+                );
+            }
+
+            // Check only: no lock held past the call and no reservation written.
+            if (_qrSlots != null)
+            {
+                var slotTypes = ShopQrSlotTypes.FromSkuIds(
+                    pricedLines.Select(line => line.SkuId),
+                    _catalog
+                );
+                if (slotTypes.Count > 0)
+                {
+                    var capacity = await _qrSlots.CheckForPlaceAsync(
+                        restaurantId,
+                        location.Id,
+                        slotTypes,
+                        cancellationToken
+                    );
+                    if (!capacity.EntitlementsAvailable)
+                    {
+                        return ShopOrderPlaceResult.Fail(
+                            ShopQrLimit.EntitlementsUnavailableCode,
+                            ShopQrLimit.EntitlementsUnavailableMessage
+                        );
+                    }
+
+                    if (!capacity.Ok)
+                    {
+                        return ShopOrderPlaceResult.FailQrLimit(capacity.Limit);
+                    }
+                }
+            }
+
+            var materialsNetPence = pricedLines.Sum(line => line.LineNetPence);
+            var deliveryNetPence = pricedLines.Max(line => line.DeliveryNetPence);
 
             var vatPence = TummlyVatMath.VatPenceFromNetPence(
                 materialsNetPence,
@@ -478,7 +502,8 @@ namespace TummlyBackend.Services
                     raw.Quantity,
                     pack.NetPence,
                     pack.NetPence,
-                    detail.DeliveryNetPence
+                    detail.DeliveryNetPence,
+                    ShopCardOfferRules.RequiresCardOffer(detail)
                 ));
             }
 
@@ -523,7 +548,8 @@ namespace TummlyBackend.Services
             int Quantity,
             int UnitNetPence,
             int LineNetPence,
-            int DeliveryNetPence
+            int DeliveryNetPence,
+            bool RequiresCardOffer
         );
     }
 }

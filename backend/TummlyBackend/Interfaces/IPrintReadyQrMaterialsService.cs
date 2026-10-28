@@ -123,6 +123,12 @@ namespace TummlyBackend.Interfaces
     {
         public string QrType { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The ordered product title (for example <c>QR Counter Display</c>),
+        /// so a screen never derives a name from <see cref="QrType"/>.
+        /// </summary>
+        public string ProductTitle { get; set; } = string.Empty;
+
         public int Quantity { get; set; }
 
         public string Status { get; set; } = string.Empty;

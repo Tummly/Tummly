@@ -593,6 +593,189 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task CounterDisplay_CartPlacePay_SucceedWithoutAttachedOffer()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            var add = await PutLineAsync(
+                seeded.MemberJwt,
+                seeded.InScopeLocationId,
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                5
+            );
+            Assert.Equal(HttpStatusCode.OK, add.StatusCode);
+
+            // Counter pack 5@4499; vat 900; delivery 299; gross 5698
+            var place = await PlaceOrderAsync(
+                seeded.MemberJwt,
+                new
+                {
+                    locationId = seeded.InScopeLocationId,
+                    fromCart = true,
+                    deliveryMethod = "standard",
+                    expectedGrossPence = 5698,
+                    shipTo = ValidShipTo(),
+                }
+            );
+            Assert.Equal(HttpStatusCode.OK, place.StatusCode);
+            var orderId = (await ReadJsonAsync(place)).GetProperty("id").GetGuid();
+
+            var pay = await PayOrderAsync(
+                seeded.MemberJwt,
+                orderId,
+                seeded.InScopeLocationId
+            );
+
+            Assert.Equal(HttpStatusCode.OK, pay.StatusCode);
+            var body = await ReadJsonAsync(pay);
+            Assert.Equal("pay", body.GetProperty("outcome").GetString());
+        }
+
+        [Fact]
+        public async Task GuestCards_OfferDetachedBetweenPlaceAndPay_PayReturns409()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachActiveCardOfferAsync(_factory, seeded.InScopeLocationId);
+            // Order as placed while the card offer was attached.
+            var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
+            await ShopTestSeed.DetachCardOfferAsync(_factory, seeded.InScopeLocationId);
+
+            var pay = await PayOrderAsync(
+                seeded.MemberJwt,
+                orderId,
+                seeded.InScopeLocationId
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, pay.StatusCode);
+            var body = await ReadJsonAsync(pay);
+            Assert.Equal(
+                OfferCardOfferRequiredException.ErrorCode,
+                body.GetProperty("code").GetString()
+            );
+            Assert.Equal(
+                "Set up your card offer before ordering Guest Cards.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GuestCards_OfferBelongsToAnotherLocation_Pay_Returns409()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            var otherLocationId = await ShopTestSeed.AddLocationAsync(
+                _factory,
+                seeded.RestaurantId,
+                "Other Site"
+            );
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(OfferLocationId: otherLocationId)
+            );
+            var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
+
+            await AssertPayOfferRequiredAsync(seeded, orderId);
+        }
+
+        [Fact]
+        public async Task GuestCards_ExpiredCardOffer_Pay_Returns409()
+        {
+            var seeded = await SeedPaidShopWorkspaceAsync();
+            await ShopTestSeed.SetSkuAvailableInShopAsync(_factory, "qr-guest-cards", true);
+            await ShopTestSeed.AttachCardOfferAsync(
+                _factory,
+                seeded.InScopeLocationId,
+                new ShopTestSeed.CardOfferSetup(
+                    Validity: CatalogOfferValidity.ChooseExpiryDate,
+                    CustomExpiryDate: new DateOnly(2020, 1, 1)
+                )
+            );
+            var orderId = await InsertAwaitingPaymentGuestCardOrderAsync(seeded);
+
+            await AssertPayOfferRequiredAsync(seeded, orderId);
+        }
+
+        private async Task AssertPayOfferRequiredAsync(ShopSeed seeded, Guid orderId)
+        {
+            var pay = await PayOrderAsync(
+                seeded.MemberJwt,
+                orderId,
+                seeded.InScopeLocationId
+            );
+
+            await ShopTestAssert.AssertOfferCardOfferRequiredAsync(pay);
+        }
+
+        private async Task<HttpResponseMessage> PayOrderAsync(
+            string jwt,
+            Guid orderId,
+            int locationId
+        )
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/shop/orders/{orderId}/pay?locationId={locationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+            return await _client.SendAsync(request);
+        }
+
+        private async Task<Guid> InsertAwaitingPaymentGuestCardOrderAsync(
+            ShopSeed seeded
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var ownerUserId = await context.Restaurants
+                .Where(row => row.Id == seeded.RestaurantId)
+                .Select(row => row.OwnerUserId)
+                .SingleAsync();
+
+            var order = new ShopOrder
+            {
+                Id = Guid.NewGuid(),
+                OrderNumber = "ORD-1",
+                RestaurantId = seeded.RestaurantId,
+                LocationId = seeded.InScopeLocationId,
+                LocationNameSnapshot = "In Scope",
+                PlacedByUserId = ownerUserId,
+                PlacedByNameSnapshot = "Shop Pay Owner",
+                MaterialsNetPence = 1499,
+                VatPence = 300,
+                DeliveryNetPence = 0,
+                GrossPence = 1799,
+                DeliveryMethod = ShopDeliveryMethods.Standard,
+                PaymentStatus = ShopPaymentStatuses.AwaitingPayment,
+                ShipToContactName = "Ada Lovelace",
+                ShipToAddressLine1 = "6 Southwark Street",
+                ShipToPostcode = "SE1 1TQ",
+                ShipToCountry = "United Kingdom",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+                Lines =
+                {
+                    new ShopOrderLine
+                    {
+                        Id = Guid.NewGuid(),
+                        CatalogSkuId = "qr-guest-cards",
+                        TitleSnapshot = "QR Guest Cards",
+                        MaterialType = "qr-guest-cards",
+                        Quantity = 250,
+                        UnitNetPence = 1499,
+                        LineNetPence = 1499,
+                    },
+                },
+            };
+            context.ShopOrders.Add(order);
+            await context.SaveChangesAsync();
+            return order.Id;
+        }
+
         private async Task<Guid> PlaceAwaitingPaymentOrderAsync(
             string jwt,
             int locationId,

@@ -38,6 +38,36 @@ describe("buildCaptureGuestExperience", () => {
     })
   })
 
+  it("shows the Workspace-wide plan usage, not this Location's count", () => {
+    const result = buildCaptureGuestExperience({
+      locationName: "Camden",
+      locationAddress: "12 High St",
+      placements: [
+        { qrCodeId: 1, qrType: "SmartGuest", status: "Active" },
+      ],
+      activeQrCap: 25,
+      activeQrWorkspaceUsed: 24,
+    })
+
+    expect(result.activeQrPlanUsageText).toBe(
+      "24 of 25 active QR placements across your Workspace (plan limit)"
+    )
+  })
+
+  it("hides plan usage when the Workspace count is unavailable", () => {
+    const result = buildCaptureGuestExperience({
+      locationName: "Camden",
+      locationAddress: "12 High St",
+      placements: [
+        { qrCodeId: 1, qrType: "SmartGuest", status: "Active" },
+      ],
+      activeQrCap: 25,
+      activeQrWorkspaceUsed: null,
+    })
+
+    expect(result.activeQrPlanUsageText).toBe("")
+  })
+
   it("shows attached thank-you offer title in Connected offers", () => {
     const result = buildCaptureGuestExperience({
       locationName: "Camden",

@@ -411,7 +411,7 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var today = CatalogOfferStatus.VenueLocalToday(DateTime.UtcNow, 0);
+            var today = CatalogOfferStatus.LondonToday(DateTime.UtcNow);
             if (!CatalogOfferStatus.IsAttachableActive(
                     offer.Status,
                     offer.Validity,
