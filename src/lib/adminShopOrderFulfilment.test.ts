@@ -2,17 +2,40 @@ import { describe, expect, it } from "vitest"
 
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
+  canSubmitAdminShopFulfilment,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
 
 describe("adminShopOrderFulfilment", () => {
   it("maps API statuses to operator-facing labels", () => {
-    expect(adminShopFulfilmentLabel("processing")).toBe("Processing")
+    expect(adminShopFulfilmentLabel("processing")).toBe("Confirmed")
     expect(adminShopFulfilmentLabel("in_transit")).toBe("Dispatched")
     expect(adminShopFulfilmentLabel("delivered")).toBe("Delivered")
+  })
+
+  it("reads Preparing only for processing orders with production started", () => {
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "processing",
+        productionStartedAtUtc: null,
+      })
+    ).toBe("Confirmed")
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "processing",
+        productionStartedAtUtc: "2026-10-27T09:00:00Z",
+      })
+    ).toBe("Preparing")
+    expect(
+      adminShopOrderFulfilmentLabel({
+        fulfilmentStatus: "in_transit",
+        productionStartedAtUtc: "2026-10-27T09:00:00Z",
+      })
+    ).toBe("Dispatched")
   })
 
   it("exposes the next legal fulfilment action", () => {
@@ -26,6 +49,27 @@ describe("adminShopOrderFulfilment", () => {
     })
     expect(nextAdminShopFulfilmentAction("delivered")).toBeNull()
     expect(nextAdminShopFulfilmentAction("cancelled")).toBeNull()
+  })
+
+  it("requires a tracking reference only to dispatch", () => {
+    expect(
+      canSubmitAdminShopFulfilment({ targetStatus: "in_transit", trackingUrl: "" })
+    ).toBe(false)
+    expect(
+      canSubmitAdminShopFulfilment({
+        targetStatus: "in_transit",
+        trackingUrl: "   ",
+      })
+    ).toBe(false)
+    expect(
+      canSubmitAdminShopFulfilment({
+        targetStatus: "in_transit",
+        trackingUrl: "https://track.example/abc",
+      })
+    ).toBe(true)
+    expect(
+      canSubmitAdminShopFulfilment({ targetStatus: "delivered", trackingUrl: "" })
+    ).toBe(true)
   })
 
   it("limits tracking and notes edits by status", () => {

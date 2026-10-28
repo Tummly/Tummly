@@ -7,6 +7,7 @@ import type {
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
+  adminShopOrderTableLines,
   formatAdminShopOrderDate,
 } from "./adminShopOrdersTablePresentation"
 
@@ -140,5 +141,37 @@ describe("adminShopOrderRowActions", () => {
 
     expect(actions.downloadQrTypes).toEqual([])
     expect(actions.approveQrTypes).toEqual([])
+  })
+})
+
+describe("adminShopOrderTableLines", () => {
+  it("gives one product and one quantity per order line", () => {
+    expect(
+      adminShopOrderTableLines({
+        lines: [
+          {
+            catalogSkuId: "table-tent",
+            titleSnapshot: "Table Tent",
+            quantity: 2,
+            unitNetPence: 0,
+            lineNetPence: 0,
+          },
+          {
+            catalogSkuId: "counter-card",
+            titleSnapshot: "QR Counter Display",
+            quantity: 1,
+            unitNetPence: 0,
+            lineNetPence: 0,
+          },
+        ],
+      })
+    ).toEqual([
+      { key: "table-tent-0", product: "Table Tent", quantity: 2 },
+      { key: "counter-card-1", product: "QR Counter Display", quantity: 1 },
+    ])
+  })
+
+  it("returns no rows for an order without lines", () => {
+    expect(adminShopOrderTableLines({ lines: [] })).toEqual([])
   })
 })

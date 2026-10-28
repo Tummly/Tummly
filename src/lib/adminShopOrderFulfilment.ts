@@ -7,7 +7,7 @@ export const ADMIN_SHOP_FULFILMENT_STATUS_LABELS: Record<
   AdminShopFulfilmentStatus,
   string
 > = {
-  processing: "Processing",
+  processing: "Confirmed",
   in_transit: "Dispatched",
   delivered: "Delivered",
   cancelled: "Cancelled",
@@ -17,7 +17,7 @@ export const ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS: Array<{
   id: AdminShopFulfilmentStatus | "all"
   label: string
 }> = [
-  { id: "processing", label: "Processing" },
+  { id: "processing", label: "Confirmed" },
   { id: "in_transit", label: "Dispatched" },
   { id: "delivered", label: "Delivered" },
   { id: "cancelled", label: "Cancelled" },
@@ -40,6 +40,19 @@ export function adminShopFulfilmentLabel(status: string): string {
   return status
 }
 
+/**
+ * Admin label for an order row. A paid order still in processing reads
+ * "Preparing" once production has started; the stored status is unchanged.
+ */
+export function adminShopOrderFulfilmentLabel(
+  order: Pick<AdminShopOrderListItem, "fulfilmentStatus" | "productionStartedAtUtc">
+): string {
+  if (order.fulfilmentStatus === "processing" && order.productionStartedAtUtc) {
+    return "Preparing"
+  }
+  return adminShopFulfilmentLabel(order.fulfilmentStatus)
+}
+
 export function formatAdminShopGbpFromPence(pence: number): string {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -57,6 +70,20 @@ export function nextAdminShopFulfilmentAction(
     return { status: "delivered", label: "Mark as Delivered" }
   }
   return null
+}
+
+/**
+ * Dispatch needs a tracking reference (trackingUrl). Other transitions do not.
+ * The API rejects a dispatch without one, so Admin UI blocks it first.
+ */
+export function canSubmitAdminShopFulfilment(input: {
+  targetStatus: string
+  trackingUrl: string
+}): boolean {
+  if (input.targetStatus !== "in_transit") {
+    return true
+  }
+  return input.trackingUrl.trim().length > 0
 }
 
 export function canEditAdminShopTrackingUrl(status: string): boolean {

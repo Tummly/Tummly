@@ -38,9 +38,11 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
   adminShopOrderReviewNotice,
   canEditAdminShopOpsNotes,
   canEditAdminShopTrackingUrl,
+  canSubmitAdminShopFulfilment,
   formatAdminShopGbpFromPence,
   nextAdminShopFulfilmentAction,
 } from "@/lib/adminShopOrderFulfilment"
@@ -470,7 +472,7 @@ export function AdminShopOrderDetailDrawer({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="soft">
-                    {adminShopFulfilmentLabel(order.fulfilmentStatus)}
+                    {adminShopOrderFulfilmentLabel(order)}
                   </Badge>
                   <Badge variant="soft">
                     {adminShopOrderPaymentLabel(order)}
@@ -781,12 +783,18 @@ export function AdminShopOrderDetailDrawer({
 
             <section className="flex flex-col gap-3 py-6">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="admin-shop-tracking-url">Tracking URL</Label>
+                <Label htmlFor="admin-shop-tracking-url">
+                  {isProcessing
+                    ? "Tracking URL (required to dispatch)"
+                    : "Tracking URL"}
+                </Label>
                 <Input
                   id="admin-shop-tracking-url"
                   value={trackingUrl}
                   onChange={(event) => setTrackingUrl(event.target.value)}
                   placeholder="https://…"
+                  required={isProcessing}
+                  aria-required={isProcessing}
                   disabled={!trackingEditable || saving}
                   className="rounded-[2px]"
                 />
@@ -840,7 +848,13 @@ export function AdminShopOrderDetailDrawer({
                     type="button"
                     variant="op-primary"
                     className="rounded-[2px]"
-                    disabled={anyBusy}
+                    disabled={
+                      anyBusy ||
+                      !canSubmitAdminShopFulfilment({
+                        targetStatus: nextAction.status,
+                        trackingUrl,
+                      })
+                    }
                     onClick={() =>
                       void savePatch({
                         fulfilmentStatus: nextAction.status,

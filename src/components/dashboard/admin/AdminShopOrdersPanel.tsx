@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Pagination,
   PaginationContent,
@@ -58,6 +59,8 @@ import {
   ADMIN_SHOP_FULFILMENT_FILTER_OPTIONS,
   ALL_ADMIN_SHOP_FULFILMENT_STATUSES,
   adminShopFulfilmentLabel,
+  adminShopOrderFulfilmentLabel,
+  canSubmitAdminShopFulfilment,
   formatAdminShopGbpFromPence,
 } from "@/lib/adminShopOrderFulfilment"
 import { defaultDownloadName } from "@/lib/admin/createAdminShopOrderPrintAssetsPageModule"
@@ -65,6 +68,7 @@ import { withRowBusy } from "@/lib/admin/adminShopOrderRowBusy"
 import {
   adminShopOrderPaymentLabel,
   adminShopOrderRowActions,
+  adminShopOrderTableLines,
   formatAdminShopOrderDate,
 } from "@/lib/admin/adminShopOrdersTablePresentation"
 import {
@@ -91,6 +95,7 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
+import { triggerBlobDownload } from "@/lib/triggerBlobDownload"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 25
@@ -102,15 +107,6 @@ type PendingFulfilment = {
   order: AdminShopOrderListItem
   status: "in_transit" | "delivered"
   label: string
-}
-
-function triggerFileDownload(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-  anchor.href = url
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(url)
 }
 
 function fulfilmentErrorMessage(error: unknown): string {
@@ -164,6 +160,7 @@ export function AdminShopOrdersPanel() {
   )
   const [pendingFulfilment, setPendingFulfilment] =
     useState<PendingFulfilment | null>(null)
+  const [pendingTrackingUrl, setPendingTrackingUrl] = useState("")
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -218,7 +215,7 @@ export function AdminShopOrdersPanel() {
         q: debouncedSearch || undefined,
         fulfilmentStatus: fulfilmentStatusesForFilter(statusFilter),
       })
-      triggerFileDownload(blob, fileName)
+      triggerBlobDownload(blob, fileName)
       toast.success("Shop orders CSV downloaded")
     } catch {
       toast.error("Could not export shop orders")
@@ -263,7 +260,7 @@ export function AdminShopOrdersPanel() {
         for (const qrType of downloadQrTypes) {
           const asset = order.printAssets.find((item) => item.qrType === qrType)
           const blob = await downloadAdminShopOrderPrintAsset(order.id, qrType)
-          triggerFileDownload(
+          triggerBlobDownload(
             blob,
             defaultDownloadName(order.id, qrType, asset?.fileName ?? null)
           )
@@ -300,8 +297,10 @@ export function AdminShopOrdersPanel() {
     if (!pending) return
     await runRowBusy(pending.order.id, async () => {
       try {
+        const trackingUrl = pendingTrackingUrl.trim()
         const updated = await patchAdminShopOrderFulfilment(pending.order.id, {
           fulfilmentStatus: pending.status,
+          ...(pending.status === "in_transit" ? { trackingUrl } : {}),
         })
         setPendingFulfilment(null)
         applyOrderUpdate(updated)
@@ -317,6 +316,12 @@ export function AdminShopOrdersPanel() {
   const pendingBusy =
     pendingFulfilment !== null &&
     rowBusyOrderIds.has(pendingFulfilment.order.id)
+  const pendingCanSubmit =
+    pendingFulfilment !== null &&
+    canSubmitAdminShopFulfilment({
+      targetStatus: pendingFulfilment.status,
+      trackingUrl: pendingTrackingUrl,
+    })
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -416,7 +421,10 @@ export function AdminShopOrdersPanel() {
                   Location
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                  Materials
+                  Product
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Quantity
                 </TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                   Total (£)
@@ -442,7 +450,7 @@ export function AdminShopOrdersPanel() {
                     key={`skeleton-${index}`}
                     className={GUESTS_TABLE_BODY_ROW_CLASS}
                   >
-                    {Array.from({ length: 9 }).map((__, cellIndex) => (
+                    {Array.from({ length: 10 }).map((__, cellIndex) => (
                       <TableCell
                         key={cellIndex}
                         className={GUESTS_TABLE_BODY_CELL_CLASS}
@@ -455,9 +463,7 @@ export function AdminShopOrdersPanel() {
 
               {!loading &&
                 orders.map((order) => {
-                  const materials = order.lines
-                    .map((line) => `${line.titleSnapshot} ×${line.quantity}`)
-                    .join(", ")
+                  const lines = adminShopOrderTableLines(order)
 
                   return (
                     <TableRow
@@ -500,9 +506,32 @@ export function AdminShopOrdersPanel() {
                           "max-w-56 truncate"
                         )}
                       >
-                        <span className={ORDER_TABLE_TEXT_CLASS}>
-                          {materials || "—"}
-                        </span>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.product}
+                            </span>
+                          ))
+                        )}
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        {lines.length === 0 ? (
+                          <span className={ORDER_TABLE_TEXT_CLASS}>—</span>
+                        ) : (
+                          lines.map((line) => (
+                            <span
+                              key={line.key}
+                              className={cn(ORDER_TABLE_TEXT_CLASS, "block")}
+                            >
+                              {line.quantity}
+                            </span>
+                          ))
+                        )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <span className={ORDER_TABLE_TEXT_CLASS}>
@@ -521,7 +550,7 @@ export function AdminShopOrdersPanel() {
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge variant="soft">
-                          {adminShopFulfilmentLabel(order.fulfilmentStatus)}
+                          {adminShopOrderFulfilmentLabel(order)}
                         </Badge>
                       </TableCell>
                       <TableCell
@@ -541,9 +570,10 @@ export function AdminShopOrdersPanel() {
                           onApproveMaterials={() =>
                             void approveRowMaterials(order)
                           }
-                          onRequestFulfilment={(status, label) =>
+                          onRequestFulfilment={(status, label) => {
+                            setPendingTrackingUrl("")
                             setPendingFulfilment({ order, status, label })
-                          }
+                          }}
                         />
                       </TableCell>
                     </TableRow>
@@ -553,7 +583,7 @@ export function AdminShopOrdersPanel() {
               {!loading && orders.length === 0 && (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
                   <TableCell
-                    colSpan={9}
+                    colSpan={10}
                     className={cn(
                       GUESTS_TABLE_BODY_CELL_CLASS,
                       ORDER_TABLE_TEXT_CLASS,
@@ -653,12 +683,29 @@ export function AdminShopOrdersPanel() {
                 : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {pendingFulfilment?.status === "in_transit" && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="admin-shop-dispatch-tracking-url">
+                Tracking URL (required)
+              </Label>
+              <Input
+                id="admin-shop-dispatch-tracking-url"
+                value={pendingTrackingUrl}
+                onChange={(event) => setPendingTrackingUrl(event.target.value)}
+                placeholder="https://…"
+                required
+                aria-required="true"
+                disabled={pendingBusy}
+                className="rounded-[2px]"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pendingBusy}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={pendingBusy}
+              disabled={pendingBusy || !pendingCanSubmit}
               onClick={(event) => {
                 event.preventDefault()
                 void confirmFulfilment()

@@ -54,9 +54,9 @@ describe("shop out-of-scope chrome (ticket 21)", () => {
           totalFormatted: "£82.80",
           totalGrossPence: 8280,
           paymentStatus: "Paid",
-          fulfilmentStatus: "Processing",
+          fulfilmentStatus: "Confirmed",
           paymentStatusLabel: "Paid",
-          fulfilmentStatusLabel: "Processing",
+          fulfilmentStatusLabel: "Confirmed",
           orderKindLabel: null,
           updatedAtUtc: "2026-07-30T12:00:00Z",
         },
@@ -73,7 +73,7 @@ describe("shop out-of-scope chrome (ticket 21)", () => {
 
     expect(mapped.orders).toHaveLength(1)
     expect(mapped.orders[0]?.orderNumber).toBe("ORD-10428")
-    expect(mapped.orders[0]?.fulfilmentStatus).toBe("Processing")
+    expect(mapped.orders[0]?.fulfilmentStatus).toBe("Confirmed")
     expect(mapped.totalCount).toBe(1)
     expect(mapped.aggregates.inProgress).toBe(1)
 
