@@ -205,6 +205,9 @@ namespace TummlyBackend.Services
                     account.PilotPeriodEnd?.AddDays(
                         -ActivationCodeHelper.ActivationPeriodDays
                     ) ?? nowUtc;
+                account.PilotOriginalEndUtc ??= account.PilotPeriodEnd?.AddDays(
+                    -account.PilotExtensionDaysTotal
+                );
                 await _context.SaveChangesAsync(cancellationToken);
                 return new PilotStartResult(
                     Started: false,

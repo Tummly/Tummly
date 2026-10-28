@@ -18,7 +18,9 @@ namespace TummlyBackend.Migrations
                 nullable: true);
 
             // Existing Pilot rows: the original end is the effective end less the extension days.
-            migrationBuilder.Sql("UPDATE BillingAccounts SET PilotOriginalEndUtc = DATEADD(day, -PilotExtensionDaysTotal, PilotPeriodEnd) WHERE PilotPeriodEnd IS NOT NULL");
+            // RenewalDateUtc IS NULL leaves out cancelled paid accounts whose PilotPeriodEnd
+            // holds the post-cancel soft-lock end, not a Pilot term.
+            migrationBuilder.Sql("UPDATE BillingAccounts SET PilotOriginalEndUtc = DATEADD(day, -PilotExtensionDaysTotal, PilotPeriodEnd) WHERE PilotPeriodEnd IS NOT NULL AND RenewalDateUtc IS NULL");
         }
 
         /// <inheritdoc />

@@ -431,6 +431,8 @@ namespace TummlyBackend.Services
 
             var basis = oldEnd is { } currentEnd && currentEnd > now ? currentEnd : now;
             var newEnd = basis.AddDays(days);
+            // A Pilot with no end yet: its original term ends now.
+            account.PilotOriginalEndUtc ??= oldEnd ?? now;
 
             account.PilotPeriodEnd = newEnd;
             account.BillingStatus = BillingStatuses.Pilot;
@@ -543,6 +545,9 @@ namespace TummlyBackend.Services
             if (ownerExpires != null)
             {
                 account.PilotPeriodEnd = ownerExpires;
+                account.PilotOriginalEndUtc ??= ownerExpires.Value.AddDays(
+                    -account.PilotExtensionDaysTotal
+                );
             }
         }
 

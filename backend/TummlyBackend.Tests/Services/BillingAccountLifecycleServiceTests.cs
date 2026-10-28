@@ -562,6 +562,25 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ExtendPilot_FirstExtensionKeepsOriginalEndWhenSet_SetsItWhenMissing()
+        {
+            var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);
+            var periodEnd = now.AddDays(5);
+            var withOriginal = await SeedPilotAsync(periodEnd, originalEndUtc: periodEnd);
+            var withoutOriginal = await SeedPilotAsync(periodEnd);
+
+            await _lifecycle.ExtendPilotAsync(
+                withOriginal.RestaurantId, 14, "key-orig-a", now, "Support asked for a delay", 0
+            );
+            await _lifecycle.ExtendPilotAsync(
+                withoutOriginal.RestaurantId, 30, "key-orig-b", now, "Support asked for a delay", 0
+            );
+
+            Assert.Equal(periodEnd, (await ReloadAsync(withOriginal.RestaurantId)).PilotOriginalEndUtc);
+            Assert.Equal(periodEnd, (await ReloadAsync(withoutOriginal.RestaurantId)).PilotOriginalEndUtc);
+        }
+
+        [Fact]
         public async Task ExtendPilot_Active14_MovesEndFromCurrentEnd()
         {
             var now = new DateTime(2026, 10, 26, 12, 0, 0, DateTimeKind.Utc);

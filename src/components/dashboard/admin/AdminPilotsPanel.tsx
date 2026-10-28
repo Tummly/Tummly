@@ -133,11 +133,6 @@ export function AdminPilotsPanel() {
     }
   }, [])
 
-  const refreshAccounts = () =>
-    getPilotAccounts()
-      .then((rows) => setAccounts(rows))
-      .catch(() => toast.error("Could not refresh Pilot accounts"))
-
   const openDialog = (account: AdminPilotAccount) => {
     setDialog({
       account,
@@ -180,8 +175,23 @@ export function AdminPilotsPanel() {
       setDialog((current) =>
         current ? { ...current, error: failure.message } : current
       )
-      // A stale version means the table row is out of date too.
-      if (failure.stale) void refreshAccounts()
+      // A stale version means the row is out of date: reload it into the
+      // table and the open dialog so the operator can retry.
+      if (failure.stale) {
+        const restaurantId = dialog.account.restaurantId
+        const rows = await getPilotAccounts().catch(() => null)
+        if (rows) {
+          setAccounts(rows)
+          const fresh = rows.find((row) => row.restaurantId === restaurantId)
+          setDialog((current) =>
+            current && fresh
+              ? { ...current, account: fresh, attempted: false }
+              : current
+          )
+        } else {
+          toast.error("Could not refresh Pilot accounts")
+        }
+      }
     } finally {
       setExtending(false)
     }

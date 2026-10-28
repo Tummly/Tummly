@@ -236,6 +236,7 @@ namespace TummlyBackend.Tests.Services
             var reloaded = await LoadAccountAsync(restaurantId);
             Assert.Equal(end.AddDays(-30), reloaded.PilotStartedAtUtc);
             Assert.Equal(end, reloaded.PilotPeriodEnd);
+            Assert.Equal(end, reloaded.PilotOriginalEndUtc);
             Assert.Equal(0, await CountPilotGrantRowsAsync(restaurantId));
             Assert.Equal(clockBefore, await LoadOwnerClockAsync(restaurantId));
         }
