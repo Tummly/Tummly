@@ -56,6 +56,8 @@ export type AdminShopCatalogSku = {
   mintOnShopFulfilment: boolean
   status: AdminShopCatalogStatus
   availableInShop: boolean
+  /** What still blocks switching Available in Shop on. Empty when ready. */
+  availabilityBlockers?: string[]
   linkedInterestProductKey?: string | null
   aboutBody: string
   specifications: AdminShopCatalogSpecification[]
@@ -156,11 +158,12 @@ export async function unpublishAdminShopCatalogSku(
 
 export async function setAdminShopCatalogAvailableInShop(
   skuId: string,
-  availableInShop: boolean
+  availableInShop: boolean,
+  approvalReference?: string
 ): Promise<AdminShopCatalogSku> {
   const response = await axiosInstance.post<ItemResponse>(
     `/admin/shop-catalog/skus/${encodeURIComponent(skuId)}/available-in-shop`,
-    { availableInShop }
+    { availableInShop, approvalReference }
   )
   return response.data.item
 }
