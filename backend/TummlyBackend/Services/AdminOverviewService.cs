@@ -55,9 +55,14 @@ namespace TummlyBackend.Services
                 ),
                 ShopOrdersFlaggedForReview = await ReadCountAsync(
                     () => _context.ShopOrders.AsNoTracking().CountAsync(order =>
+                        // ReviewReason is never cleared, so count only orders that still
+                        // need action: paid, not dispatched, not delivered or cancelled.
                         order.ReviewReason != null
+                        && order.PaymentStatus == ShopPaymentStatuses.Paid
+                        && order.DispatchedAtUtc == null
                         && (order.FulfilmentStatus == null
-                            || order.FulfilmentStatus != ShopFulfilmentStatuses.Cancelled),
+                            || (order.FulfilmentStatus != ShopFulfilmentStatuses.Cancelled
+                                && order.FulfilmentStatus != ShopFulfilmentStatuses.Delivered)),
                         cancellationToken
                     ),
                     cancellationToken

@@ -111,5 +111,17 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(DevEmail, decision.Email);
             Assert.Equal(ConfiguredPassword, decision.Password);
         }
+    
+        [Fact]
+        public void UsesDevelopmentDefaultPassword_DetectsOnlyTheOldDefault()
+        {
+            var oldHash = BCrypt.Net.BCrypt.HashPassword(StaffSeedPolicy.DevelopmentAdminPassword);
+            var rotatedHash = BCrypt.Net.BCrypt.HashPassword("Rotated-Long-Pass-9");
+
+            Assert.True(StaffSeedPolicy.UsesDevelopmentDefaultPassword("admin@tummly.com", oldHash));
+            Assert.False(StaffSeedPolicy.UsesDevelopmentDefaultPassword("admin@tummly.com", rotatedHash));
+            Assert.False(StaffSeedPolicy.UsesDevelopmentDefaultPassword("other@tummly.com", oldHash));
+            Assert.False(StaffSeedPolicy.UsesDevelopmentDefaultPassword("admin@tummly.com", "not-a-hash"));
+        }
     }
 }

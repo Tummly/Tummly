@@ -26,6 +26,31 @@ namespace TummlyBackend.Helpers
         public const string DevelopmentSupportEmail = "support@tummly.com";
         public const string DevelopmentSupportPassword = "Support@123";
 
+        /// <summary>
+        /// True when a default staff email still has its Development default password.
+        /// </summary>
+        public static bool UsesDevelopmentDefaultPassword(string email, string passwordHash)
+        {
+            var defaultPassword = string.Equals(email, DevelopmentAdminEmail, StringComparison.OrdinalIgnoreCase)
+                ? DevelopmentAdminPassword
+                : string.Equals(email, DevelopmentSupportEmail, StringComparison.OrdinalIgnoreCase)
+                    ? DevelopmentSupportPassword
+                    : null;
+            if (defaultPassword == null || string.IsNullOrEmpty(passwordHash))
+            {
+                return false;
+            }
+
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(defaultPassword, passwordHash);
+            }
+            catch (BCrypt.Net.SaltParseException)
+            {
+                return false;
+            }
+        }
+
         public static StaffSeedDecision Decide(
             bool isDevelopment,
             string? configuredEmail,

@@ -101,7 +101,10 @@ namespace TummlyBackend.Tests.Services
                 Order(ShopPaymentStatuses.Paid, dispatched: false, fulfilment: ShopFulfilmentStatuses.Cancelled),
                 Order(ShopPaymentStatuses.Paid, dispatched: false, fulfilment: null),
                 Order(ShopPaymentStatuses.Paid, dispatched: false, fulfilment: ShopFulfilmentStatuses.Processing, reviewReason: ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment),
-                Order(ShopPaymentStatuses.Paid, dispatched: false, fulfilment: ShopFulfilmentStatuses.Cancelled, reviewReason: ShopOrderReviewReasons.QrCapacityUnavailable)
+                Order(ShopPaymentStatuses.Paid, dispatched: false, fulfilment: ShopFulfilmentStatuses.Cancelled, reviewReason: ShopOrderReviewReasons.QrCapacityUnavailable),
+                // Resolved review orders: delivered, or refunded. Not counted.
+                Order(ShopPaymentStatuses.Paid, dispatched: true, fulfilment: ShopFulfilmentStatuses.Delivered, reviewReason: ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment),
+                Order(ShopPaymentStatuses.Refunded, dispatched: false, fulfilment: ShopFulfilmentStatuses.Processing, reviewReason: ShopOrderReviewReasons.QrCapacityUnavailableAfterPayment)
             );
 
             db.PrintReadyQrAssets.AddRange(

@@ -102,6 +102,9 @@ curl https://api.qa.tummly.com/health/ready
 # Outside Development, set StaffSeed__AdminEmail / StaffSeed__AdminPassword and
 # StaffSeed__SupportEmail / StaffSeed__SupportPassword; with no password no account is created.
 # Development only falls back to admin@tummly.com / support@tummly.com with the old dev passwords.
+# Databases seeded before this change still have those two logins with the old
+# passwords. Before deploying, rotate or disable them; the API logs a startup
+# warning outside Development while either still uses its default password.
 ```
 
 Change default admin passwords after first login.

@@ -451,6 +451,41 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("draft_incomplete", outcome.Code);
         }
 
+        [Fact]
+        public async Task Publish_WithNoChangesSinceLastVersion_IsRefused()
+        {
+            await PublishValidAsync();
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-no-change");
+
+            Assert.Equal("no_changes", outcome.Code);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_SelfAssessmentWithCertifiedWording_IsRefused()
+        {
+            Succeeded(
+                await EditAsync(
+                    2,
+                    new TrustIndicatorEditableValues
+                    {
+                        Enabled = false,
+                        CtaType = "None",
+                        AltText = string.Empty,
+                        Tooltip = "ICO certified",
+                    }
+                )
+            );
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-certified");
+
+            Assert.Equal("publish_gate_failed", outcome.Code);
+            Assert.Contains(outcome.Details!, detail => detail.StartsWith("Item 02"));
+        }
+
         private static TrustIndicatorEditableValues Plain(bool enabled = false) =>
             new()
             {

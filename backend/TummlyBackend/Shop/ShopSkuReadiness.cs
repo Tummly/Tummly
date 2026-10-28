@@ -6,8 +6,8 @@ namespace TummlyBackend.Shop
     /// <summary>
     /// Readiness gate for switching a SKU's Available in Shop ON. A SKU needs
     /// a published state, an image, a priced pack, a delivery price and a
-    /// supplier name. Turning Available in Shop OFF is never gated, and an SKU
-    /// that is already ON is not re-checked when it is edited.
+    /// supplier name. Turning Available in Shop OFF is never gated. An edit to a
+    /// SKU that is ON is refused if it adds a blocker the SKU did not have.
     /// </summary>
     public static class ShopSkuReadiness
     {

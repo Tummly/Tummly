@@ -32,6 +32,7 @@ import {
   formatAuditDetail,
   type AdminAuditFilterInput,
   type AdminAuditQueryParams,
+  auditPageRangeText,
 } from "@/lib/admin/adminAuditPresentation"
 import { formatLondonDateTime } from "@/lib/admin/londonTime"
 import {
@@ -300,8 +301,6 @@ function AuditResults({
     return <p className="text-sm text-muted-foreground">No audit events match these filters.</p>
   }
 
-  const first = skip + 1
-  const last = skip + outcome.rows.length
 
   return (
     <div className="flex flex-col gap-3">
@@ -373,7 +372,7 @@ function AuditResults({
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
         <span>
-          Showing {first}–{last} of {outcome.totalCount}
+          {auditPageRangeText(skip, outcome.rows.length, outcome.totalCount)}
         </span>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onPrevious} disabled={skip === 0}>

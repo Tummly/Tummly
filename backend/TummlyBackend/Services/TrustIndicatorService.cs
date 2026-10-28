@@ -115,7 +115,7 @@ namespace TummlyBackend.Services
             _audit.Append(
                 new AdminAuditAppendRequest(
                     Action: AdminAuditActions.TrustIndicatorDraftEdit,
-                    ActorIdentity: $"admin:{actorAdminUserId}",
+                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
                     TargetType: AdminAuditTargetTypes.TrustIndicatorItem,
                     TargetId: itemNumber.ToString(),
                     ActorAdminUserId: actorAdminUserId,
@@ -161,7 +161,7 @@ namespace TummlyBackend.Services
             _audit.Append(
                 new AdminAuditAppendRequest(
                     Action: AdminAuditActions.TrustIndicatorSubmit,
-                    ActorIdentity: $"admin:{actorAdminUserId}",
+                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
                     TargetType: AdminAuditTargetTypes.TrustIndicatorDraft,
                     TargetId: "draft",
                     ActorAdminUserId: actorAdminUserId,
@@ -299,6 +299,25 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var latestSnapshot = await _context.TrustIndicatorPublications
+                .AsNoTracking()
+                .OrderByDescending(row => row.Version)
+                .Select(row => row.SnapshotJson)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (latestSnapshot != null && SamePublishedContent(latestSnapshot, rows))
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "no_changes",
+                    "The draft has no changes since the last published version.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
             var now = _clock.GetUtcNow().UtcDateTime;
             var previousVersion = await _context.TrustIndicatorPublications
                 .MaxAsync(row => (int?)row.Version, cancellationToken) ?? 0;
@@ -327,7 +346,7 @@ namespace TummlyBackend.Services
             _audit.Append(
                 new AdminAuditAppendRequest(
                     Action: AdminAuditActions.TrustIndicatorPublish,
-                    ActorIdentity: $"admin:{actorAdminUserId}",
+                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
                     TargetType: AdminAuditTargetTypes.TrustIndicatorPublication,
                     TargetId: version.ToString(),
                     ActorAdminUserId: actorAdminUserId,
@@ -407,7 +426,7 @@ namespace TummlyBackend.Services
             _audit.Append(
                 new AdminAuditAppendRequest(
                     Action: AdminAuditActions.TrustIndicatorRefused,
-                    ActorIdentity: $"admin:{actorAdminUserId}",
+                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
                     TargetType: targetType,
                     TargetId: targetId,
                     ActorAdminUserId: actorAdminUserId,
@@ -446,6 +465,42 @@ namespace TummlyBackend.Services
                 row.LastEditedByAdminUserId,
                 row.LastEditedAtUtc
             );
+
+        /// <summary>True when the draft content equals the latest published content (edit metadata ignored).</summary>
+        private static bool SamePublishedContent(
+            string latestSnapshotJson,
+            IEnumerable<TrustIndicator> rows
+        )
+        {
+            var published = JsonSerializer.Deserialize<List<TrustIndicatorItemDto>>(
+                latestSnapshotJson,
+                SnapshotOptions
+            ) ?? [];
+            string Key(int itemNumber, TrustIndicatorEditableValues values) =>
+                $"{itemNumber}:{JsonSerializer.Serialize(values, SnapshotOptions)}";
+
+            return published
+                .OrderBy(item => item.ItemNumber)
+                .Select(item => Key(item.ItemNumber, item.Values))
+                .SequenceEqual(
+                    rows.OrderBy(row => row.ItemNumber)
+                        .Select(row => Key(row.ItemNumber, TrustIndicatorRules.ToValues(row)))
+                );
+        }
+
+        private async Task<string> ActorIdentityAsync(
+            int adminUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            // Same actor text as other admin audit rows: the staff email when known.
+            var email = await _context.Admins
+                .AsNoTracking()
+                .Where(row => row.Id == adminUserId)
+                .Select(row => row.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+            return string.IsNullOrWhiteSpace(email) ? $"admin:{adminUserId}" : email;
+        }
 
         private static TrustIndicatorReviewDto ToReviewDto(TrustIndicatorDraftState? state) =>
             new(

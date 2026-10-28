@@ -4,6 +4,7 @@ import type { AdminAuditEvent } from "@/types/adminOps"
 
 import {
   auditActorLabel,
+  auditPageRangeText,
   auditResultLabel,
   auditTargetLabel,
   buildAdminAuditQuery,
@@ -110,5 +111,13 @@ describe("audit row labels", () => {
 
   it("labels the target", () => {
     expect(auditTargetLabel(base)).toBe("payment_order ord_1")
+  })
+})
+
+describe("auditPageRangeText", () => {
+  it("shows the row range, and never a range past the end", () => {
+    expect(auditPageRangeText(0, 50, 120)).toBe("Showing 1–50 of 120")
+    expect(auditPageRangeText(50, 0, 50)).toBe("No events on this page (50 in total)")
+    expect(auditPageRangeText(0, 0, 0)).toBe("No events")
   })
 })

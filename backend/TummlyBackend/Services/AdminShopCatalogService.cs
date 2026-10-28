@@ -330,6 +330,7 @@ namespace TummlyBackend.Services
             }
 
             var before = CatalogSnapshot(sku);
+            var blockersBefore = ShopSkuReadiness.Blockers(sku);
 
             if (
                 request.PlacementRecipeId != null
@@ -487,6 +488,19 @@ namespace TummlyBackend.Services
             }
 
             sku.UpdatedAtUtc = DateTime.UtcNow;
+
+            // A SKU on sale must not lose readiness (ADM-09-04). Refuse an edit that
+            // adds a blocker (removes the priced pack, delivery price or supplier);
+            // blockers it already had do not block other edits. Nothing is saved.
+            var newBlockers = ShopSkuReadiness.Blockers(sku).Except(blockersBefore).ToList();
+            if (sku.AvailableInShop && newBlockers.Count > 0)
+            {
+                return (
+                    null,
+                    "This product is on sale, so this change is refused: "
+                        + string.Join(" ", newBlockers)
+                );
+            }
 
             var after = CatalogSnapshot(sku);
             if (ShopCatalogChangeLog.HasChanges(before, after))

@@ -1820,6 +1820,32 @@ static async Task InitializeDatabaseAsync(
                 await context.SaveChangesAsync();
             }
         }
+
+        if (!staffSeedIsDevelopment)
+        {
+            // Databases seeded before StaffSeed config keep the old default logins.
+            // Warn (no email, no password in the log) until they are rotated.
+            var defaultStaff = await context.Admins
+                .AsNoTracking()
+                .Where(a =>
+                    a.IsActive
+                    && (a.Email == StaffSeedPolicy.DevelopmentAdminEmail
+                        || a.Email == StaffSeedPolicy.DevelopmentSupportEmail)
+                )
+                .Select(a => new { a.Id, a.Role, a.Email, a.PasswordHash })
+                .ToListAsync();
+            foreach (var staff in defaultStaff)
+            {
+                if (StaffSeedPolicy.UsesDevelopmentDefaultPassword(staff.Email, staff.PasswordHash))
+                {
+                    logger.LogWarning(
+                        "Staff account {StaffId} ({Role}) still uses the Development default password. Rotate or disable it.",
+                        staff.Id,
+                        staff.Role
+                    );
+                }
+            }
+        }
     }
     catch (Exception ex)
     {

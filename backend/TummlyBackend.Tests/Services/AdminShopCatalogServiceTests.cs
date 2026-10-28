@@ -621,7 +621,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task UpdateSku_OnSkuWithoutSupplier_StaysOn()
+        public async Task UpdateSku_OnSku_RefusesEditThatRemovesSupplier()
         {
             var counter = await _context.ShopMaterialSkus
                 .SingleAsync(row => row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId);
@@ -635,9 +635,32 @@ namespace TummlyBackend.Tests.Services
                 Actor
             );
 
+            Assert.Null(sku);
+            Assert.Contains("Add a supplier name.", error);
+            _context.ChangeTracker.Clear();
+            Assert.Equal(
+                "Print House",
+                (await _context.ShopMaterialSkus.SingleAsync(row => row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId)).SupplierName
+            );
+        }
+
+        [Fact]
+        public async Task UpdateSku_OnSkuAlreadyMissingSupplier_AllowsOtherEdits()
+        {
+            var counter = await _context.ShopMaterialSkus
+                .SingleAsync(row => row.SkuId == ShopMaterialsCatalogSeed.CounterDisplaySkuId);
+            counter.AvailableInShop = true;
+            counter.SupplierName = null;
+            await _context.SaveChangesAsync();
+
+            var (sku, error) = await _service.UpdateSkuAsync(
+                ShopMaterialsCatalogSeed.CounterDisplaySkuId,
+                new AdminShopCatalogSkuWriteRequest { Title = "QR Counter Display" },
+                Actor
+            );
+
             Assert.Null(error);
             Assert.True(sku!.AvailableInShop);
-            Assert.Contains("Add a supplier name.", sku.AvailabilityBlockers);
         }
 
         [Fact]

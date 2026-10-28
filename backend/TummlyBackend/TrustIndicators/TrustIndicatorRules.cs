@@ -16,6 +16,11 @@ namespace TummlyBackend.TrustIndicators
 
         public const int MaxReasonLength = 500;
 
+        private static readonly Regex CertifiedWording = new(
+            @"\bcertif(ied|icate|ication)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        );
+
         private static readonly Regex VerifiedWording = new(
             @"\b(verified|certified)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
@@ -195,6 +200,19 @@ namespace TummlyBackend.TrustIndicators
                             $"{label}: {item.EvidenceClass} items cannot use verified or certified wording."
                         );
                     }
+                }
+
+                // A self-assessment completion is not a certification (spec §8, item 02).
+                if (
+                    item.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment
+                    && CertifiedWording.IsMatch(
+                        $"{item.Title} {item.AltText} {item.Tooltip} {item.Issuer} {item.Scope}"
+                    )
+                )
+                {
+                    errors.Add(
+                        $"{label}: a self-assessment cannot use certified or certification wording."
+                    );
                 }
 
                 if (item.Enabled && item.ExpiresOn is { } expiry && expiry < today)
