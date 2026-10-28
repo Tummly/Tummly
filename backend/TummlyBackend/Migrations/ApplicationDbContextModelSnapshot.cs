@@ -4030,6 +4030,10 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("FsaEstablishmentId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime?>("GuestFormPreviewedAt")
                         .HasColumnType("datetime2");
 
@@ -4062,6 +4066,23 @@ namespace TummlyBackend.Migrations
                     b.Property<string>("Postcode")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PremisesKey")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("PremisesReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("PremisesReviewStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PremisesReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PremisesReviewedByAdminUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("QrPlacementGuideViewedAt")
                         .HasColumnType("datetime2");
 
@@ -4073,9 +4094,15 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FsaEstablishmentId");
+
                     b.HasIndex("ManagerUserId");
 
                     b.HasIndex("OfferCardCatalogOfferId");
+
+                    b.HasIndex("PremisesKey");
+
+                    b.HasIndex("PremisesReviewStatus");
 
                     b.HasIndex("RestaurantId");
 

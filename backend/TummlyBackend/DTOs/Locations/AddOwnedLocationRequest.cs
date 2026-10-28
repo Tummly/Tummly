@@ -13,5 +13,11 @@ namespace TummlyBackend.DTOs.Locations
         public string? LocationPhone { get; set; }
 
         public string? LocalContact { get; set; }
+
+        /// <summary>
+        /// Optional FSA (Food Standards Agency) establishment id. Stored as
+        /// typed; no external FSA lookup.
+        /// </summary>
+        public string? FsaEstablishmentId { get; set; }
     }
 }

@@ -344,8 +344,12 @@ export function LocationsPage() {
           setAddBusy(true)
           setAddError(null)
           try {
-            await pageModule.createDraft(input)
-            toast.success("Draft location created.")
+            const outcome = await pageModule.createDraft(input)
+            if (outcome.needsReview) {
+              toast.warning(POSSIBLE_DUPLICATE_PREMISES_MESSAGE)
+            } else {
+              toast.success("Draft location created.")
+            }
           } catch (error) {
             const message = getUserFacingApiErrorMessage(
               error,
@@ -374,6 +378,7 @@ export function LocationsPage() {
                 postcode: location.postcode,
                 locationPhone: location.locationPhone,
                 localContact: location.localContact,
+                fsaEstablishmentId: location.fsaEstablishmentId,
               }))
             )
             if (result.createdCount > 0 && result.errors.length === 0) {

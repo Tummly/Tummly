@@ -77,6 +77,9 @@
             "billing.paid_signup_checkout_failed";
         public const string BillingPendingPaymentRetryFailed =
             "billing.pending_payment_retry_failed";
+        public const string LocationPremisesFlagged = "location.premises_flagged";
+        public const string LocationPremisesCleared = "location.premises_cleared";
+        public const string LocationPremisesRejected = "location.premises_rejected";
     }
 
     public static class AdminAuditTargetTypes
@@ -92,5 +95,6 @@
         public const string CommercialCatalogVersion = "commercial_catalog_version";
         public const string HelpCentreQuery = "help_centre_query";
         public const string AdminAuditEvent = "admin_audit_event";
+        public const string RestaurantLocation = "restaurant_location";
     }
 }

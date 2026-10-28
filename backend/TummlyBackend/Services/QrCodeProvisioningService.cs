@@ -28,6 +28,13 @@ namespace TummlyBackend.Services
             RestaurantLocation location
         )
         {
+            // A Location under premises review holds no QR capacity. Its codes
+            // mint at activation, after an Admin clears the review.
+            if (PremisesReviewGate.Blocks(location))
+            {
+                return Array.Empty<QrCode>();
+            }
+
             var starterTypes = await StarterQrMaterialTypes.LoadAsync(_context);
             if (starterTypes.Count == 0)
             {

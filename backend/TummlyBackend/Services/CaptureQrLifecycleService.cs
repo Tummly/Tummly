@@ -774,6 +774,8 @@ namespace TummlyBackend.Services
                 .Where(row =>
                     row.RestaurantId == restaurantId
                     && row.CaptureLocationStatus == CaptureLocationStatus.Active
+                    && row.PremisesReviewStatus != PremisesReviewStatus.PendingReview
+                    && row.PremisesReviewStatus != PremisesReviewStatus.Rejected
                 )
                 .ToListAsync(cancellationToken);
             if (locations.Count == 0)
@@ -873,6 +875,11 @@ namespace TummlyBackend.Services
                 .Where(location => location.Id == locationId)
                 .Select(location => location.RestaurantId)
                 .FirstAsync();
+
+            if (await PremisesReviewGate.LocationIsBlockedAsync(_context, locationId))
+            {
+                return QrLifecycleResult.Conflict(PremisesReviewGate.BlockedMessage);
+            }
 
             var decision = await _activeQrCapacity.EvaluateAsync(
                 restaurantId,

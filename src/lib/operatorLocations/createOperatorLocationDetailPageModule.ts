@@ -3,6 +3,10 @@ import type {
   UpdateLocationDetailInput,
 } from "@/lib/operatorLocations/locationDetailApi"
 import {
+  normalizePremisesReviewWire,
+  type PremisesReviewWire,
+} from "@/lib/operatorLocations/premisesReviewPresentation"
+import {
   mapLocationDetailGuestActivityChecklist,
   mapLocationDetailLatestFeedbackRows,
   mapLocationDetailOfferCards,
@@ -56,6 +60,7 @@ export type LocationDetailSnapshot = {
   name: string
   city: string
   lifecycleStatus: LocationLifecycleStatus
+  premisesReviewStatus: PremisesReviewWire | null
   headerMeta: string
   editFields: LocationDetailEditFields
   activeTabId: LocationDetailTabId
@@ -145,6 +150,7 @@ export function createOperatorLocationDetailPageModule(
     localContact: "",
   }
   let lifecycleStatus: LocationLifecycleStatus = "active"
+  let premisesReviewStatus: PremisesReviewWire | null = null
   let liveQrCount = 0
   let guestsCapturedThisMonth = 0
   let overviewMetrics = buildEmptyOverviewMetrics()
@@ -190,6 +196,7 @@ export function createOperatorLocationDetailPageModule(
       name,
       city,
       lifecycleStatus,
+      premisesReviewStatus,
       headerMeta,
       editFields,
       activeTabId,
@@ -227,6 +234,9 @@ export function createOperatorLocationDetailPageModule(
     city = cityFromHeader(header.city)
     editFields = editFieldsFromHeader(header)
     lifecycleStatus = header.lifecycleStatus
+    premisesReviewStatus = normalizePremisesReviewWire(
+      header.premisesReviewStatus
+    )
     liveQrCount = header.liveQrCount
     guestsCapturedThisMonth = header.guestsCapturedThisMonth
     setupChecklist = mapLocationDetailSetupChecklist(response.setupChecklist)

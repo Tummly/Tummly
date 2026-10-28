@@ -65,7 +65,10 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (location.LifecycleStatus != LocationLifecycleStatus.Active)
+            if (
+                location.LifecycleStatus != LocationLifecycleStatus.Active
+                || PremisesReviewGate.Blocks(location)
+            )
             {
                 return new ComplimentaryStarterShopOrderResult(
                     Guid.Empty,
@@ -287,6 +290,8 @@ namespace TummlyBackend.Services
                 .Where(row =>
                     row.RestaurantId == restaurantId
                     && row.LifecycleStatus == LocationLifecycleStatus.Active
+                    && row.PremisesReviewStatus != PremisesReviewStatus.PendingReview
+                    && row.PremisesReviewStatus != PremisesReviewStatus.Rejected
                 )
                 .OrderBy(row => row.Id)
                 .Select(row => row.Id)

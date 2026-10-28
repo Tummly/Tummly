@@ -2478,6 +2478,21 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             PREMISES REVIEW (lookup indexes, review queue)
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.PremisesKey);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.FsaEstablishmentId);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.PremisesReviewStatus);
+
+            /*
+             =========================================
              LOCATION MANAGER (nomination → User)
              Restrict: never SetNull/Cascade onto Users — SQL Server
              error 1785 (multiple cascade paths).

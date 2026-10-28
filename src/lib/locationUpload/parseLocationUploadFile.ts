@@ -27,6 +27,9 @@ const HEADER_ALIASES: Record<string, keyof UploadedLocationDraft | "localContact
   "local contact": "localContact",
   "local contact name": "localContactName",
   "local contact email": "localContactEmail",
+  "fsa establishment id": "fsaEstablishmentId",
+  "fsa id": "fsaEstablishmentId",
+  fhrsid: "fsaEstablishmentId",
 }
 
 function getFileKind(file: File) {
@@ -53,6 +56,7 @@ function mapSheetRow(
     city: "",
     postcode: "",
     locationPhone: "",
+    fsaEstablishmentId: "",
     localContactName: "",
     localContactEmail: "",
     localContact: "",
@@ -77,7 +81,8 @@ function mapSheetRow(
       field === "address" ||
       field === "city" ||
       field === "postcode" ||
-      field === "locationPhone"
+      field === "locationPhone" ||
+      field === "fsaEstablishmentId"
     ) {
       values[field] = value
     }
@@ -100,6 +105,9 @@ function mapSheetRow(
     addressOverridden: false,
     locationPhone: values.locationPhone,
     localContact,
+    ...(values.fsaEstablishmentId
+      ? { fsaEstablishmentId: values.fsaEstablishmentId }
+      : {}),
   }
 }
 
