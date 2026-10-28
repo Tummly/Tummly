@@ -25,7 +25,10 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { GUEST_PREFERENCES_COPY } from "@/content/guestPreferences/guestPreferencesCopy"
-import { routeGuestPreferencesRequestError } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
+import {
+  isNotFoundError,
+  routeGuestPreferencesRequestError,
+} from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import { GUEST_PREFERENCES_PILL_BUTTON_CLASS } from "@/lib/guestPreferences/guestPreferencesPresentation"
 import {
   brandInitial,
@@ -35,7 +38,6 @@ import {
   createRestaurantsLoader,
   guestPreferencesRestaurantsReducer,
   isBrandAllMuted,
-  isNotFoundError,
   resolveBrandLogo,
   type GuestPreferencesRestaurantsState,
   type GuestPreferencesRestaurantsStore,

@@ -15,7 +15,6 @@ import {
   guestPreferencesRestaurantsReducer,
   isBrandAllMuted,
   isGuestPreferencesSessionExpired,
-  isNotFoundError,
   loadRestaurants,
   normalizeSearchQuery,
   resolveBrandLogo,
@@ -399,13 +398,6 @@ describe("fix round 1: pending mute and reloads", () => {
 })
 
 describe("request error helpers", () => {
-  it("matches only a 404 whose body is not-found", () => {
-    expect(isNotFoundError(axiosErrorWithBody({ error: "not-found" }, 404))).toBe(true)
-    expect(isNotFoundError(axiosErrorWithBody({ error: "other" }, 404))).toBe(false)
-    expect(isNotFoundError(axiosErrorWithBody({ error: "not-found" }, 400))).toBe(false)
-    expect(isNotFoundError(new Error("not-found"))).toBe(false)
-  })
-
   it("normalizes blank search text to no query", () => {
     expect(normalizeSearchQuery("  ")).toBeUndefined()
     expect(normalizeSearchQuery(undefined)).toBeUndefined()

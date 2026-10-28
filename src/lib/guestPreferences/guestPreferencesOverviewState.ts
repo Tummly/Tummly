@@ -1,3 +1,4 @@
+import type { GuestPreferencesOverview } from "@/api/publicGuestPreferencesApi"
 import {
   diffChannelChanges,
   type GuestPreferenceChannelChanges,
@@ -39,6 +40,18 @@ export type GuestPreferencesPendingAction =
 
 export type UpdateFirstName = (firstName: string) => Promise<void>
 export type UpdateChannels = (changes: GuestPreferenceChannelChanges) => Promise<void>
+
+/**
+ * Remount key for the overview form. The reducer keeps its state across renders, so a
+ * refreshed overview (after an add-contact success, say) would show the old checkboxes.
+ * A new key remounts the form and seeds it from the refreshed overview.
+ */
+export function guestPreferencesOverviewSeedKey(
+  overview: Pick<GuestPreferencesOverview, "contacts" | "emailOn" | "smsOn">
+): string {
+  const contactIds = overview.contacts.map((contact) => contact.id).join(",")
+  return `contacts:${contactIds}|email:${overview.emailOn}|sms:${overview.smsOn}`
+}
 
 export function createGuestPreferencesOverviewState(input: {
   firstName: string | null

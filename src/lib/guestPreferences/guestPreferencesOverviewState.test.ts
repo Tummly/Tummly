@@ -6,6 +6,7 @@ import {
   commitStopAll,
   createGuestPreferencesOverviewState,
   guestPreferencesOverviewReducer,
+  guestPreferencesOverviewSeedKey,
   isGuestPreferencesBusy,
   type GuestPreferencesOverviewAction,
   type GuestPreferencesPendingAction,
@@ -149,5 +150,41 @@ describe("guestPreferencesOverviewState", () => {
     for (const pending of pendingActions) {
       expect(isGuestPreferencesBusy(pending)).toBe(true)
     }
+  })
+})
+
+describe("guestPreferencesOverviewSeedKey", () => {
+  const base = {
+    contacts: [{ id: 1, type: "email", masked: "so•••••@example.com" }],
+    emailOn: true,
+    smsOn: false,
+    firstName: "Sophie",
+    restaurantCount: 2,
+  }
+
+  it("is the same for the same contacts and channels", () => {
+    expect(guestPreferencesOverviewSeedKey({ ...base })).toBe(
+      guestPreferencesOverviewSeedKey({ ...base })
+    )
+  })
+
+  it("changes when a contact is added after an add-contact success", () => {
+    const added = {
+      ...base,
+      contacts: [...base.contacts, { id: 2, type: "phone", masked: "•••• ••• 789" }],
+    }
+
+    expect(guestPreferencesOverviewSeedKey(added)).not.toBe(
+      guestPreferencesOverviewSeedKey(base)
+    )
+  })
+
+  it("changes when a channel differs on the refreshed overview", () => {
+    expect(guestPreferencesOverviewSeedKey({ ...base, smsOn: true })).not.toBe(
+      guestPreferencesOverviewSeedKey(base)
+    )
+    expect(guestPreferencesOverviewSeedKey({ ...base, emailOn: false })).not.toBe(
+      guestPreferencesOverviewSeedKey(base)
+    )
   })
 })

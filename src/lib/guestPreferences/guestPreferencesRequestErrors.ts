@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios"
 
 import { GuestPreferencesSessionExpiredError } from "@/api/publicGuestPreferencesApi"
+import { GUEST_PREFERENCES_COPY } from "@/content/guestPreferences/guestPreferencesCopy"
 
 /** Where a failed request sends the page. */
 export type GuestPreferencesRequestErrorRoute =
@@ -48,24 +49,40 @@ export async function resolveLinkSession(
   }
 }
 
-/** Reads `error.response.data.error` from an Axios error, else the fallback. */
+/** The API error code (`error.response.data.error`), or null. */
+function apiErrorCode(error: unknown): string | null {
+  if (!isAxiosError(error)) {
+    return null
+  }
+  const data: unknown = error.response?.data
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "error" in data &&
+    typeof data.error === "string" &&
+    data.error.trim() !== ""
+  ) {
+    return data.error
+  }
+  return null
+}
+
+/**
+ * Guest copy for an API error. The API sends codes, never sentences, so only a
+ * known code maps to copy. Any other code shows the fallback, never the raw code.
+ */
 export function guestPreferencesErrorMessage(
   error: unknown,
   fallback: string
 ): string {
-  if (isAxiosError(error)) {
-    const data: unknown = error.response?.data
-    if (
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof data.error === "string" &&
-      data.error.trim() !== ""
-    ) {
-      return data.error
-    }
-  }
-  return fallback
+  return apiErrorCode(error) === "invalid"
+    ? GUEST_PREFERENCES_COPY.invalidEntry
+    : fallback
+}
+
+/** A 404 with `{ error: "not-found" }`. The guest or location is no longer on the list. */
+export function isNotFoundError(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 404 && apiErrorCode(error) === "not-found"
 }
 
 /**
@@ -83,4 +100,18 @@ export function routeGuestPreferencesRequestError(
     view: "error",
     message: guestPreferencesErrorMessage(error, fallback),
   }
+}
+
+/**
+ * A failed write on the overview. A not-found means the guest was merged away after
+ * the session was issued, so the session is stale and the entry view is shown.
+ */
+export function routeOverviewWriteError(
+  error: unknown,
+  fallback: string
+): GuestPreferencesRequestErrorRoute {
+  if (isNotFoundError(error)) {
+    return { view: "entry" }
+  }
+  return routeGuestPreferencesRequestError(error, fallback)
 }

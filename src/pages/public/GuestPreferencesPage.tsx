@@ -23,6 +23,9 @@ import {
   routeGuestPreferencesRequestError,
 } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import {
+  guestPreferencesOverviewSeedKey,
+} from "@/lib/guestPreferences/guestPreferencesOverviewState"
+import {
   resolveGuestPreferencesPageMode,
   type GuestPreferencesPageMode,
 } from "@/lib/guestPreferences/guestPreferencesPageMode"
@@ -254,6 +257,7 @@ function renderView(view: PageView, handlers: PageViewHandlers) {
     case "overview":
       return (
         <GuestPreferencesOverview
+          key={guestPreferencesOverviewSeedKey(view.overview)}
           overview={view.overview}
           addingContact={handlers.addingContact}
           onSessionExpired={handlers.onSessionExpired}

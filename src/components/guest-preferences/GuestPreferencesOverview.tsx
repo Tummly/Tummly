@@ -25,7 +25,7 @@ import {
   isGuestPreferencesBusy,
   type GuestPreferencesPendingAction,
 } from "@/lib/guestPreferences/guestPreferencesOverviewState"
-import { routeGuestPreferencesRequestError } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
+import { routeOverviewWriteError } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
 import {
   GUEST_PREFERENCES_CARD_CLASS,
   GUEST_PREFERENCES_CARD_TITLE_CLASS,
@@ -70,10 +70,7 @@ export function GuestPreferencesOverview({
   const busy = isGuestPreferencesBusy(pending)
 
   function handleRequestError(error: unknown) {
-    const route = routeGuestPreferencesRequestError(
-      error,
-      GUEST_PREFERENCES_COPY.saveFailed
-    )
+    const route = routeOverviewWriteError(error, GUEST_PREFERENCES_COPY.saveFailed)
     if (route.view === "entry") {
       onSessionExpired()
       return

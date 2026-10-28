@@ -6,9 +6,13 @@ import {
   classifyLinkFailure,
   confirmLink,
   guestPreferencesErrorMessage,
+  isNotFoundError,
   resolveLinkSession,
   routeGuestPreferencesRequestError,
+  routeOverviewWriteError,
 } from "@/lib/guestPreferences/guestPreferencesRequestErrors"
+
+const INVALID_ENTRY = "Check your entry and try again."
 
 const FALLBACK = "Fallback copy."
 
@@ -23,13 +27,22 @@ function axiosErrorWithBody(data: unknown, status = 400): AxiosError {
 }
 
 describe("guestPreferencesErrorMessage", () => {
-  it("reads the API error message from the response body", () => {
+  it("maps the invalid code to guest copy", () => {
+    expect(
+      guestPreferencesErrorMessage(axiosErrorWithBody({ error: "invalid" }, 400), FALLBACK)
+    ).toBe(INVALID_ENTRY)
+  })
+
+  it("never shows a raw API code or sentence: other codes use the fallback", () => {
+    expect(
+      guestPreferencesErrorMessage(axiosErrorWithBody({ error: "not-found" }, 404), FALLBACK)
+    ).toBe(FALLBACK)
     expect(
       guestPreferencesErrorMessage(
-        axiosErrorWithBody({ error: "First name is too long." }),
+        axiosErrorWithBody({ error: "First name is too long." }, 400),
         FALLBACK
       )
-    ).toBe("First name is too long.")
+    ).toBe(FALLBACK)
   })
 
   it("falls back when the error has no API message", () => {
@@ -68,13 +81,22 @@ describe("routeGuestPreferencesRequestError", () => {
     ).toEqual({ view: "entry" })
   })
 
-  it("other errors route to the error view with the API message", () => {
+  it("other errors route to the error view with guest copy for a known code", () => {
+    expect(
+      routeGuestPreferencesRequestError(
+        axiosErrorWithBody({ error: "invalid" }, 400),
+        FALLBACK
+      )
+    ).toEqual({ view: "error", message: INVALID_ENTRY })
+  })
+
+  it("other errors with an unknown code use the fallback", () => {
     expect(
       routeGuestPreferencesRequestError(
         axiosErrorWithBody({ error: "Try again later." }, 500),
         FALLBACK
       )
-    ).toEqual({ view: "error", message: "Try again later." })
+    ).toEqual({ view: "error", message: FALLBACK })
   })
 
   it("other errors without an API message use the fallback copy", () => {
@@ -142,5 +164,34 @@ describe("confirmLink", () => {
         throw axiosErrorWithBody({}, 500)
       })
     ).resolves.toBe("unavailable")
+  })
+})
+
+describe("isNotFoundError", () => {
+  it("is true only for a 404 with the not-found code", () => {
+    expect(isNotFoundError(axiosErrorWithBody({ error: "not-found" }, 404))).toBe(true)
+    expect(isNotFoundError(axiosErrorWithBody({ error: "other" }, 404))).toBe(false)
+    expect(isNotFoundError(axiosErrorWithBody({ error: "not-found" }, 400))).toBe(false)
+    expect(isNotFoundError(new Error("not-found"))).toBe(false)
+  })
+})
+
+describe("routeOverviewWriteError", () => {
+  it("a not-found write means the guest was merged away: route to the entry view", () => {
+    expect(
+      routeOverviewWriteError(axiosErrorWithBody({ error: "not-found" }, 404), FALLBACK)
+    ).toEqual({ view: "entry" })
+  })
+
+  it("a session expiry routes to the entry view", () => {
+    expect(
+      routeOverviewWriteError(new GuestPreferencesSessionExpiredError(), FALLBACK)
+    ).toEqual({ view: "entry" })
+  })
+
+  it("an invalid write shows a message, not the entry view", () => {
+    expect(
+      routeOverviewWriteError(axiosErrorWithBody({ error: "invalid" }, 400), FALLBACK)
+    ).toEqual({ view: "error", message: INVALID_ENTRY })
   })
 })

@@ -73,6 +73,7 @@ export const GUEST_PREFERENCES_COPY = {
 
   preferencesSaved: "Preferences saved.",
   saveFailed: "We could not save your changes. Try again.",
+  invalidEntry: "Check your entry and try again.",
   loadFailed: "We could not load your preferences. Try again.",
   tryAgainLabel: "Try again",
 

@@ -81,6 +81,7 @@ export function GuestPreferencesNameRow({
           value={draft}
           disabled={busy}
           autoComplete="given-name"
+          maxLength={100}
           onChange={(event) => onDraftChange(event.target.value)}
           className={GUEST_FEEDBACK_FIELD_INPUT_CLASS}
         />

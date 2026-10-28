@@ -1,4 +1,3 @@
-import { isAxiosError } from "axios"
 
 import {
   fetchRestaurants,
@@ -251,20 +250,6 @@ export function normalizeSearchQuery(query: string | undefined): string | undefi
 /** First letter of the brand name, for the logo fallback. */
 export function brandInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase()
-}
-
-/** A 404 with `{ error: "not-found" }`. The list is stale and must be refetched. */
-export function isNotFoundError(error: unknown): boolean {
-  if (!isAxiosError(error) || error.response?.status !== 404) {
-    return false
-  }
-  const data: unknown = error.response.data
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "error" in data &&
-    data.error === "not-found"
-  )
 }
 
 export function isGuestPreferencesSessionExpired(error: unknown): boolean {
