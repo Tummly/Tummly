@@ -20,6 +20,12 @@ namespace TummlyBackend.Services
 
         public const string PilotExtensionLimitCode = "pilot_extension_limit";
 
+        public const string PilotExtensionIdempotencyKeyRequiredCode =
+            "pilot_extension_idempotency_key_required";
+
+        /// <summary>Property on the audit DetailJson that holds the extension's idempotency key.</summary>
+        public const string PilotExtensionAuditKeyProperty = "idempotencyKey";
+
         public const int PilotExtensionMaxCount = 2;
 
         public const int PilotExtensionMaxDaysTotal = 90;
@@ -40,11 +46,40 @@ namespace TummlyBackend.Services
             code switch
             {
                 PilotExtensionInvalidDaysCode => "Choose 14 or 30 days.",
+                PilotExtensionIdempotencyKeyRequiredCode =>
+                    "An idempotency key is required.",
                 PilotExtensionLimitCode =>
                     $"This Pilot has used its extensions. The limit is {PilotExtensionMaxCount} extensions and {PilotExtensionMaxDaysTotal} days in total.",
                 _ =>
                     "Only a Pilot that is active or locked, with no paid plan history, can be extended.",
             };
+
+        /// <summary>
+        /// The idempotency key stored on an extension audit row, or null when the row has none.
+        /// </summary>
+        public static string? PilotExtensionAuditKey(string? detailJson)
+        {
+            if (string.IsNullOrWhiteSpace(detailJson))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(detailJson);
+                return document.RootElement.TryGetProperty(
+                    PilotExtensionAuditKeyProperty,
+                    out var value
+                )
+                    && value.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? value.GetString()
+                        : null;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return null;
+            }
+        }
 
         public const int DunningSoftLockHours = 10 * 24;
 
@@ -320,10 +355,10 @@ namespace TummlyBackend.Services
                 : idempotencyKey.Trim();
             if (
                 key != null
-                && string.Equals(
-                    account.LastPilotExtensionKey,
+                && await IsRepeatedPilotExtensionKeyAsync(
+                    account,
                     key,
-                    StringComparison.Ordinal
+                    cancellationToken
                 )
             )
             {
@@ -407,6 +442,45 @@ namespace TummlyBackend.Services
                 newEnd,
                 account.PilotExtensionCount,
                 account.PilotExtensionDaysTotal
+            );
+        }
+
+        /// <summary>
+        /// A key the account already used: the last key on the account, or the key of any
+        /// earlier extension audit row for the same restaurant.
+        /// </summary>
+        private async Task<bool> IsRepeatedPilotExtensionKeyAsync(
+            BillingAccount account,
+            string key,
+            CancellationToken cancellationToken
+        )
+        {
+            if (
+                string.Equals(
+                    account.LastPilotExtensionKey,
+                    key,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return true;
+            }
+
+            var earlierDetails = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row =>
+                    row.Action == AdminAuditActions.OperatorExtendPilot
+                    && row.RestaurantId == account.RestaurantId
+                )
+                .Select(row => row.DetailJson)
+                .ToListAsync(cancellationToken);
+
+            return earlierDetails.Any(detail =>
+                string.Equals(
+                    PilotExtensionAuditKey(detail),
+                    key,
+                    StringComparison.Ordinal
+                )
             );
         }
 
