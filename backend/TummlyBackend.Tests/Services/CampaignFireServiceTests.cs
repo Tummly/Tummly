@@ -507,6 +507,41 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task FireAsync_ClaimNotGranted_ReturnsInProgressAndSendsNothing()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 1,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+            var fire = CreateFireService(new RefusingCampaignFireLock());
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.InProgress>(result);
+            Assert.Empty(_outbound.Calls);
+            var campaign = await _context.Campaigns.SingleAsync(c => c.Id == seeded.CampaignId);
+            Assert.Equal(CampaignFireService.ScheduledStatus, campaign.Status);
+        }
+
+        [Fact]
+        public async Task FireAsync_ClaimGranted_IsTakenForThisCampaignAndReleasedAfterSend()
+        {
+            var seeded = await SeedScheduledCampaignAsync(
+                frozenEligibleCount: 1,
+                scheduledAtUtc: _now.AddMinutes(-5)
+            );
+            var claims = new RecordingCampaignFireLock();
+            var fire = CreateFireService(claims);
+
+            var result = await fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Equal([seeded.CampaignId], claims.Acquired);
+            Assert.Equal(1, claims.Released);
+            Assert.Single(_outbound.Calls);
+        }
+
+        [Fact]
         public async Task FireAsync_SettleFail_KeepsBillingReservationRef()
         {
             var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
@@ -849,6 +884,57 @@ namespace TummlyBackend.Tests.Services
 
             await _context.SaveChangesAsync();
             return (campaign.Id, frozenIds, catalogOfferId);
+        }
+
+        private CampaignFireService CreateFireService(ICampaignFireLock fireLock)
+        {
+            return new CampaignFireService(
+                _context,
+                _eligibility,
+                _reserve,
+                _outbound,
+                _gate,
+                utcNow: () => _now,
+                fireLock: fireLock
+            );
+        }
+
+        private sealed class RefusingCampaignFireLock : ICampaignFireLock
+        {
+            public Task<IAsyncDisposable?> TryAcquireAsync(
+                ApplicationDbContext context,
+                int campaignId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<IAsyncDisposable?>(null);
+            }
+        }
+
+        private sealed class RecordingCampaignFireLock : ICampaignFireLock
+        {
+            public List<int> Acquired { get; } = [];
+
+            public int Released { get; private set; }
+
+            public Task<IAsyncDisposable?> TryAcquireAsync(
+                ApplicationDbContext context,
+                int campaignId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Acquired.Add(campaignId);
+                return Task.FromResult<IAsyncDisposable?>(new Release(this));
+            }
+
+            private sealed class Release(RecordingCampaignFireLock owner) : IAsyncDisposable
+            {
+                public ValueTask DisposeAsync()
+                {
+                    owner.Released++;
+                    return ValueTask.CompletedTask;
+                }
+            }
         }
 
         private sealed class ControllableSendStartGate : ICampaignSendStartGate

@@ -675,6 +675,16 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            if (!request.Confirmed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "confirmation_required",
+                    message = "Confirm the send or schedule before committing.",
+                });
+            }
+
             try
             {
                 var result = await _campaignScheduleCommit.CommitAsync(
@@ -1097,6 +1107,12 @@ namespace TummlyBackend.Controllers
                     success = false,
                     code = "not_fireable",
                     message = notFireable.Message,
+                }),
+                CampaignFireResult.InProgress => Conflict(new
+                {
+                    success = false,
+                    code = "fire_in_progress",
+                    message = "This campaign is already being sent. Reload to see its status.",
                 }),
                 CampaignFireResult.Conflict => Conflict(new
                 {

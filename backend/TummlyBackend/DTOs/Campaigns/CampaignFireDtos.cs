@@ -48,6 +48,11 @@ namespace TummlyBackend.DTOs.Campaigns
         {
         }
 
+        /// <summary>Another run holds this Campaign's fire claim.</summary>
+        public sealed class InProgress : CampaignFireResult
+        {
+        }
+
         /// <summary>
         /// Cannot-start → Failed persisted; reservation released; no auto-retry.
         /// </summary>
