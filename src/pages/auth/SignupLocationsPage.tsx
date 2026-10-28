@@ -30,6 +30,10 @@ import {
 import { fetchSignupLocationCapacity } from "@/components/signup/locations/fetchSignupLocationCapacity"
 import { Button } from "@/components/ui/button"
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
+import {
+  isPossibleDuplicatePremises,
+  POSSIBLE_DUPLICATE_PREMISES_MESSAGE,
+} from "@/lib/operatorLocations/importPremisesWarning"
 import { cn } from "@/lib/utils"
 import type { LocationDetailEditFields } from "@/lib/operatorLocations/createOperatorLocationDetailPageModule"
 import type { PlanEntitlementLimit } from "@/lib/planEntitlements/planEntitlementsPresentation"
@@ -326,6 +330,10 @@ function SignupLocationsPage() {
             )
 
             for (const created of result.created) {
+              // Possible duplicates stay Draft for review; never activate them here.
+              if (isPossibleDuplicatePremises(created.warning)) {
+                continue
+              }
               try {
                 const activated = await activateOwnedLocation(created.locationId)
                 if (activated.accountType != null) {
@@ -347,6 +355,21 @@ function SignupLocationsPage() {
             } else if (result.created.length > 0) {
               toast.success(
                 `Imported ${result.created.length}; ${result.errors.length} row(s) need attention.`
+              )
+            }
+
+            const duplicateRows = result.created.filter((row) =>
+              isPossibleDuplicatePremises(row.warning)
+            )
+            if (duplicateRows.length > 0) {
+              toast.warning(
+                duplicateRows
+                  .slice(0, 4)
+                  .map(
+                    (row) =>
+                      `Row ${row.rowIndex + 1}: ${POSSIBLE_DUPLICATE_PREMISES_MESSAGE}`
+                  )
+                  .join(" ")
               )
             }
 

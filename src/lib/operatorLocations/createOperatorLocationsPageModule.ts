@@ -102,6 +102,8 @@ export type OperatorLocationsPageAdapters = {
   ) => Promise<{
     createdCount: number
     errors: Array<{ rowIndex: number; message: string }>
+    /** Created rows saved as Draft because their premises may already exist. */
+    warnings?: Array<{ rowIndex: number }>
   }>
   activateDraft?: (locationId: string) => Promise<void>
   deleteDraft?: (locationId: string) => Promise<void>
@@ -151,6 +153,8 @@ export type OperatorLocationsPageModule = {
   ) => Promise<{
     createdCount: number
     errors: Array<{ rowIndex: number; message: string }>
+    /** Created rows saved as Draft because their premises may already exist. */
+    warnings?: Array<{ rowIndex: number }>
   }>
   activateDraft: (locationId: string) => Promise<void>
   deleteDraft: (locationId: string) => Promise<void>
