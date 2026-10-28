@@ -41,10 +41,13 @@ export const PRIVACY_CONSENT_PAGE_COPY = {
     "Privacy and consent activity will appear here.",
   archivedLocationsTitle: "Archived Locations",
   archivedLocationsSubtitle:
-    "Read-only privacy activity for archived Locations. Only the Account owner can see this history.",
+    "Archived Locations are no longer active. Their historical records, including Feedback and permission evidence, are retained according to applicable retention rules. Authorised Workspace Owners can review permitted historical records in read-only mode. Archived records do not create current messaging eligibility.",
   archivedLocationsEmptyTitle: "No archived Location activity",
   archivedLocationsEmptyBody:
     "Privacy and consent activity for archived Locations will appear here.",
+  archivedLocationsAccessRestrictedTitle: "Access restricted",
+  archivedLocationsAccessRestrictedBody:
+    "You do not have permission to view this archived information. Access requires the appropriate Workspace permissions. Contact your Workspace Owner if you believe you need access.",
   archivedLocationBadge: "Archived",
   archivedLocationsLoadError: "Could not load archived Location history.",
   guestPermissionToggleError: "Could not save guest permission.",

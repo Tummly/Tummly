@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils"
 
 type PrivacyArchivedActivitySectionProps = {
   items: readonly PrivacyArchivedActivityItem[]
+  /** Set when the API refuses archived history to this member. */
+  accessRestricted?: boolean
 }
 
 /**
@@ -27,6 +29,7 @@ type PrivacyArchivedActivitySectionProps = {
  */
 export function PrivacyArchivedActivitySection({
   items,
+  accessRestricted = false,
 }: PrivacyArchivedActivitySectionProps) {
   const copy = PRIVACY_CONSENT_PAGE_COPY
 
@@ -44,7 +47,16 @@ export function PrivacyArchivedActivitySection({
         </p>
       </header>
 
-      {items.length === 0 ? (
+      {accessRestricted ? (
+        <div className="flex flex-col gap-2">
+          <p className="m-0 text-sm font-medium text-op-text-primary">
+            {copy.archivedLocationsAccessRestrictedTitle}
+          </p>
+          <p className="m-0 text-sm font-medium text-op-card-subtitle-color">
+            {copy.archivedLocationsAccessRestrictedBody}
+          </p>
+        </div>
+      ) : items.length === 0 ? (
         <div className="flex flex-col gap-2">
           <p className="m-0 text-sm font-medium text-op-text-primary">
             {copy.archivedLocationsEmptyTitle}
