@@ -39,6 +39,15 @@
         public const string ShopForceCancel = "shop.force_cancel";
         public const string ShopCatalogAvailableInShop =
             "shop.catalog_available_in_shop";
+        public const string ShopCatalogCreate = "shop.catalog_create";
+        public const string ShopCatalogUpdate = "shop.catalog_update";
+        public const string ShopCatalogPublish = "shop.catalog_publish";
+        public const string ShopCatalogUnpublish = "shop.catalog_unpublish";
+        public const string ShopCatalogDelete = "shop.catalog_delete";
+        public const string ShopCatalogImageChange = "shop.catalog_image_change";
+        public const string ShopCatalogTagChange = "shop.catalog_tag_change";
+        public const string ShopInterestPromote = "shop.interest_promote";
+        public const string ShopInterestDemote = "shop.interest_demote";
         public const string ShopPrintAssetApproved = "shop.print_asset_approved";
         public const string RetentionGuestPurge = "retention.guest_purge";
         public const string GuestDelete = "guest.delete";
@@ -64,6 +73,8 @@
         public const string PaymentOrder = "payment_order";
         public const string ShopOrder = "shop_order";
         public const string ShopMaterialSku = "shop_material_sku";
+        public const string ShopMaterialTag = "shop_material_tag";
+        public const string ShopInterestProduct = "shop_interest_product";
         public const string CommercialCatalogVersion = "commercial_catalog_version";
     }
 }

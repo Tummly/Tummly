@@ -296,7 +296,7 @@ export function AdminShopInterestPanel() {
         mintOnShopFulfilment: promote.mintOnShopFulfilment,
         tagIds: promote.tagIds,
       })
-      toast.success("Product promoted to Shop.")
+      toast.success("Product promoted to Shop. It stays Coming soon until it is switched on.")
       setPromote(null)
       setEditor(null)
       await reload()
@@ -759,7 +759,7 @@ export function AdminShopInterestPanel() {
                     Promote to Shop
                   </DrawerTitle>
                   <DrawerDescription>
-                    {promote.title} · becomes buyable when promote succeeds
+                    {promote.title} · stays Coming soon until it is switched on in Shop
                   </DrawerDescription>
                 </div>
                 <DrawerClose asChild>

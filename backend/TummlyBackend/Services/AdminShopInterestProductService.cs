@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Admin;
@@ -15,16 +16,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IShopCatalogImageStorage _imageStorage;
         private readonly IAdminShopCatalogService _catalog;
+        private readonly IAdminAuditService _audit;
 
         public AdminShopInterestProductService(
             ApplicationDbContext context,
             IShopCatalogImageStorage imageStorage,
-            IAdminShopCatalogService catalog
+            IAdminShopCatalogService catalog,
+            IAdminAuditService audit
         )
         {
             _context = context;
             _imageStorage = imageStorage;
             _catalog = catalog;
+            _audit = audit;
         }
 
         public async Task<IReadOnlyList<AdminShopInterestProductDto>> ListProductsAsync(
@@ -239,6 +243,7 @@ namespace TummlyBackend.Services
         public async Task<(AdminShopInterestProductDto? Product, string? Error)> PromoteAsync(
             string productKey,
             AdminShopInterestPromoteRequest request,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -298,6 +303,13 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
+            var effectivePacks =
+                request.Packs ?? ShopMaterialPacks.Parse(existingSku?.PacksJson).ToList();
+            if (!effectivePacks.Any(pack => pack.NetPence > 0))
+            {
+                return (null, "Promote requires a pack with a price before promote.");
+            }
+
             var qrPathError = await PromoteQrPathErrorAsync(
                 request,
                 existingSku,
@@ -320,7 +332,8 @@ namespace TummlyBackend.Services
                     Material = material,
                     Dimensions = product.Dimensions.Trim(),
                     Packs = request.Packs,
-                    DeliveryNetPence = request.DeliveryNetPence ?? 0,
+                    // Null keeps the stored delivery price on re-promote.
+                    DeliveryNetPence = request.DeliveryNetPence,
                     SupplierName = request.SupplierName,
                     InternalCostNetPence = request.InternalCostNetPence,
                     MintOnShopFulfilment = request.MintOnShopFulfilment,
@@ -331,6 +344,7 @@ namespace TummlyBackend.Services
                 (skuDto, error) = await _catalog.UpdateSkuAsync(
                     product.ProductKey,
                     updateWrite,
+                    actor,
                     cancellationToken
                 );
             }
@@ -356,6 +370,7 @@ namespace TummlyBackend.Services
                 };
                 (skuDto, error) = await _catalog.CreateSkuAsync(
                     createWrite,
+                    actor,
                     cancellationToken
                 );
             }
@@ -374,8 +389,11 @@ namespace TummlyBackend.Services
                 return (null, syncError);
             }
 
+            // Publish leaves Available in Shop OFF. Checkout is enabled only
+            // through the availability switch and its readiness gate.
             (skuDto, error) = await _catalog.PublishAsync(
                 product.ProductKey,
+                actor,
                 cancellationToken
             );
             if (error != null || skuDto == null)
@@ -383,25 +401,22 @@ namespace TummlyBackend.Services
                 return (null, error ?? "Could not publish shop product.");
             }
 
-            var sku = await _context.ShopMaterialSkus
-                .FirstOrDefaultAsync(
-                    row =>
-                        row.SkuId == product.ProductKey
-                        && row.Status != ShopMaterialSkuStatuses.Deleted,
-                    cancellationToken
-                );
-            if (sku == null)
-            {
-                return (null, "Shop product was not found after publish.");
-            }
-
-            sku.AvailableInShop = true;
-            sku.UpdatedAtUtc = DateTime.UtcNow;
-
             product.IsActive = false;
             product.LinkedSkuId = product.ProductKey;
             product.Material = material;
             product.UpdatedAtUtc = DateTime.UtcNow;
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopInterestPromote,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopInterestProduct,
+                    product.ProductKey,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new { productKey = product.ProductKey, skuId = product.ProductKey }
+                    )
+                )
+            );
             await _context.SaveChangesAsync(cancellationToken);
 
             var registrationCount = await _context.ShopInterestRegistrations
@@ -444,6 +459,7 @@ namespace TummlyBackend.Services
 
         public async Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteByProductKeyAsync(
             string productKey,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -457,11 +473,12 @@ namespace TummlyBackend.Services
                 return (null, "Interest product was not found.");
             }
 
-            return await DemoteProductAsync(product, cancellationToken);
+            return await DemoteProductAsync(product, actor, cancellationToken);
         }
 
         public async Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteBySkuIdAsync(
             string skuId,
+            AdminShopActor actor,
             CancellationToken cancellationToken = default
         )
         {
@@ -485,11 +502,12 @@ namespace TummlyBackend.Services
                 );
             }
 
-            return await DemoteProductAsync(product, cancellationToken);
+            return await DemoteProductAsync(product, actor, cancellationToken);
         }
 
         private async Task<(AdminShopInterestProductDto? Product, string? Error)> DemoteProductAsync(
             ShopInterestProduct product,
+            AdminShopActor actor,
             CancellationToken cancellationToken
         )
         {
@@ -501,6 +519,7 @@ namespace TummlyBackend.Services
             var skuId = product.LinkedSkuId;
             var (skuDto, unpublishError) = await _catalog.UnpublishAsync(
                 skuId,
+                actor,
                 cancellationToken
             );
             if (unpublishError != null)
@@ -523,6 +542,19 @@ namespace TummlyBackend.Services
 
             sku.AvailableInShop = false;
             sku.UpdatedAtUtc = DateTime.UtcNow;
+
+            _audit.Append(
+                new AdminAuditAppendRequest(
+                    AdminAuditActions.ShopInterestDemote,
+                    actor.Identity,
+                    AdminAuditTargetTypes.ShopInterestProduct,
+                    product.ProductKey,
+                    ActorAdminUserId: actor.AdminUserId,
+                    DetailJson: JsonSerializer.Serialize(
+                        new { productKey = product.ProductKey, skuId }
+                    )
+                )
+            );
 
             product.Title = sku.Title;
             product.Description = sku.Description;
