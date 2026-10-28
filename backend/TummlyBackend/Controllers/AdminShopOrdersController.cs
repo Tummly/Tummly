@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Admin;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.PrintReadyQrMaterials;
@@ -16,14 +17,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IAdminShopOrderFulfilmentService _fulfilment;
         private readonly IPrintReadyQrMaterialsService _printReadyQrMaterials;
+        private readonly IAdminAuditService _adminAudit;
 
         public AdminShopOrdersController(
             IAdminShopOrderFulfilmentService fulfilment,
-            IPrintReadyQrMaterialsService printReadyQrMaterials
+            IPrintReadyQrMaterialsService printReadyQrMaterials,
+            IAdminAuditService adminAudit
         )
         {
             _fulfilment = fulfilment;
             _printReadyQrMaterials = printReadyQrMaterials;
+            _adminAudit = adminAudit;
         }
 
         [HttpGet]
@@ -66,6 +70,18 @@ namespace TummlyBackend.Controllers
                 // ignored for warehouse dump — ExportCsvAsync returns all matches.
                 var result = await _fulfilment.ExportCsvAsync(
                     BuildListQuery(page, pageSize, q, restaurantId, fulfilmentStatus),
+                    cancellationToken
+                );
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.ShopOrdersExport,
+                        AdminAuditTargetTypes.ShopOrder,
+                        "export",
+                        System.Text.Json.JsonSerializer.Serialize(
+                            new { restaurantId, fulfilmentStatus }
+                        )
+                    ),
                     cancellationToken
                 );
                 return File(result.Content, result.ContentType, result.FileName);

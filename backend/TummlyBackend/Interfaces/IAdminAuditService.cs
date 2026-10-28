@@ -6,6 +6,15 @@ namespace TummlyBackend.Interfaces
     {
         void Append(AdminAuditAppendRequest request);
 
+        /// <summary>
+        /// Appends one row and saves it. Use for reads, which have no other
+        /// write to save with.
+        /// </summary>
+        Task AppendAndSaveAsync(
+            AdminAuditAppendRequest request,
+            CancellationToken cancellationToken = default
+        );
+
         Task<AdminAuditListResult> ListAsync(
             AdminAuditListQuery query,
             CancellationToken cancellationToken = default

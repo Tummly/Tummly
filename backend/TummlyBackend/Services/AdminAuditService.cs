@@ -39,6 +39,15 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task AppendAndSaveAsync(
+            AdminAuditAppendRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Append(request);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public async Task<AdminAuditListResult> ListAsync(
             AdminAuditListQuery query,
             CancellationToken cancellationToken = default

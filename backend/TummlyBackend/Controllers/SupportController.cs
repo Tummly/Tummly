@@ -2,7 +2,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.HelpCentre;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -12,10 +14,15 @@ namespace TummlyBackend.Controllers
     public class SupportController : ControllerBase
     {
         private readonly ISupportService _supportService;
+        private readonly IAdminAuditService _adminAudit;
 
-        public SupportController(ISupportService supportService)
+        public SupportController(
+            ISupportService supportService,
+            IAdminAuditService adminAudit
+        )
         {
             _supportService = supportService;
+            _adminAudit = adminAudit;
         }
 
         [HttpGet("queries")]
@@ -37,6 +44,18 @@ namespace TummlyBackend.Controllers
                     type,
                     page,
                     pageSize
+                );
+
+                await _adminAudit.AppendAndSaveAsync(
+                    StaffReadAudit.Build(
+                        User,
+                        AdminAuditActions.SupportQueriesRead,
+                        AdminAuditTargetTypes.HelpCentreQuery,
+                        "list",
+                        System.Text.Json.JsonSerializer.Serialize(
+                            new { page, pageSize, status, topic, type }
+                        )
+                    )
                 );
 
                 return Ok(new
@@ -68,6 +87,15 @@ namespace TummlyBackend.Controllers
                     message = "Query not found.",
                 });
             }
+
+            await _adminAudit.AppendAndSaveAsync(
+                StaffReadAudit.Build(
+                    User,
+                    AdminAuditActions.SupportQueryRead,
+                    AdminAuditTargetTypes.HelpCentreQuery,
+                    id.ToString()
+                )
+            );
 
             return Ok(new
             {
