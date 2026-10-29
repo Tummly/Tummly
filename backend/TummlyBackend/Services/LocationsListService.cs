@@ -62,7 +62,8 @@ namespace TummlyBackend.Services
                     l.LocationName,
                     l.LifecycleStatus,
                     l.City,
-                    l.Postcode
+                    l.Postcode,
+                    l.PremisesReviewStatus
                 ))
                 .ToListAsync();
 
@@ -142,7 +143,8 @@ namespace TummlyBackend.Services
                             l.LocationName,
                             city,
                             postcode
-                        )
+                        ),
+                        PremisesReviewGate.ToOperatorWire(l.PremisesReviewStatus)
                     );
                 })
                 .ToList();
@@ -254,6 +256,7 @@ namespace TummlyBackend.Services
                     cityPostcode = r.CityPostcode,
                     lastActivityAt = r.LastActivityAt,
                     searchText = r.SearchText,
+                    premisesReviewStatus = r.PremisesReviewStatus,
                 })
                 .ToList();
 
@@ -455,7 +458,8 @@ namespace TummlyBackend.Services
             string LocationName,
             LocationLifecycleStatus LifecycleStatus,
             string? City,
-            string? Postcode
+            string? Postcode,
+            PremisesReviewStatus PremisesReviewStatus
         );
 
         private sealed record ProjectedRow(
@@ -470,7 +474,8 @@ namespace TummlyBackend.Services
             string CityId,
             string CityPostcode,
             string? LastActivityAt,
-            string SearchText
+            string SearchText,
+            string? PremisesReviewStatus
         );
     }
 }

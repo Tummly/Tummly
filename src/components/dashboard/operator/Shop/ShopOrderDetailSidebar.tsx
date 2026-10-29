@@ -88,7 +88,9 @@ export function ShopOrderDetailSidebar({
         return true
       case "processing":
         return (
-          status === "Processing" ||
+          status === "Confirmed" ||
+          status === "Preparing" ||
+          status === "In production" ||
           status === "Dispatched" ||
           status === "Delivered"
         )
@@ -312,7 +314,10 @@ export function ShopOrderDetailSidebar({
               <div className="flex flex-col gap-1.5">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-op-text-primary">
-                    Processing
+                    {order.fulfilmentStatus === "Preparing" ||
+                    order.fulfilmentStatus === "In production"
+                      ? order.fulfilmentStatus
+                      : "Confirmed"}
                   </span>
                   <span className="text-xs text-op-text-primary">
                     Your physical materials are being produced.

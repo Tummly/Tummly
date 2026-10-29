@@ -144,5 +144,28 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Contains("NOT-A-BOOK", ex.Message);
         }
+
+        [Fact]
+        public void BuildCurrentCatalog_ExposesGroupLocationPricesAndTopUpPrices()
+        {
+            var catalog = PricebookCatalog.LoadFromDirectory(PackDirectory());
+
+            var current = catalog.BuildCurrentCatalog(sms5000Available: false);
+
+            var group = current.Plans.Single(plan => plan.Id == "Group");
+            Assert.Equal(3900, group.ExtraLocationNetPence);
+            Assert.Equal(39800, group.ExtraLocationAnnualNetPence);
+            var starter = current.Plans.Single(plan => plan.Id == "Starter");
+            Assert.Null(starter.ExtraLocationAnnualNetPence);
+
+            var sms100 = current.TopUpPacks.Single(pack =>
+                pack.Channel == "sms" && pack.Quantity == 100
+            );
+            Assert.Equal(1200, sms100.NetPence);
+            Assert.DoesNotContain(current.TopUpPacks, pack =>
+                pack.Channel == "sms" && pack.Quantity == 5000
+            );
+            Assert.Equal(2000, current.VatRateBps);
+        }
     }
 }

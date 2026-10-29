@@ -11,7 +11,7 @@ namespace TummlyBackend.Helpers
     public static class GuestFormContactValidate
     {
         /// <summary>
-        /// True when contact is a valid Email or UK mobile.
+        /// True when contact is a valid Email or UK mobile (landlines rejected).
         /// Sets contactType to Email or Phone. Does not rewrite the contact string.
         /// </summary>
         public static bool TryResolve(
@@ -40,7 +40,7 @@ namespace TummlyBackend.Helpers
             }
 
             if (
-                PhoneNumberHelper.TryNormalizeToE164(
+                PhoneNumberHelper.TryNormalizeUkMobileToE164(
                     trimmed,
                     PhoneNumberHelper.DefaultRegion,
                     out _

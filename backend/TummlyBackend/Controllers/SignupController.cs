@@ -210,6 +210,39 @@ namespace TummlyBackend.Controllers
         }
 
         [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
+        [HttpPost("update-plan")]
+        public async Task<IActionResult> UpdatePlan(
+            [FromHeader(Name = SessionHeader)] Guid? signupSession,
+            [FromBody] UpdateSignupPlanDto dto
+        )
+        {
+            if (QueryTokenPresent() || !TryReadSessionHeader(signupSession, out var sessionToken))
+            {
+                return SessionExpired();
+            }
+
+            try
+            {
+                await _signupService.UpdatePlanAfterFailedCheckoutAsync(
+                    sessionToken,
+                    dto
+                );
+
+                return Ok(
+                    new
+                    {
+                        success = true,
+                        message = "Plan saved.",
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                return ToError(ex);
+            }
+        }
+
+        [EnableRateLimiting(SignupRateLimitSettings.TokenPolicyName)]
         [HttpGet("provisioning-status")]
         public async Task<IActionResult> GetProvisioningStatus(
             [FromHeader(Name = SessionHeader)] Guid? signupSession

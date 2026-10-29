@@ -47,9 +47,23 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task MintDefaultQrCodesAsync_LaunchSeed_MintsOneCounterDisplay()
+        public async Task MintDefaultQrCodesAsync_NoBillingAccount_MintsPaused()
         {
             var location = await CreateLocationAsync();
+
+            var qrCodes = await _service.MintDefaultQrCodesAsync(location);
+
+            var minted = Assert.Single(qrCodes);
+            Assert.Equal(QrCodeStatus.Paused, minted.Status);
+        }
+
+        [Fact]
+        public async Task MintDefaultQrCodesAsync_LaunchSeed_MintsOneCounterDisplay()
+        {
+            var location = await CreateLocationWithPlanAsync(
+                BillingSubscriptionPlans.Pilot,
+                BillingStatuses.Pilot
+            );
 
             var qrCodes = await _service.MintDefaultQrCodesAsync(location);
 

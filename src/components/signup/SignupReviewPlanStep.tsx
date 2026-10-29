@@ -7,6 +7,7 @@ import {
   CustomPlanSummaryCard,
 } from "@/components/marketing/custom-plan/CustomPlanSummaryCard"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { CUSTOM_PLAN_QUOTE_COPY } from "@/content/marketing/customPlanQuoteCopy"
 import {
   chosenPlanToBasePlan,
@@ -17,9 +18,10 @@ import {
   type CustomPlanBasePlanKey,
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
+  capacityRetiredNotice,
   lastQuote,
   quoteHashChanged,
-  quoteView,
+  reviewGate,
 } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import { useServerCustomPlanQuote } from "@/lib/marketingCustomPlan/useServerCustomPlanQuote"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -112,6 +114,7 @@ export function SignupReviewPlanStep({
   // The first ready quote can differ from the hash saved earlier. Show the changed state then.
   const firstReadyChecked = useRef(false)
   const [restoredHashChanged, setRestoredHashChanged] = useState(false)
+  const [confirmedHash, setConfirmedHash] = useState<string | null>(null)
 
   // Every ready quote becomes the saved config, with its hash, so Continue sends the hash on screen.
   useEffect(() => {
@@ -135,16 +138,25 @@ export function SignupReviewPlanStep({
     })
   }, [state])
 
-  const quote = lastQuote(state)
+  // A changed price needs its own confirmation: the hash of the ready quote the customer confirmed.
   const waitingForCatalogue = selectable && config == null && plainLocations == null
-  const view = waitingForCatalogue
-    ? null
-    : quoteView({
-        check,
-        state,
-        changed: quoteChanged || restoredHashChanged,
-      })
-  const continueEnabled = selectable && view?.continueEnabled === true
+  const { view, continueEnabled, priceChanged, priceConfirmed, readyHash, keptHash } =
+    reviewGate({
+      selectable,
+      waitingForCatalogue,
+      check,
+      state,
+      quoteChanged,
+      restoredHashChanged,
+      confirmedHash,
+    })
+  // A new ready quote ends the old acknowledgement for good: going back to an
+  // earlier total does not bring the tick back.
+  if (keptHash !== confirmedHash) {
+    setConfirmedHash(keptHash)
+  }
+
+  const quote = lastQuote(state)
 
   function handleCadenceChange(next: BillingCadence) {
     setCadenceState(next)
@@ -162,14 +174,16 @@ export function SignupReviewPlanStep({
   const selectionMessage =
     selection === "no_selection"
       ? CUSTOM_PLAN_QUOTE_COPY.noSelection
-      : selection === "restore_failed"
-        ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
-        : null
+      : capacityRetiredNotice(intent) != null
+        ? capacityRetiredNotice(intent)
+        : selection === "restore_failed"
+          ? CUSTOM_PLAN_QUOTE_COPY.restoreFailed
+          : null
 
   // Before the first quote, the placeholder shows the catalogue or quote status.
   const placeholderMessage = waitingForCatalogue
     ? plainFailed
-      ? CUSTOM_PLAN_QUOTE_COPY.failed
+      ? CUSTOM_PLAN_QUOTE_COPY.quoteUnverified
       : CUSTOM_PLAN_QUOTE_COPY.loading
     : (view?.message ?? null)
   const placeholderRetry = waitingForCatalogue ? retryPlainCatalogue : retry
@@ -198,6 +212,7 @@ export function SignupReviewPlanStep({
           cadence={cadenceState}
           onCadenceChange={handleCadenceChange}
           showActions={false}
+          showBreakdown
           statusMessage={view?.message ?? null}
           showRetry={view?.showRetry ?? false}
           onRetry={retry}
@@ -207,6 +222,17 @@ export function SignupReviewPlanStep({
           planDescription={`You are checking out with ${quotePlanName(quote)}.`}
           className="max-w-[581px] pt-0"
         />
+      ) : null}
+
+      {selectable && priceChanged && readyHash != null ? (
+        <CheckboxLabel
+          checked={priceConfirmed}
+          onCheckedChange={(checked) =>
+            setConfirmedHash(checked ? readyHash : null)
+          }
+        >
+          {CUSTOM_PLAN_QUOTE_COPY.changedConfirm}
+        </CheckboxLabel>
       ) : null}
 
       {selectable && quote == null ? (

@@ -10,6 +10,12 @@ namespace TummlyBackend.DTOs.Locations
 
         public string LifecycleStatus { get; init; } = string.Empty;
 
+        /// <summary>
+        /// "pending_review" or "rejected" while the duplicate-premises review
+        /// blocks the Location; null otherwise. Never says why.
+        /// </summary>
+        public string? PremisesReviewStatus { get; init; }
+
         public string SetupStatus { get; init; } = string.Empty;
 
         public string? ManagerName { get; init; }

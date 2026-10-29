@@ -394,6 +394,32 @@ namespace TummlyBackend.Services
                 OnboardingJson = pending.OnboardingJson,
                 PasswordHash = null,
                 AuthProvider = pending.AuthProvider,
+                ChosenPlan = pending.ChosenPlan,
+                ChosenCadence = pending.ChosenCadence,
+                PlanConfig = ResolveResumePlanConfig(pending.CustomPlanConfigJson),
+            };
+        }
+
+        /// <summary>
+        /// The saved Custom config (base plan, Locations, extras). Null for a catalogue plan
+        /// or when the stored JSON has no v2 base plan.
+        /// </summary>
+        private static SignupResumePlanConfig? ResolveResumePlanConfig(string? json)
+        {
+            var parsed = CustomPlanConfig.TryParse(json);
+            if (parsed == null || !parsed.IsV2 || string.IsNullOrWhiteSpace(parsed.BasePlan))
+            {
+                return null;
+            }
+
+            return new SignupResumePlanConfig
+            {
+                BasePlan = parsed.BasePlan,
+                Locations = parsed.Locations ?? parsed.Quantities.Locations,
+                Packs = parsed.Packs == null
+                    ? []
+                    : new Dictionary<string, int>(parsed.Packs, StringComparer.Ordinal),
+                QuoteHash = parsed.QuoteHash,
             };
         }
 
@@ -701,7 +727,58 @@ namespace TummlyBackend.Services
                 Ready = pending.Status == PendingSignupStatuses.Complete,
                 PaymentRedirectUrl = paymentRedirectUrl,
                 PaymentFailureCode = paymentFailureCode,
+                // The saved choices come back only when the quote needs a new review,
+                // so the guest sees them again with a fresh server quote.
+                SavedPlan = IsQuoteReviewCode(paymentFailureCode)
+                    ? new SignupSavedPlanDto
+                    {
+                        ChosenPlan = pending.ChosenPlan,
+                        ChosenCadence = pending.ChosenCadence,
+                        CustomPlanConfigJson = pending.CustomPlanConfigJson,
+                    }
+                    : null,
             };
+        }
+
+        /// <summary>
+        /// The paid checkout did not open because the saved quote is stale
+        /// (<c>quote_changed</c>) or names a retired pack (<c>legacy_pack_key</c>).
+        /// </summary>
+        private static bool IsQuoteReviewCode(string? code) =>
+            code is "quote_changed" or "legacy_pack_key";
+
+        public async Task UpdatePlanAfterFailedCheckoutAsync(
+            Guid sessionToken,
+            UpdateSignupPlanDto dto
+        )
+        {
+            var pending = await FindBySessionTokenAsync(sessionToken);
+            if (
+                pending.Status != PendingSignupStatuses.Complete
+                || !IsPaidChosenPlan(pending.ChosenPlan)
+                || await ResolvePaidCheckoutFailureAsync(pending) == null
+            )
+            {
+                throw Invalid("There is no unpaid plan to review.");
+            }
+
+            if (!IsPaidChosenPlan(ResolveChosenPlan(dto.ChosenPlan)))
+            {
+                throw Invalid("Choose a paid plan to continue.");
+            }
+
+            // The hash of the quote the guest reviewed must match the current price.
+            // A stale or retired choice throws and starts no order.
+            await ApplyChosenPlanAsync(
+                pending,
+                dto.ChosenPlan,
+                dto.ChosenCadence,
+                dto.CustomPlanConfigJson
+            );
+            pending.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await _provisioningService.RetryPaidSignupCheckoutAsync(pending.Id);
         }
 
         /// <summary>
@@ -948,17 +1025,54 @@ namespace TummlyBackend.Services
         private async Task ApplyChosenPlanAsync(
             PendingSignup pending,
             SaveSignupOnboardingDto dto
+        ) =>
+            await ApplyChosenPlanAsync(
+                pending,
+                dto.ChosenPlan,
+                dto.ChosenCadence,
+                dto.CustomPlanConfigJson
+            );
+
+        private async Task ApplyChosenPlanAsync(
+            PendingSignup pending,
+            string? chosenPlan,
+            string? chosenCadence,
+            string? customPlanConfigJson
         )
         {
-            var chosen = ResolveChosenPlan(dto.ChosenPlan);
-            var cadence = ResolveChosenCadence(chosen, dto.ChosenCadence);
+            var chosen = ResolveChosenPlan(chosenPlan);
+            var cadence = ResolveChosenCadence(chosen, chosenCadence);
 
             if (
-                !string.IsNullOrWhiteSpace(dto.CustomPlanConfigJson)
+                !string.IsNullOrWhiteSpace(customPlanConfigJson)
+                && string.Equals(
+                    chosen,
+                    BillingSubscriptionPlans.Pilot,
+                    StringComparison.Ordinal
+                )
+                && CustomPlanConfig
+                    .TryParse(DecodeCustomPlanConfigJson(customPlanConfigJson))
+                    ?.Packs?.Any(kv =>
+                        kv.Value > 0
+                        && (
+                            CustomPlanPacks.IsCapacityPackKey(kv.Key)
+                            || CustomPlanPacks.LegacyCapacityPackKeys.ContainsKey(kv.Key)
+                        )
+                    ) == true
+            )
+            {
+                throw new CustomPlanQuoteException(
+                    "pilot_no_capacity_addons",
+                    "Pilot has no paid capacity add-ons."
+                );
+            }
+
+            if (
+                !string.IsNullOrWhiteSpace(customPlanConfigJson)
                 && IsPaidOrCustomPlan(chosen)
             )
             {
-                var decoded = DecodeCustomPlanConfigJson(dto.CustomPlanConfigJson);
+                var decoded = DecodeCustomPlanConfigJson(customPlanConfigJson);
                 var parsed = CustomPlanConfig.TryParse(decoded);
                 if (parsed != null && parsed.IsV2)
                 {
@@ -978,11 +1092,12 @@ namespace TummlyBackend.Services
                             ),
                         }
                     );
-                    // A hash from the quote the guest saw must still match.
-                    // A missing hash (saved before deploy) re-quotes and saves.
+                    // The hash of the quote the guest saw must match. A missing hash
+                    // (saved before the hash was required) is not confirmed either, so
+                    // the guest reviews the current price again.
                     if (
-                        !string.IsNullOrWhiteSpace(parsed.QuoteHash)
-                        && !string.Equals(
+                        string.IsNullOrWhiteSpace(parsed.QuoteHash)
+                        || !string.Equals(
                             parsed.QuoteHash,
                             quote.QuoteHash,
                             StringComparison.Ordinal

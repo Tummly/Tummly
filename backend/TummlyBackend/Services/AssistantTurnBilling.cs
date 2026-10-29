@@ -17,8 +17,13 @@ namespace TummlyBackend.Services
             LiveAnswerSucceeded = true;
         }
 
+        /// <summary>
+        /// Only a grounded answer consumes an AI action. Refusal, clarify, gap
+        /// and no-clear-driver replies are not answers, even when the provider
+        /// call itself succeeded.
+        /// </summary>
         public bool ShouldConsume(AssistantMessage message)
             => LiveAnswerSucceeded
-                && message.Class != AssistantMessageClass.Failure;
+                && message.Class == AssistantMessageClass.Grounded;
     }
 }

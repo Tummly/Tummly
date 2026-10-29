@@ -32,5 +32,16 @@ namespace TummlyBackend.Interfaces
             bool includeWithdrawn = false,
             CancellationToken cancellationToken = default
         );
+
+        Task<(bool Ok, string? Error)> RemoveRegistrationAsync(
+            int registrationId,
+            int actorAdminUserId,
+            string actorIdentity,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<(string FileName, byte[] Content)> ExportCountsCsvAsync(
+            CancellationToken cancellationToken = default
+        );
     }
 }

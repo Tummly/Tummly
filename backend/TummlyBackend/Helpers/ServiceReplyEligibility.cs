@@ -1,23 +1,110 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Shared compose-time gate for Feedback guest replies and recovery-Offer
-    /// replies: restaurant FeedbackFollowUp Enabled, guest FeedbackFollowUp
-    /// Granted (effective state, legacy rollup aware), and contact resolves to
-    /// the channel's ContactType. WS2c adds bounce/complaint suppression here.
+    /// Outcome of the shared compose-time and send-time gate for Feedback guest
+    /// replies and recovery-Offer replies.
+    /// </summary>
+    public enum ServiceReplyDecision
+    {
+        Allowed,
+
+        /// <summary>Restaurant or guest FeedbackFollowUp is off, or the guest was erased.</summary>
+        NotEligible,
+
+        /// <summary>SMS STOP on this sender: Twilio enforces it as a provider restriction.</summary>
+        SmsProviderRestriction,
+
+        /// <summary>Permanent Email hard bounce on this destination.</summary>
+        EmailDeliveryFailure,
+    }
+
+    /// <summary>
+    /// Shared compose-time and send-time gate for Feedback guest replies and
+    /// recovery-Offer replies: restaurant FeedbackFollowUp Enabled, guest
+    /// FeedbackFollowUp Granted (effective state, legacy rollup aware), contact
+    /// resolves to the channel's ContactType, and no blocking suppression for
+    /// the reply channel at this restaurant. Marketing permission is not
+    /// checked here: an Email marketing unsubscribe does not stop service email.
     /// </summary>
     public static class ServiceReplyEligibility
     {
+        public const string NotAllowedCode = "feedback_follow_up_not_granted";
         public const string NotAllowedMessage =
             "Guest has not granted feedback follow-up permission.";
 
+        public const string SmsProviderRestrictionCode = "sms_provider_restriction";
+
+        /// <summary>
+        /// A STOP on this sender blocks SMS delivery. It is not a Feedback
+        /// follow-up refusal, so the message says the permission is unchanged.
+        /// </summary>
+        public const string SmsProviderRestrictionMessage =
+            "SMS not sent. This number has opted out of SMS from this sender, and delivery is currently blocked. This does not change the guest's Feedback follow-up permission.";
+
+        public const string EmailDeliveryUnavailableCode = "email_delivery_unavailable";
+
+        /// <summary>
+        /// Operator-facing status for a refused reply. It names no guest data.
+        /// </summary>
+        public const string EmailDeliveryUnavailableMessage =
+            "Email delivery unavailable. Use a verified alternative contact method.";
+
         public static async Task<bool> IsAllowedAsync(
             ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
+            Feedback feedback,
+            FeedbackGuestResponseChannel channel,
+            CancellationToken cancellationToken
+        )
+        {
+            var decision = await EvaluateAsync(
+                context,
+                suppressions,
+                feedback,
+                channel,
+                cancellationToken
+            );
+            return decision == ServiceReplyDecision.Allowed;
+        }
+
+        /// <summary>
+        /// Operator-facing refusal text for a decision. Null when allowed.
+        /// </summary>
+        public static string? RefusalMessage(ServiceReplyDecision decision) =>
+            decision switch
+            {
+                ServiceReplyDecision.Allowed => null,
+                ServiceReplyDecision.EmailDeliveryFailure =>
+                    EmailDeliveryUnavailableMessage,
+                ServiceReplyDecision.SmsProviderRestriction =>
+                    SmsProviderRestrictionMessage,
+                _ => NotAllowedMessage,
+            };
+
+        /// <summary>
+        /// Machine-readable reason for a refused reply, returned as <c>code</c>
+        /// so the operator UI can map each refusal. Null when allowed.
+        /// </summary>
+        public static string? RefusalCode(ServiceReplyDecision decision) =>
+            decision switch
+            {
+                ServiceReplyDecision.Allowed => null,
+                ServiceReplyDecision.EmailDeliveryFailure =>
+                    EmailDeliveryUnavailableCode,
+                ServiceReplyDecision.SmsProviderRestriction =>
+                    SmsProviderRestrictionCode,
+                _ => NotAllowedCode,
+            };
+
+        public static async Task<ServiceReplyDecision> EvaluateAsync(
+            ApplicationDbContext context,
+            IGuestContactSuppressionService suppressions,
             Feedback feedback,
             FeedbackGuestResponseChannel channel,
             CancellationToken cancellationToken
@@ -25,7 +112,7 @@ namespace TummlyBackend.Helpers
         {
             if (feedback.LocationGuestId is not int locationGuestId)
             {
-                return false;
+                return ServiceReplyDecision.NotEligible;
             }
 
             if (
@@ -35,7 +122,7 @@ namespace TummlyBackend.Helpers
                 )
             )
             {
-                return false;
+                return ServiceReplyDecision.NotEligible;
             }
 
             var expectedContactType = channel switch
@@ -47,7 +134,7 @@ namespace TummlyBackend.Helpers
 
             if (contactType != expectedContactType)
             {
-                return false;
+                return ServiceReplyDecision.NotEligible;
             }
 
             var guest = await context.LocationGuests
@@ -62,7 +149,7 @@ namespace TummlyBackend.Helpers
 
             if (guest == null || guest.RestaurantId == 0)
             {
-                return false;
+                return ServiceReplyDecision.NotEligible;
             }
 
             var restaurant = await context.Restaurants
@@ -74,7 +161,7 @@ namespace TummlyBackend.Helpers
 
             if (restaurant == null)
             {
-                return false;
+                return ServiceReplyDecision.NotEligible;
             }
 
             var ledgerStates = await new LocationGuestPermissionLedgerService(
@@ -86,10 +173,80 @@ namespace TummlyBackend.Helpers
                 ledgerStates
             );
 
-            return LocationGuestChannelPermissionGate.CanSendFeedbackFollowUp(
-                restaurant,
-                states
+            if (
+                !LocationGuestChannelPermissionGate.CanSendFeedbackFollowUp(
+                    restaurant,
+                    states
+                )
+            )
+            {
+                return ServiceReplyDecision.NotEligible;
+            }
+
+            if (
+                !GuestContactKey.TryCreate(
+                    feedback.GuestContact,
+                    contactType,
+                    out var contactKey
+                )
+            )
+            {
+                return ServiceReplyDecision.NotEligible;
+            }
+
+            var suppressionRows = await suppressions.FindAsync(
+                restaurant.Id,
+                contactKey,
+                cancellationToken
             );
+
+            return ClassifySuppressions(suppressionRows, channel);
+        }
+
+        /// <summary>
+        /// Maps the suppression rows for one contact to a reply decision.
+        /// <list type="bullet">
+        /// <item>FeedbackFollowUp rows and erasure rows (guest delete, retention
+        /// purge) block every channel: case-specific or erased.</item>
+        /// <item>Email: an <c>EmailDelivery</c> row (hard bounce) blocks this
+        /// destination. Marketing kinds (unsubscribe, complaint) do not.</item>
+        /// <item>SMS: a <c>SmsMarketing</c> row from STOP blocks service SMS on
+        /// this sender, because Twilio enforces STOP as a provider restriction.</item>
+        /// </list>
+        /// </summary>
+        public static ServiceReplyDecision ClassifySuppressions(
+            IEnumerable<GuestContactSuppression> rows,
+            FeedbackGuestResponseChannel channel
+        )
+        {
+            var list = rows.ToList();
+
+            if (
+                list.Any(row =>
+                    row.PermissionKind == LocationGuestPermissionKind.FeedbackFollowUp
+                    || row.Source is GuestContactSuppressionSources.GuestDelete
+                        or GuestContactSuppressionSources.RetentionPurge
+                )
+            )
+            {
+                return ServiceReplyDecision.NotEligible;
+            }
+
+            if (channel == FeedbackGuestResponseChannel.Email)
+            {
+                return list.Any(row =>
+                    row.PermissionKind == LocationGuestPermissionKind.EmailDelivery
+                )
+                    ? ServiceReplyDecision.EmailDeliveryFailure
+                    : ServiceReplyDecision.Allowed;
+            }
+
+            return list.Any(row =>
+                row.PermissionKind == LocationGuestPermissionKind.SmsMarketing
+                && row.Source == GuestContactSuppressionSources.SmsStop
+            )
+                ? ServiceReplyDecision.SmsProviderRestriction
+                : ServiceReplyDecision.Allowed;
         }
     }
 }

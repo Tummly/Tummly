@@ -208,6 +208,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     locationId = created.LocationId,
+                    warning = ToWire(created.PremisesWarning),
                 }),
                 AddOwnedLocationResult.InvalidRequest invalid => BadRequest(new
                 {
@@ -280,6 +281,7 @@ namespace TummlyBackend.Controllers
                     {
                         rowIndex = row.RowIndex,
                         locationId = row.LocationId,
+                        warning = ToWire(row.Warning),
                     }),
                     errors = completed.Errors.Select(row => new
                     {
@@ -311,6 +313,21 @@ namespace TummlyBackend.Controllers
                 ),
             };
         }
+
+        /// <summary>
+        /// Same generic shape for every premises match: no scope, id, name or
+        /// other-Workspace signal. <c>matchedRowIndex</c> is set only for an
+        /// earlier row of the caller's own import file.
+        /// </summary>
+        private static object? ToWire(PremisesDuplicateWarning? warning) =>
+            warning == null
+                ? null
+                : new
+                {
+                    code = warning.Code,
+                    message = warning.Message,
+                    matchedRowIndex = warning.MatchedRowIndex,
+                };
 
         [HttpPost("{locationId:int}/activate")]
         public async Task<IActionResult> ActivateDraft(int locationId)

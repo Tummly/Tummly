@@ -19,6 +19,7 @@ namespace TummlyBackend.Services
     {
         private sealed record DeliveryScope(
             ApplicationDbContext Context,
+            IGuestContactSuppressionService Suppressions,
             IEmailService EmailService,
             IConfiguration Configuration
         );
@@ -209,6 +210,7 @@ namespace TummlyBackend.Services
         private static DeliveryScope ResolveScope(IServiceProvider services)
             => new(
                 services.GetRequiredService<ApplicationDbContext>(),
+                services.GetRequiredService<IGuestContactSuppressionService>(),
                 services.GetRequiredService<IEmailService>(),
                 services.GetRequiredService<IConfiguration>()
             );
@@ -616,6 +618,7 @@ namespace TummlyBackend.Services
             if (
                 !await ServiceReplyEligibility.IsAllowedAsync(
                     deps.Context,
+                    deps.Suppressions,
                     feedback,
                     FeedbackGuestResponseChannel.Email,
                     cancellationToken

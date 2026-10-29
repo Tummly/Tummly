@@ -747,6 +747,7 @@ namespace TummlyBackend.Controllers
             }
 
             var outcome = await _guestIdentity.UpdateAsync(
+                userId,
                 guestId,
                 locationId,
                 request

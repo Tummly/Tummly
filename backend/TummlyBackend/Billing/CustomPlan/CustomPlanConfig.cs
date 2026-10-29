@@ -25,7 +25,7 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("locations")]
         public int? Locations { get; set; }
 
-        /// <summary>v2: packKey → pack count (0..MaxPackCount, no clamp).</summary>
+        /// <summary>v2: packKey → quantity (credit packs 0..MaxPackCount, capacity units 0..MaxCapacityUnits, no clamp).</summary>
         [JsonPropertyName("packs")]
         public Dictionary<string, int>? Packs { get; set; }
 
@@ -87,11 +87,15 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("teamUsers")]
         public int TeamUsers { get; set; }
 
+        /// <summary>
+        /// Base plan QR allowance, the Workspace base (not a per-Location limit).
+        /// The pool is computed from this by <c>WorkspaceQrPool</c>.
+        /// </summary>
         [JsonPropertyName("qrPlacements")]
         public int QrPlacements { get; set; }
 
         /// <summary>
-        /// Account-wide QR pool from qr_10 packs (v2). Not a per-Location cap.
+        /// Purchased qr_placement units (v2), added to the Workspace pool.
         /// </summary>
         [JsonPropertyName("qrPlacementsAccountExtra")]
         public int QrPlacementsAccountExtra { get; set; }
@@ -117,8 +121,16 @@ namespace TummlyBackend.Billing.CustomPlan
         [JsonPropertyName("label")]
         public string Label { get; set; } = string.Empty;
 
+        /// <summary>Line name without the quantity, e.g. "Additional active Offers".</summary>
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
         [JsonPropertyName("quantity")]
         public int Quantity { get; set; }
+
+        /// <summary>Net price of one unit for the quote cadence, from the catalogue rate.</summary>
+        [JsonPropertyName("unitNetPence")]
+        public int UnitNetPence { get; set; }
 
         [JsonPropertyName("netPence")]
         public int NetPence { get; set; }

@@ -46,6 +46,15 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task AppendAndSaveAsync(
+            AdminAuditAppendRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            Append(request);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         /// <summary>
         /// Request trace id for the current HTTP request, or null when the
         /// event is written outside a request (background jobs).

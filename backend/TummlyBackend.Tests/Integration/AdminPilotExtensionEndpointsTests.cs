@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -174,6 +175,82 @@ namespace TummlyBackend.Tests.Integration
                 && row.RestaurantId == seeded.RestaurantId
             );
             Assert.Equal(1, count);
+        }
+
+        [Fact]
+        public async Task Extend_NoIdempotencyKey_400_NoExtensionNoAudit()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+
+            using var missing = await PostExtendAsync(seeded.OwnerUserId, 14, null, seeded.AdminJwt);
+            using var blank = await PostExtendAsync(seeded.OwnerUserId, 14, "   ", seeded.AdminJwt);
+
+            foreach (var response in new[] { missing, blank })
+            {
+                Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+                var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.False(body.GetProperty("success").GetBoolean());
+                Assert.Equal(
+                    BillingAccountLifecycleService.PilotExtensionIdempotencyKeyRequiredCode,
+                    body.GetProperty("code").GetString()
+                );
+            }
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var billing = await context.BillingAccounts
+                .AsNoTracking()
+                .SingleAsync(row => row.RestaurantId == seeded.RestaurantId);
+            Assert.Equal(0, billing.PilotExtensionCount);
+            Assert.Equal(
+                0,
+                await context.AdminAuditEvents.CountAsync(row =>
+                    row.Action == AdminAuditActions.OperatorExtendPilot
+                    && row.RestaurantId == seeded.RestaurantId
+                )
+            );
+        }
+
+        [Fact]
+        public async Task Extend_RepeatedOlderKey_ReplaysAndAddsNoExtension()
+        {
+            var seeded = await SeedPilotAsync(
+                plan: BillingSubscriptionPlans.Pilot,
+                status: BillingStatuses.Pilot,
+                extensionCount: 0,
+                extensionDaysTotal: 0
+            );
+            var firstKey = $"ep-{Guid.NewGuid():N}";
+            var secondKey = $"ep-{Guid.NewGuid():N}";
+
+            using var first = await PostExtendAsync(seeded.OwnerUserId, 14, firstKey, seeded.AdminJwt);
+            using var second = await PostExtendAsync(seeded.OwnerUserId, 14, secondKey, seeded.AdminJwt, expectedExtensionCount: 1);
+            using var repeat = await PostExtendAsync(seeded.OwnerUserId, 14, firstKey, seeded.AdminJwt, expectedExtensionCount: 2);
+
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
+            var repeatBody = await repeat.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(2, repeatBody.GetProperty("data").GetProperty("extensionCount").GetInt32());
+            Assert.Equal(28, repeatBody.GetProperty("data").GetProperty("extensionDaysTotal").GetInt32());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var rows = await context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row =>
+                    row.Action == AdminAuditActions.OperatorExtendPilot
+                    && row.RestaurantId == seeded.RestaurantId
+                )
+                .ToListAsync();
+            Assert.Equal(2, rows.Count);
+            Assert.Contains(rows, row => (row.DetailJson ?? string.Empty).Contains(firstKey, StringComparison.Ordinal));
+            Assert.Contains(rows, row => (row.DetailJson ?? string.Empty).Contains(secondKey, StringComparison.Ordinal));
         }
 
         [Fact]
@@ -533,7 +610,7 @@ namespace TummlyBackend.Tests.Integration
         private Task<HttpResponseMessage> PostExtendAsync(
             int userId,
             int days,
-            string key,
+            string? key,
             string jwt,
             int? restaurantId = null,
             string? reason = ValidReason,

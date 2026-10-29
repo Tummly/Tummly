@@ -1,7 +1,10 @@
+import type { SignupResume } from "@/api/signupApi"
 import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
+  customPlanIntentNamesRetiredPack,
   decodeCustomPlanIntentV2,
   encodeCustomPlanIntentV2,
+  hasLegacyCapacityPack,
   type CustomPlanBasePlanKey,
   type CustomPlanPackCounts,
   type CustomPlanV2ConfigInput,
@@ -17,6 +20,8 @@ export type SignupPlanIntent = {
   cadence?: BillingCadence
   /** v2 calculator config — survives Back, reload, and plan changes. */
   config?: SignupCustomPlanConfig
+  /** A saved selection named a capacity pack Commercial V4 replaced; it was dropped. */
+  capacityOptionRetired?: true
 }
 
 const SIGNUP_PLAN_INTENT_KEY = "tummly.signupPlanIntent"
@@ -76,8 +81,13 @@ function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
   }
   const cadence: BillingCadence =
     parsed.cadence === "annual" ? "annual" : "monthly"
+  // A replaced capacity pack drops the config and is reported, never converted.
+  const retired =
+    parsed.capacityOptionRetired === true ||
+    hasLegacyCapacityPack(parsed.config?.packs)
   // An invalid count drops the whole config: the review shows the restore-failure copy.
   const config =
+    !retired &&
     parsed.config != null &&
     parsed.config.version === 2 &&
     isValidLocationCount(parsed.config.locations)
@@ -94,6 +104,7 @@ function normalizeIntent(parsed: SignupPlanIntent): SignupPlanIntent | null {
     plan: parsed.plan,
     cadence,
     ...(config != null ? { config } : {}),
+    ...(retired ? { capacityOptionRetired: true as const } : {}),
   }
 }
 
@@ -140,6 +151,9 @@ export function parseSignupPlanIntent(
   return {
     plan: plan as "Starter" | "Growth" | "Group" | "Custom",
     cadence,
+    ...(customPlanIntentNamesRetiredPack(customIntent)
+      ? { capacityOptionRetired: true as const }
+      : {}),
   }
 }
 
@@ -190,6 +204,51 @@ export function readSignupPlanIntent(): SignupPlanIntent | null {
   } catch {
     return null
   }
+}
+
+function isBasePlanKey(value: string): value is CustomPlanBasePlanKey {
+  return value === "starter" || value === "growth" || value === "group"
+}
+
+/**
+ * Rebuilds the intent from the plan the server saved at onboarding, for a browser
+ * that has lost its copy. An intent already in sessionStorage wins. Returns the
+ * intent now stored, or null when there is nothing to restore.
+ */
+export function restoreSignupPlanIntentFromResume(
+  resume: Pick<SignupResume, "chosenPlan" | "chosenCadence" | "planConfig">,
+): SignupPlanIntent | null {
+  const existing = readSignupPlanIntent()
+  if (existing != null) {
+    return existing
+  }
+  const plan = resume.chosenPlan
+  if (plan == null || (plan !== "Pilot" && !PAID_PLANS.has(plan))) {
+    return null
+  }
+  const cadence: BillingCadence =
+    resume.chosenCadence === "annual" ? "annual" : "monthly"
+  const saved = resume.planConfig
+  // An invalid saved config is dropped, as in normalizeIntent: review shows the restore-failure copy.
+  const config: SignupCustomPlanConfig | undefined =
+    saved != null &&
+    isBasePlanKey(saved.basePlan) &&
+    isValidLocationCount(saved.locations)
+      ? {
+          version: 2,
+          cadence,
+          basePlan: saved.basePlan,
+          locations: saved.locations,
+          packs: saved.packs as Partial<CustomPlanPackCounts>,
+          ...(saved.quoteHash ? { quoteHash: saved.quoteHash } : {}),
+        }
+      : undefined
+  saveSignupPlanIntent({
+    plan: plan as SignupPlanIntent["plan"],
+    cadence,
+    ...(config != null ? { config } : {}),
+  })
+  return readSignupPlanIntent()
 }
 
 export function clearSignupPlanIntent(): void {

@@ -330,6 +330,18 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex) when (
+                ex.Message == "premises_under_review"
+            )
+            {
+                // Generic on purpose: no hint of where else the premises is registered.
+                return Conflict(new
+                {
+                    success = false,
+                    code = "premises_under_review",
+                    message = TummlyBackend.Helpers.PremisesReviewGate.BlockedMessage,
+                });
+            }
+            catch (InvalidOperationException ex) when (
                 ex.Message == "idempotency_target_mismatch"
             )
             {
@@ -995,7 +1007,9 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("pending-payment/retry")]
-        public async Task<IActionResult> RetryPendingPayment()
+        public async Task<IActionResult> RetryPendingPayment(
+            [FromBody] PendingPaymentRetryRequestDto? request = null
+        )
         {
             var unauthorized =
                 OperatorAuth.TryRequireUserId(User, out var userId);
@@ -1019,7 +1033,8 @@ namespace TummlyBackend.Controllers
                 await _billingCredits.RetryPendingPaymentAsync(
                     userId,
                     manage.RestaurantId,
-                    manage.Status == RestaurantPermissionStatus.Allowed
+                    manage.Status == RestaurantPermissionStatus.Allowed,
+                    request?.CustomPlanConfigJson
                 );
 
             if (response == null)

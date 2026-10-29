@@ -87,7 +87,7 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
             Assert.Equal(
-                "Processing",
+                "Confirmed",
                 body.GetProperty("items")[0].GetProperty("fulfilmentStatus").GetString()
             );
 
@@ -100,6 +100,51 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(1, aggregates.GetProperty("inProgress").GetInt32());
             Assert.Equal(1, aggregates.GetProperty("dispatched").GetInt32());
             Assert.Equal(1, aggregates.GetProperty("deliveredLast90Days").GetInt32());
+        }
+
+        [Fact]
+        public async Task ListOrders_LegacyDispatchWithoutEvidence_FiltersAsInProgress()
+        {
+            var seeded = await SeedWorkspaceAsync(namedInScopeOnly: false);
+            var legacyId = await InsertOrderAsync(
+                seeded,
+                seeded.InScopeLocationId,
+                ShopPaymentStatuses.Paid,
+                ShopFulfilmentStatuses.InTransit,
+                trackingUrl: "https://track.example/legacy"
+            );
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var order = await context.ShopOrders.SingleAsync(row => row.Id == legacyId);
+                order.DispatchSource = null;
+                order.DispatchedByAdminUserId = null;
+                order.DispatchCarrierName = null;
+                order.DispatchCarrierReference = null;
+                order.PreparationStartedAtUtc = DateTime.UtcNow.AddDays(-2);
+                order.ProductionStartedAtUtc = DateTime.UtcNow.AddDays(-1);
+                await context.SaveChangesAsync();
+            }
+
+            using var dispatchedRequest = AuthorizedGet(
+                $"/api/shop/orders?locationId={seeded.InScopeLocationId}&locationScope=all&fulfilmentStatus=in_transit",
+                seeded.MemberJwt
+            );
+            var dispatchedBody = await ReadJsonAsync(await _client.SendAsync(dispatchedRequest));
+            Assert.DoesNotContain(
+                legacyId.ToString("D"),
+                dispatchedBody.GetProperty("items").EnumerateArray()
+                    .Select(item => item.GetProperty("id").GetString())
+            );
+
+            using var progressRequest = AuthorizedGet(
+                $"/api/shop/orders?locationId={seeded.InScopeLocationId}&locationScope=all&fulfilmentStatus=processing",
+                seeded.MemberJwt
+            );
+            var progressBody = await ReadJsonAsync(await _client.SendAsync(progressRequest));
+            var progressItem = progressBody.GetProperty("items").EnumerateArray()
+                .Single(item => item.GetProperty("id").GetString() == legacyId.ToString("D"));
+            Assert.Equal("In production", progressItem.GetProperty("fulfilmentStatusLabel").GetString());
         }
 
         [Fact]
@@ -265,6 +310,8 @@ namespace TummlyBackend.Tests.Integration
                 sequence.NextNumber = nextNumber + 1;
             }
 
+            var dispatched = fulfilmentStatus is ShopFulfilmentStatuses.InTransit
+                or ShopFulfilmentStatuses.Delivered;
             var order = new ShopOrder
             {
                 Id = Guid.NewGuid(),
@@ -288,10 +335,14 @@ namespace TummlyBackend.Tests.Integration
                     fulfilmentStatus == ShopFulfilmentStatuses.Processing
                         ? DateTime.UtcNow.AddDays(-1)
                         : null,
-                DispatchedAtUtc =
-                    fulfilmentStatus == ShopFulfilmentStatuses.InTransit
-                        ? DateTime.UtcNow.AddHours(-6)
-                        : null,
+                DispatchedAtUtc = dispatched ? DateTime.UtcNow.AddHours(-6) : null,
+                // Dispatched and delivered orders carry carrier evidence.
+                DispatchSource = dispatched
+                    ? ShopFulfilmentEvidenceSources.AdminManual
+                    : null,
+                DispatchedByAdminUserId = dispatched ? 1 : null,
+                DispatchCarrierName = dispatched ? "DPD" : null,
+                DispatchCarrierReference = dispatched ? "DPD-123" : null,
                 DeliveredAtUtc = deliveredAtUtc,
                 TrackingUrl = trackingUrl,
                 OpsNotes = opsNotes,

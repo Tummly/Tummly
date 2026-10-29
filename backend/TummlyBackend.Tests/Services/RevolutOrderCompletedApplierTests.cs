@@ -1504,6 +1504,304 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Apply_CustomPlanCycle_PendingPaymentRetry_SavesThePaidConfigAsTheAccountsPlan()
+        {
+            // A signup whose checkout failed keeps its quote only as the pending payment and
+            // sits on Free with no Custom config. The paid retry must give it the capacity.
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            var paid = PaidCustomConfig(periodNetPence: 8_000, qrAccountExtra: 4);
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = paid;
+            AddCustomCycleIntent(context, account.RestaurantId, "ord_custom_pending_retry", 8_000);
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+            var request = CustomCompleted("ord_custom_pending_retry");
+
+            await applier.ApplyAsync(request);
+            await applier.ApplyAsync(request);
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(BillingSubscriptionPlans.Custom, settled.SubscriptionPlan);
+            Assert.Equal(BillingStatuses.Active, settled.BillingStatus);
+            Assert.Equal(paid, settled.CustomPlanConfigJson);
+            Assert.Null(settled.PendingPaymentPlan);
+            Assert.Null(settled.PendingPaymentCustomConfigJson);
+            var allowance = await TestActiveQrCapacity
+                .For(context)
+                .GetAllowanceAsync(settled, CancellationToken.None);
+            Assert.Equal(5 + 4, allowance!.WorkspacePool);
+        }
+
+        [Fact]
+        public async Task Apply_CustomPlanCycle_PendingConfigThatWasNotPaid_IsNotSaved()
+        {
+            // The order paid 5_000 but the pending config says 8_000: grant nothing from it.
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = PaidCustomConfig(8_000, 4);
+            AddCustomCycleIntent(context, account.RestaurantId, "ord_custom_other_amount", 5_000);
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+
+            await applier.ApplyAsync(CustomCompleted("ord_custom_other_amount"));
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Null(settled.CustomPlanConfigJson);
+        }
+
+        [Fact]
+        public async Task Apply_CustomPlanCycle_PendingConfigWithAnotherQuoteHash_IsNotSaved()
+        {
+            // Same amount and cadence, but the order was created for another quote
+            // (the price moved and came back): the pending config is not the paid one.
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = PaidCustomConfig(8_000, 4, "hash_pending");
+            AddCustomCycleIntent(
+                context,
+                account.RestaurantId,
+                "ord_custom_other_hash",
+                8_000,
+                quoteHash: "hash_paid"
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+
+            await applier.ApplyAsync(CustomCompleted("ord_custom_other_hash"));
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Null(settled.CustomPlanConfigJson);
+        }
+
+        [Fact]
+        public async Task Apply_CustomPlanCycle_PendingConfigWithTheOrdersQuoteHash_IsSaved()
+        {
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            var paid = PaidCustomConfig(8_000, 4, "hash_paid");
+            account.SubscriptionPlan = BillingBaselineFree;
+            account.BillingStatus = BillingStatuses.Free;
+            account.BillingCycle = null;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = null;
+            account.PendingPaymentPlan = BillingSubscriptionPlans.Custom;
+            account.PendingPaymentCadence = "monthly";
+            account.PendingPaymentCustomConfigJson = paid;
+            AddCustomCycleIntent(
+                context,
+                account.RestaurantId,
+                "ord_custom_same_hash",
+                8_000,
+                quoteHash: "hash_paid"
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var applier = CreateApplier(
+                context,
+                new IncludedPeriodMintService(context, _pricebook, clock),
+                clock
+            );
+
+            await applier.ApplyAsync(CustomCompleted("ord_custom_same_hash"));
+
+            context.ChangeTracker.Clear();
+            var settled = await context.BillingAccounts.SingleAsync();
+            Assert.Equal(paid, settled.CustomPlanConfigJson);
+        }
+
+        private const string BillingBaselineFree = BillingSubscriptionPlans.Free;
+
+        private static string PaidCustomConfig(
+            int periodNetPence,
+            int qrAccountExtra,
+            string? quoteHash = null
+        ) =>
+            new CustomPlanConfig
+            {
+                QuoteHash = quoteHash,
+                Version = 2,
+                CatalogPublicId = "cat",
+                BasePlan = "starter",
+                Cadence = "monthly",
+                Locations = 1,
+                Packs = new Dictionary<string, int> { ["qr_placement"] = qrAccountExtra },
+                PeriodNetPence = periodNetPence,
+                MonthlyNetPence = periodNetPence,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 1,
+                    TeamUsers = 3,
+                    QrPlacements = 5,
+                    QrPlacementsAccountExtra = qrAccountExtra,
+                    Offers = 3,
+                },
+            }.ToJson();
+
+        private void AddCustomCycleIntent(
+            ApplicationDbContext context,
+            int restaurantId,
+            string orderId,
+            int netPence,
+            string? quoteHash = null
+        ) =>
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    CustomPlanQuoteHash = quoteHash,
+                    Id = Guid.NewGuid(),
+                    OrderId = orderId,
+                    RestaurantId = restaurantId,
+                    Purpose = RevolutOrderIntentPurposes.CustomPlanCycle,
+                    TargetPlan = BillingSubscriptionPlans.Custom,
+                    TargetCadence = "monthly",
+                    CheckoutUrl = "https://checkout.test/custom",
+                    IdempotencyKey = $"key-{orderId}",
+                    IsOpen = true,
+                    NetAmountMinor = netPence,
+                    VatAmountMinor = 0,
+                    GrossAmountMinor = netPence,
+                    CreatedAtUtc = _now,
+                }
+            );
+
+        private static RevolutOrderCompletedApplyRequest CustomCompleted(string orderId) =>
+            new(
+                OrderId: orderId,
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: null,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+
+        [Fact]
+        public async Task Apply_CustomPlanCycle_ReplayAfterApply_DoesNotGrantTwice()
+        {
+            await using var context = CreateContext();
+            var (account, _) = await SeedPilotAccountAsync(context);
+            account.SubscriptionPlan = BillingSubscriptionPlans.Custom;
+            account.BillingStatus = BillingStatuses.Active;
+            account.BillingCycle = BillingCycles.Monthly;
+            account.RenewalDateUtc = null;
+            account.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                CatalogPublicId = "cat",
+                Cadence = "monthly",
+                PeriodNetPence = 8_000,
+                MonthlyNetPence = 8_000,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 1,
+                    TeamUsers = 2,
+                    QrPlacements = 5,
+                    Offers = 1,
+                    EmailCredits = 500,
+                    SmsCredits = 20,
+                    AiCredits = 20,
+                },
+            }.ToJson();
+            context.RevolutOrderIntents.Add(
+                new RevolutOrderIntent
+                {
+                    Id = Guid.NewGuid(),
+                    OrderId = "ord_custom_replay",
+                    RestaurantId = account.RestaurantId,
+                    Purpose = RevolutOrderIntentPurposes.CustomPlanCycle,
+                    TargetPlan = BillingSubscriptionPlans.Custom,
+                    TargetCadence = "monthly",
+                    CheckoutUrl = "https://checkout.test/custom",
+                    IdempotencyKey = "custom-cycle-replay",
+                    IsOpen = true,
+                    NetAmountMinor = 8_000,
+                    VatAmountMinor = 0,
+                    GrossAmountMinor = 8_000,
+                    CreatedAtUtc = _now,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var clock = new FixedTimeProvider(_now);
+            var mint = new IncludedPeriodMintService(context, _pricebook, clock);
+            var applier = CreateApplier(context, mint, clock);
+
+            var request = new RevolutOrderCompletedApplyRequest(
+                OrderId: "ord_custom_replay",
+                OrderState: "completed",
+                BillingReason: null,
+                SubscriptionId: null,
+                RawWebhookBody: "{}",
+                RawOrderBody: "{}"
+            );
+            await applier.ApplyAsync(request);
+            var renewal = (
+                await context.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                    row.RestaurantId == account.RestaurantId
+                )
+            ).RenewalDateUtc;
+            var grantsAfterFirst = await context.CreditLedgerEntries.CountAsync();
+            await applier.ApplyAsync(request);
+
+            var kinds = await context.RestaurantBillingActivities
+                .Where(row => row.RestaurantId == account.RestaurantId)
+                .Select(row => row.Kind)
+                .ToListAsync();
+            Assert.Single(kinds, BillingActivityKinds.SubscriptionCreated);
+            Assert.DoesNotContain(BillingActivityKinds.SubscriptionRenewed, kinds);
+            Assert.Equal(grantsAfterFirst, await context.CreditLedgerEntries.CountAsync());
+            Assert.Equal(
+                renewal,
+                (
+                    await context.BillingAccounts.AsNoTracking().SingleAsync(row =>
+                        row.RestaurantId == account.RestaurantId
+                    )
+                ).RenewalDateUtc
+            );
+        }
+
+        [Fact]
         public async Task Apply_SetupFromPilot_KeepsPilotStartAndEnd()
         {
             await using var context = CreateContext();

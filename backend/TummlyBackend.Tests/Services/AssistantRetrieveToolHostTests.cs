@@ -461,7 +461,8 @@ namespace TummlyBackend.Tests.Services
             public Task<(PendingPaymentRetryDto?, int, string?)> RetryPendingPaymentAsync(
                 int userId,
                 int restaurantId,
-                bool actorCanManage
+                bool actorCanManage,
+                string? reviewedCustomPlanConfigJson = null
             ) => Task.FromResult<(PendingPaymentRetryDto?, int, string?)>((null, 404, null));
 
             public Task<BillingActivityListDto?> GetActivityAsync(

@@ -1,4 +1,16 @@
 import {
+  isQuoteReviewCode,
+  quoteReviewMessage,
+  type QuoteReviewCode,
+} from "@/lib/marketingCustomPlan/quoteReview"
+import {
+  pendingPaymentErrorCode,
+  pendingPaymentReviewCode,
+  pendingPaymentSavedChoices,
+  type PendingPaymentSavedChoices,
+  type PendingPaymentSnapshot,
+} from "@/lib/operatorBillingCredits/pendingPaymentReview"
+import {
   formatBillingActivityCopy,
   formatBillingActivityOccurredAt,
   type BillingActivitySnapshot,
@@ -29,7 +41,9 @@ import {
   type CreditsUsageTableRowViewModel,
 } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 import {
+  buildGroupExtraLocationPrice,
   buildManagePlanCardViewModels,
+  buildManagePlanCatalogPrices,
   buildPlanChangeConfirmCopy,
   buildAdditionalGroupLocationViewModel,
   buildExtraLocationRemoveConfirmCopy,
@@ -47,6 +61,8 @@ import {
   type CancelPlanReason,
   type ManagePlanActionConfirmDialog,
   type ManagePlanCardViewModel,
+  type ManagePlanCatalogPlanRow,
+  type ManagePlanCatalogPrice,
   type ManagePlanId,
   type PlanChangeKind,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
@@ -55,6 +71,7 @@ import {
   buildCreditTopUpConfirmCopy,
   type CreditTopUpCardViewModel,
   type CreditTopUpConfirmViewModel,
+  type CreditTopUpPack,
 } from "@/lib/operatorBillingCredits/creditTopUpPresentation"
 import {
   isAccountLockedBillingStatus,
@@ -124,11 +141,7 @@ export type PlanSubscriptionSnapshot = {
   customPlan?: CustomPlanSnapshot | null
   openCustomCycleCheckoutUrl?: string | null
   /** Paid plan whose checkout did not complete. Account stays on Free. */
-  pendingPayment?: {
-    plan: string
-    cadence: string
-    failedAtUtc: string | null
-  } | null
+  pendingPayment?: PendingPaymentSnapshot | null
 }
 
 export type BillingActivityItem = {
@@ -176,7 +189,21 @@ export type BillingCreditsPageData = {
   vatModeActive: boolean
   currentCatalog: {
     vatRateBps: number
+    /** Server Plan prices. Drives Manage plan cards and the Group location price. */
+    plans: ManagePlanCatalogPlanRow[]
+    /** Server top-up packs. Drives the credit top-up cards. */
+    topUpPacks: CreditTopUpPack[]
   }
+}
+
+export type PendingPaymentReviewView = {
+  code: QuoteReviewCode
+  /** Approved copy for the code. */
+  message: string
+  open: boolean
+  busy: boolean
+  /** The saved choices to quote again; null when the owner must choose again. */
+  savedChoices: PendingPaymentSavedChoices | null
 }
 
 export type PlanChangeRequest = {
@@ -248,7 +275,10 @@ export type BillingCreditsPageAdapters = {
   removeExtraGroupLocation?: () => Promise<ExtraLocationChangeResult>
   cancelPlan?: (request: CancelPlanRequest) => Promise<CancelPlanResult>
   payCustomPlanCycle?: () => Promise<{ checkoutUrl: string }>
-  retryPendingPayment?: () => Promise<{ checkoutUrl: string }>
+  /** With `reviewed`, pays the fresh quote the owner reviewed (its config and hash). */
+  retryPendingPayment?: (reviewed?: {
+    customPlanConfigJson: string
+  }) => Promise<{ checkoutUrl: string }>
   createPaymentMethodUpdateSession?: () => Promise<{ redirectUrl: string }>
   fetchInvoicePdf?: (invoiceNo: string) => Promise<Blob>
   openInvoicePdf?: (blob: Blob) => void
@@ -294,6 +324,8 @@ export type BillingCreditsSnapshot = {
   managePlanLockMode: "none" | "pilot-restore" | "dunning"
   /** Effective catalog VAT rate (bps); 0 hides “+ VAT” chrome. */
   vatRateBps: number
+  /** Extra Group Location price from the catalogue; null when not published. */
+  groupExtraLocation: ManagePlanCatalogPrice | null
   vatModeActive: boolean
   /** False when rate is 0 — hide Manage plan VAT notice. */
   showVatNotice: boolean
@@ -340,6 +372,8 @@ export type BillingCreditsSnapshot = {
   resumeCustomCycleBusy: boolean
   showRetryPendingPayment: boolean
   retryPendingPaymentBusy: boolean
+  /** Set when the saved Custom quote is stale or retired: review a fresh quote before paying. */
+  pendingPaymentReview: PendingPaymentReviewView | null
   extraLocationConfirm: ManagePlanActionConfirmDialog | null
   cancelPlanConfirm: CancelPlanDialogState | null
   toast: { kind: "success" | "error"; message: string } | null
@@ -398,6 +432,10 @@ export type OperatorBillingCreditsPageModule = {
   confirmCancelPlan: () => Promise<void>
   resumeCustomPlanCycle: () => Promise<void>
   retryPendingPayment: () => Promise<void>
+  openPendingPaymentReview: () => void
+  closePendingPaymentReview: () => void
+  /** Pays the fresh quote the owner reviewed and acknowledged. */
+  confirmPendingPaymentReview: (customPlanConfigJson: string) => Promise<void>
   openUpdatePaymentMethodConfirm: () => void
   dismissUpdatePaymentMethodConfirm: () => void
   confirmUpdatePaymentMethod: () => Promise<void>
@@ -565,6 +603,8 @@ export function createOperatorBillingCreditsPageModule(
   let cancelPlanConfirm: CancelPlanDialogState | null = null
   let resumeCustomCycleBusy = false
   let retryPendingPaymentBusy = false
+  let pendingPaymentAttemptCode: string | null = null
+  let pendingPaymentReviewOpen = false
   let pendingLeave: PendingLeave | null = null
   let leaveDirtyOpen = false
   let isSaving = false
@@ -621,6 +661,7 @@ export function createOperatorBillingCreditsPageModule(
       canBuy: canBuyCreditTopUp() && !locked,
       selectedPackByChannel,
       focusedChannel: focusedTopUpChannel,
+      topUpPacks: data?.currentCatalog.topUpPacks ?? [],
       vatRateBps: resolveVatRateBps(),
     })
   }
@@ -758,6 +799,9 @@ export function createOperatorBillingCreditsPageModule(
             plan,
             previewCadence,
             lockMode: managePlanLockMode,
+            catalogPrices: buildManagePlanCatalogPrices(
+              data?.currentCatalog.plans ?? []
+            ),
             vatRateBps: resolveVatRateBps(),
           })
         : []
@@ -809,6 +853,9 @@ export function createOperatorBillingCreditsPageModule(
       planSubscription: plan,
       managePlanLockMode,
       vatRateBps: resolveVatRateBps(),
+      groupExtraLocation: buildGroupExtraLocationPrice(
+        data?.currentCatalog.plans ?? []
+      ),
       vatModeActive: data?.vatModeActive ?? false,
       showVatNotice: showsBillingVatChrome(resolveVatRateBps()),
       creditsUsage,
@@ -860,6 +907,7 @@ export function createOperatorBillingCreditsPageModule(
       resumeCustomCycleBusy,
       showRetryPendingPayment,
       retryPendingPaymentBusy,
+      pendingPaymentReview: projectPendingPaymentReview(),
       extraLocationConfirm,
       cancelPlanConfirm,
       toast,
@@ -932,6 +980,23 @@ export function createOperatorBillingCreditsPageModule(
     billingActivityHistoryPage = list.page
     billingActivityHistoryPageSize = list.pageSize
     billingActivityHistoryTotalCount = list.totalCount
+  }
+
+  function projectPendingPaymentReview(): PendingPaymentReviewView | null {
+    const pending = data?.planSubscription.pendingPayment
+    const code = pendingPaymentReviewCode(pending, pendingPaymentAttemptCode)
+    if (code == null) {
+      return null
+    }
+    return {
+      code,
+      message: quoteReviewMessage(code) ?? "",
+      open: pendingPaymentReviewOpen,
+      busy: retryPendingPaymentBusy,
+      // A retired option is never converted: the owner chooses again.
+      savedChoices:
+        code === "legacy_pack_key" ? null : pendingPaymentSavedChoices(pending),
+    }
   }
 
   const refreshSnapshot = () => {
@@ -1555,15 +1620,71 @@ export function createOperatorBillingCreditsPageModule(
         return
       }
 
+      // A stale or retired saved quote starts no charge: the owner reviews a fresh one.
+      if (
+        pendingPaymentReviewCode(
+          data?.planSubscription.pendingPayment,
+          pendingPaymentAttemptCode
+        ) != null
+      ) {
+        pendingPaymentReviewOpen = true
+        refreshSnapshot()
+        return
+      }
+
       retryPendingPaymentBusy = true
       refreshSnapshot()
       try {
         const result = await adapters.retryPendingPayment()
         pendingPayRedirectUrl = result.checkoutUrl
-      } catch {
-        toast = {
-          kind: "error",
-          message: "Could not open checkout. Try again.",
+      } catch (error) {
+        const code = pendingPaymentErrorCode(error)
+        if (isQuoteReviewCode(code)) {
+          pendingPaymentAttemptCode = code
+          pendingPaymentReviewOpen = true
+        } else {
+          toast = {
+            kind: "error",
+            message: "Could not open checkout. Try again.",
+          }
+        }
+      } finally {
+        retryPendingPaymentBusy = false
+        refreshSnapshot()
+      }
+    },
+    openPendingPaymentReview: () => {
+      pendingPaymentReviewOpen = true
+      refreshSnapshot()
+    },
+    closePendingPaymentReview: () => {
+      pendingPaymentReviewOpen = false
+      refreshSnapshot()
+    },
+    confirmPendingPaymentReview: async (customPlanConfigJson) => {
+      if (adapters.retryPendingPayment == null || retryPendingPaymentBusy) {
+        return
+      }
+
+      retryPendingPaymentBusy = true
+      refreshSnapshot()
+      try {
+        const result = await adapters.retryPendingPayment({
+          customPlanConfigJson,
+        })
+        pendingPaymentAttemptCode = null
+        pendingPaymentReviewOpen = false
+        pendingPayRedirectUrl = result.checkoutUrl
+      } catch (error) {
+        const code = pendingPaymentErrorCode(error)
+        if (isQuoteReviewCode(code)) {
+          // Still stale or retired: stay in the review with the matching copy.
+          pendingPaymentAttemptCode = code
+        } else {
+          toast = {
+            kind: "error",
+            message: "Could not open checkout. Try again.",
+          }
         }
       } finally {
         retryPendingPaymentBusy = false

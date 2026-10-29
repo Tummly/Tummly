@@ -70,7 +70,8 @@ namespace TummlyBackend.Services
             bool isEmail,
             LocationGuestPermissionKind kind,
             string ledgerSource,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? suppressionSource = null
         )
         {
             var raw = (normalizedEmailOrE164 ?? string.Empty).Trim();
@@ -150,9 +151,13 @@ namespace TummlyBackend.Services
                 var contactType = isEmail
                     ? ContactType.Email
                     : ContactType.Phone;
-                var source = isEmail
-                    ? GuestContactSuppressionSources.EmailUnsubscribe
-                    : GuestContactSuppressionSources.SmsStop;
+                var source =
+                    suppressionSource
+                    ?? (
+                        isEmail
+                            ? GuestContactSuppressionSources.EmailUnsubscribe
+                            : GuestContactSuppressionSources.SmsStop
+                    );
 
                 if (
                     GuestContactKey.TryCreate(

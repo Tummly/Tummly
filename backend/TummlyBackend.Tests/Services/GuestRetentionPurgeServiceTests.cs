@@ -260,6 +260,11 @@ namespace TummlyBackend.Tests.Services
             public void Append(AdminAuditAppendRequest request) =>
                 throw new InvalidOperationException("forced audit failure");
 
+            public Task AppendAndSaveAsync(
+                AdminAuditAppendRequest request,
+                CancellationToken cancellationToken = default
+            ) => throw new InvalidOperationException("forced audit failure");
+
             public Task<AdminAuditListResult> ListAsync(
                 AdminAuditListQuery query,
                 CancellationToken cancellationToken = default

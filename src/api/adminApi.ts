@@ -8,6 +8,10 @@ import type {
   ExtendActivationPayload,
 } from "../types/admin";
 import type {
+  AdminPremisesReviewAction,
+  AdminPremisesReviewItem,
+} from "../types/adminPremisesReview";
+import type {
   AdminAuditEventsResponse,
   AdminEnvironment,
   AdminOverview,
@@ -295,6 +299,21 @@ export async function retryOperatorPrintMaterial(
     (response.data?.data ?? {}) as Record<string, unknown>
   );
 }
+
+export const getPremisesReviews = async (): Promise<AdminPremisesReviewItem[]> => {
+  const response = await axiosInstance.get("/admin/premises-reviews");
+  return (response.data.items ?? []) as AdminPremisesReviewItem[];
+};
+
+export const resolvePremisesReview = async (
+  locationId: number,
+  action: AdminPremisesReviewAction,
+  reason: string
+): Promise<void> => {
+  await axiosInstance.post(`/admin/premises-reviews/${locationId}/${action}`, {
+    reason,
+  });
+};
 
 export const getAdminOverview = async (): Promise<AdminOverview> => {
   const response = await axiosInstance.get("/admin/overview");

@@ -385,6 +385,13 @@ builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
 builder.Services.AddScoped<IGuestFormSubmitLock, GuestFormSubmitLock>();
 builder.Services.AddScoped<IGuestReplyLock, GuestReplyLock>();
+builder.Services.AddScoped<ICampaignFireLock, CampaignFireLock>();
+
+// Ofcom 07700 900xxx drama range: accepted for guest contact and sent to a
+// provider only when this flag is on (QA sets it on the revision; prod off).
+ReservedTestNumberPolicy.Configure(
+    builder.Configuration.GetValue(ReservedTestNumberPolicy.ConfigurationKey, false)
+);
 
 builder.Services.AddSingleton<IGuestContactHasher>(sp =>
     GuestContactHasher.FromConfiguration(
@@ -1289,6 +1296,8 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IPremisesReviewService, PremisesReviewService>();
+builder.Services.AddScoped<IAdminPremisesReviewService, AdminPremisesReviewService>();
 builder.Services.AddScoped<IAdminStaffService, AdminStaffService>();
 builder.Services.AddScoped<IStaffAccountService, StaffAccountService>();
 builder.Services.AddScoped<IAdminAccountDirectoryService, AdminAccountDirectoryService>();

@@ -96,6 +96,7 @@ jobs:
               "ASPNETCORE_URLS=http://+:8080" \
               "AZURE_CLIENT_ID=${{ env.API_MANAGED_IDENTITY_CLIENT_ID }}" \
               "WeeklyBrief__OneTimeGenerateOnStartup=true" \
+              "GuestContact__AllowReservedTestNumbers=true" \
             --cpu 0.5 \
             --memory 1.0Gi
 

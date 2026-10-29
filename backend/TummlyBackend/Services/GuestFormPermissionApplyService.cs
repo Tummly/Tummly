@@ -63,6 +63,11 @@ namespace TummlyBackend.Services
                 LocationGuestPermissionKind.FeedbackFollowUp
             ];
 
+            var currentGrants = await LatestGrantEvidenceAsync(
+                locationGuest,
+                cancellationToken
+            );
+
             var events = LocationGuestChannelPermissionGate.LedgerEventsForGuestFormSubmit(
                 restaurant,
                 marketingConsentGranted,
@@ -82,6 +87,19 @@ namespace TummlyBackend.Services
                     restaurant,
                     locationName
                 );
+
+                if (
+                    eventKind == LocationGuestPermissionLedgerEventKinds.Grant
+                    && LocationGuestChannelPermissionGate.IsGrantAlreadyRecorded(
+                        effectiveStates[kind],
+                        currentGrants[kind],
+                        evidence
+                    )
+                )
+                {
+                    continue;
+                }
+
                 _ledger.RecordEvent(
                     locationGuest,
                     restaurantLocationId,
@@ -104,6 +122,47 @@ namespace TummlyBackend.Services
             await _ledger.SyncMarketingPreferenceRollupAsync(
                 locationGuest,
                 cancellationToken
+            );
+        }
+
+        /// <summary>
+        /// Latest Grant evidence per kind for this guest. Null when the latest
+        /// row is a Withdraw or there is no ledger row.
+        /// </summary>
+        private async Task<
+            IReadOnlyDictionary<LocationGuestPermissionKind, PermissionLedgerEvidence?>
+        > LatestGrantEvidenceAsync(
+            LocationGuest locationGuest,
+            CancellationToken cancellationToken
+        )
+        {
+            var rows = await _context.LocationGuestPermissionLedgerEntries
+                .AsNoTracking()
+                .Where(e => e.LocationGuestId == locationGuest.Id)
+                .ToListAsync(cancellationToken);
+
+            var latest = rows
+                .GroupBy(e => e.PermissionKind)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(e => e.OccurredAt)
+                        .ThenByDescending(e => e.Id)
+                        .First()
+                );
+
+            return LocationGuestPermissionKindExtensions.All.ToDictionary(
+                kind => kind,
+                kind =>
+                    latest.TryGetValue(kind, out var row)
+                    && row.EventKind == LocationGuestPermissionLedgerEventKinds.Grant
+                        ? new PermissionLedgerEvidence(
+                            row.Basis,
+                            row.GuestFormVersion ?? string.Empty,
+                            row.WordingVersion ?? string.Empty,
+                            row.PrivacyNoticeVersion ?? string.Empty,
+                            row.WordingSnapshot ?? string.Empty
+                        )
+                        : null
             );
         }
 

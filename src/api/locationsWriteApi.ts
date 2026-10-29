@@ -10,6 +10,18 @@ export type CreateOwnedLocationInput = {
   postcode: string
   locationPhone?: string
   localContact?: string
+  /** Optional FSA establishment id. Sent as typed; the server never looks it up. */
+  fsaEstablishmentId?: string
+}
+
+/**
+ * Generic premises warning. Every match looks the same: no scope, id or name.
+ * `matchedRowIndex` is set only for an earlier row of the caller's own file.
+ */
+export type PossibleDuplicatePremisesWarning = {
+  code: string
+  message?: string
+  matchedRowIndex?: number | null
 }
 
 function readApiError(error: unknown, fallback: string): string {
@@ -41,11 +53,15 @@ function readApiError(error: unknown, fallback: string): string {
 
 export async function createOwnedLocation(
   input: CreateOwnedLocationInput
-): Promise<{ locationId: number }> {
+): Promise<{
+  locationId: number
+  warning?: PossibleDuplicatePremisesWarning | null
+}> {
   try {
     const response = await axiosInstance.post<{
       success?: boolean
       locationId?: number
+      warning?: PossibleDuplicatePremisesWarning | null
     }>("/locations", {
       locationName: input.locationName,
       address: input.address,
@@ -53,12 +69,13 @@ export async function createOwnedLocation(
       postcode: input.postcode,
       locationPhone: input.locationPhone,
       localContact: input.localContact,
+      fsaEstablishmentId: input.fsaEstablishmentId,
     })
     const locationId = response.data.locationId
     if (typeof locationId !== "number") {
       throw new Error("Create location response missing locationId.")
     }
-    return { locationId }
+    return { locationId, warning: response.data.warning ?? null }
   } catch (error) {
     throw new Error(readApiError(error, "Could not create location."))
   }
@@ -99,10 +116,17 @@ export type ImportOwnedLocationRowInput = {
   postcode: string
   locationPhone?: string
   localContact?: string
+  fsaEstablishmentId?: string
 }
 
+export type ImportOwnedLocationWarning = PossibleDuplicatePremisesWarning
+
 export type ImportOwnedLocationsResult = {
-  created: Array<{ rowIndex: number; locationId: number }>
+  created: Array<{
+    rowIndex: number
+    locationId: number
+    warning?: ImportOwnedLocationWarning | null
+  }>
   errors: Array<{
     rowIndex: number
     message: string

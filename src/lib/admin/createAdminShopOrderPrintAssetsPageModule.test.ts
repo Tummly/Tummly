@@ -18,7 +18,12 @@ function order(): AdminShopOrderListItem {
     opsNotes: null,
     paidAtUtc: "2026-09-11T12:00:00Z",
     createdAtUtc: "2026-09-11T11:50:00Z",
+    preparationStartedAtUtc: null,
     productionStartedAtUtc: null,
+    dispatchedAtUtc: null,
+    dispatchCarrierName: null,
+    dispatchCarrierReference: null,
+    deliveredAtUtc: null,
     grossPence: 1000,
     lines: [],
     printAssets: [

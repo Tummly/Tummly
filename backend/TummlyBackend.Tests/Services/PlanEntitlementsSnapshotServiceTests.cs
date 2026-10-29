@@ -1,7 +1,11 @@
 using TummlyBackend.Tests.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Billing.CustomPlan;
 using TummlyBackend.Billing.Pricebook;
+using TummlyBackend.Configurations;
+using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Models;
@@ -220,6 +224,99 @@ namespace TummlyBackend.Tests.Services
             var snapshot = await _service.GetLocationAsync(restaurantId, locationId);
 
             Assert.Equal(80, snapshot!.ActiveQrPlacements.Cap);
+        }
+
+        [Fact]
+        public async Task GetAccountAndLocation_CustomSingleUnits_ReadTheQuotedCapacity()
+        {
+            // Commercial V4: the units a guest buys are the limits the account enforces.
+            var catalogOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+            await using var catalogContext = new ApplicationDbContext(catalogOptions);
+            var pricebook = PricebookCatalog.LoadFromDirectory(PackDirectory());
+            catalogContext.CommercialCatalogVersions.Add(
+                CommercialCatalogSeeder.FromSnapshot(
+                    pricebook.GetRequired(pricebook.CurrentPricebookId),
+                    DateTime.UtcNow
+                )
+            );
+            await catalogContext.SaveChangesAsync();
+            var quote = await new CustomPlanQuoteService(
+                catalogContext,
+                Options.Create(new TummlySellerVatSettings())
+            ).QuoteAsync(
+                new CustomPlanQuoteRequest
+                {
+                    Cadence = "monthly",
+                    BasePlan = "starter",
+                    Locations = 1,
+                    Packs = new Dictionary<string, decimal>
+                    {
+                        [CustomPlanPacks.TeamUser] = 7,
+                        [CustomPlanPacks.Offer] = 13,
+                        [CustomPlanPacks.QrPlacement] = 2,
+                    },
+                }
+            );
+
+            var restaurantId = await SeedRestaurantAsync(BillingSubscriptionPlans.Custom);
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            account.CustomPlanConfigJson = quote.ToConfig().ToJson();
+            // The verified payment has settled: the plan is Active, so the units count.
+            account.BillingStatus = BillingStatuses.Active;
+            await _context.SaveChangesAsync();
+            var locationId = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            var accountSnapshot = await _service.GetAccountAsync(restaurantId);
+            var locationSnapshot = await _service.GetLocationAsync(restaurantId, locationId);
+
+            // Starter includes 3 team users, 3 Offers and 10 QR placements.
+            Assert.Equal(3 + 7, accountSnapshot.TeamMembers.Cap);
+            Assert.Equal(3 + 13, accountSnapshot.ActiveOffers.Cap);
+            Assert.Equal(10 + 2, locationSnapshot!.ActiveQrPlacements.Cap);
+        }
+
+        [Fact]
+        public async Task GetAccountAndLocation_CustomPlanBeforeSettlement_ReportsUnavailable()
+        {
+            var restaurantId = await SeedRestaurantAsync(BillingSubscriptionPlans.Custom);
+            var account = await _context.BillingAccounts
+                .SingleAsync(row => row.RestaurantId == restaurantId);
+            account.CustomPlanConfigJson = new CustomPlanConfig
+            {
+                Version = 2,
+                BasePlan = "starter",
+                Cadence = "monthly",
+                Locations = 1,
+                Quantities = new CustomPlanQuantities
+                {
+                    Locations = 1,
+                    TeamUsers = 503,
+                    Offers = 503,
+                    QrPlacements = 10,
+                    QrPlacementsAccountExtra = 500,
+                },
+                MonthlyNetPence = 3900,
+                PeriodNetPence = 3900,
+            }.ToJson();
+            Assert.Equal(BillingStatuses.Free, account.BillingStatus);
+            await _context.SaveChangesAsync();
+            var locationId = await _context.RestaurantLocations
+                .Where(row => row.RestaurantId == restaurantId)
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            var accountSnapshot = await _service.GetAccountAsync(restaurantId);
+            var locationSnapshot = await _service.GetLocationAsync(restaurantId, locationId);
+
+            Assert.False(accountSnapshot.TeamMembers.Available);
+            Assert.False(accountSnapshot.ActiveOffers.Available);
+            Assert.False(locationSnapshot!.ActiveQrPlacements.Available);
         }
 
         /// <summary>

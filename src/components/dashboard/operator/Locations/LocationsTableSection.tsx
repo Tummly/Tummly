@@ -38,6 +38,7 @@ import {
   type LocationRowActionId,
   type LocationsSortId,
 } from "@/lib/operatorLocations/locationsPresentation"
+import { premisesReviewLabel } from "@/lib/operatorLocations/premisesReviewPresentation"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -221,6 +222,7 @@ export function LocationsTableSection({
                   )
                   const lifecycleLabel =
                     LOCATION_LIFECYCLE_LABELS[row.lifecycleStatus]
+                  const reviewLabel = premisesReviewLabel(row.premisesReviewStatus)
                   const setupLabel = LOCATION_SETUP_LABELS[row.setupStatus]
                   const actions = snap.rowActionsById[row.id] ?? []
 
@@ -248,18 +250,25 @@ export function LocationsTableSection({
                         )}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        {lifecycleVariant == null ? (
-                          <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                            {lifecycleLabel}
-                          </span>
-                        ) : (
-                          <Badge
-                            variant={lifecycleVariant}
-                            className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
-                          >
-                            {lifecycleLabel}
-                          </Badge>
-                        )}
+                        <div className="flex flex-col items-start gap-1">
+                          {lifecycleVariant == null ? (
+                            <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                              {lifecycleLabel}
+                            </span>
+                          ) : (
+                            <Badge
+                              variant={lifecycleVariant}
+                              className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
+                            >
+                              {lifecycleLabel}
+                            </Badge>
+                          )}
+                          {reviewLabel != null ? (
+                            <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                              {reviewLabel}
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge

@@ -36,6 +36,8 @@ export type LocationDetailApiHeader = {
   name: string
   city: string | null
   lifecycleStatus: LocationLifecycleStatus
+  /** Set while a duplicate-premises review blocks the Location. */
+  premisesReviewStatus?: "pending_review" | "rejected" | null
   setupStatus: LocationSetupStatus
   managerName: string | null
   managerUserId: number | null

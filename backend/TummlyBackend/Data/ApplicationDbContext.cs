@@ -2419,6 +2419,15 @@ namespace TummlyBackend.Data
                 .Property(c => c.RowVersion)
                 .IsRowVersion();
 
+            // One open Draft per Location and Home recommendation source (draft reuse).
+            // Submitted, sent, failed or cancelled Campaigns drop out of the index.
+            modelBuilder.Entity<Campaign>()
+                .HasIndex(c => new { c.RestaurantLocationId, c.RecommendationSourceKey })
+                .IsUnique()
+                .HasFilter(
+                    "[Status] = N'draft' AND [RecommendationSourceKey] IS NOT NULL"
+                );
+
             // Drafts list: filter location + status, sort UpdatedAt desc (audit 13 / DB-04).
             modelBuilder.Entity<Campaign>()
                 .HasIndex(c => new
@@ -2551,6 +2560,21 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<RestaurantLocation>()
                 .HasIndex(l => l.OfferCardCatalogOfferId);
+
+            /*
+             =========================================
+             PREMISES REVIEW (lookup indexes, review queue)
+             =========================================
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.PremisesKey);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.FsaEstablishmentId);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.PremisesReviewStatus);
 
             /*
              =========================================
@@ -3126,6 +3150,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChanges();
         }
 
@@ -3134,6 +3159,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
 
@@ -3144,6 +3170,7 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChangesAsync(cancellationToken);
         }
 
@@ -3155,10 +3182,28 @@ namespace TummlyBackend.Data
             EnsureRestaurantKeyContactDefaults();
             DropArchivedLocationIdsFromNamedLists();
             StampInMemoryCampaignRowVersions();
+            EnsureAdminAuditIsAppendOnly();
             return base.SaveChangesAsync(
                 acceptAllChangesOnSuccess,
                 cancellationToken
             );
+        }
+
+        /// <summary>
+        /// Admin audit rows are append-only. A row that is changed or removed fails the save,
+        /// so no code path can rewrite the trail.
+        /// </summary>
+        private void EnsureAdminAuditIsAppendOnly()
+        {
+            foreach (var entry in ChangeTracker.Entries<AdminAuditEvent>())
+            {
+                if (entry.State is EntityState.Modified or EntityState.Deleted)
+                {
+                    throw new InvalidOperationException(
+                        "Admin audit events are append-only."
+                    );
+                }
+            }
         }
 
         /// <summary>

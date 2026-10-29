@@ -7732,6 +7732,8 @@ namespace TummlyBackend.Services
 
             if (validated is AdvisoryReasonValidateResult.FallbackNoClearDriver)
             {
+                // No-clear-driver is not an answer: persist without turnBilling
+                // so no AI action is consumed.
                 conversation.LastCompareLocationIdsJson = null;
                 return await PersistAssistantAsync(
                     conversation,
@@ -7743,8 +7745,7 @@ namespace TummlyBackend.Services
                     ),
                     replaceFailure,
                     cancellationToken,
-                    liveAnswerAlreadyCompleted: true,
-                    turnBilling: turnBilling
+                    liveAnswerAlreadyCompleted: true
                 );
             }
 

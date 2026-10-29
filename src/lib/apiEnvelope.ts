@@ -152,9 +152,13 @@ export function unwrapDataArray(payload: unknown): unknown[] {
   return Array.isArray(data) ? data : []
 }
 
-export function getFetchErrorMessage(
-  result: { message?: string },
-  fallback: string
-): string {
-  return result.message?.trim() || fallback
+/** Safe for any error body: a missing response (network failure) or non-object body yields the fallback. */
+export function getFetchErrorMessage(result: unknown, fallback: string): string {
+  const message = asRecord(result)?.message
+
+  if (typeof message === "string" && message.trim()) {
+    return message.trim()
+  }
+
+  return fallback
 }

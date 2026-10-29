@@ -11,6 +11,8 @@ export type UploadedLocationDraft = {
   addressOverridden: boolean
   locationPhone: string
   localContact: string
+  /** Optional FSA establishment id from the CSV. Never required. */
+  fsaEstablishmentId?: string
 }
 
 export type UploadedLocationStatus =

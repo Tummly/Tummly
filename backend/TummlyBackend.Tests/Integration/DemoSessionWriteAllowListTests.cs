@@ -42,6 +42,14 @@ namespace TummlyBackend.Tests.Integration
                 { "POST", "/api/billing-credits/top-up" },
                 { "POST", "/api/shop/orders" },
                 { "POST", "/api/assistant/stt" },
+                { "POST", "/api/campaigns/1/delete" },
+                { "POST", "/api/campaigns/send-test" },
+                { "POST", "/api/billing-credits/top-up/pay" },
+                { "POST", "/api/billing-credits/cancel-plan" },
+                { "PATCH", "/api/account/profile" },
+                { "PUT", "/api/team-permissions/matrix" },
+                { "POST", "/api/team-permissions/invitations" },
+                { "DELETE", "/api/locations/1" },
             };
 
         [Theory]

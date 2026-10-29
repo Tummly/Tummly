@@ -79,9 +79,14 @@ namespace TummlyBackend.Controllers
          =========================================
         */
 
+        /// <param name="preview">
+        /// True when an operator opens the guest form from Home Preview
+        /// (<c>preview=true</c>). Preview visits are not recorded as scans.
+        /// </param>
         [HttpGet("{token}")]
         public async Task<IActionResult> GetLocationByToken(
-            string token
+            string token,
+            [FromQuery] bool preview = false
         )
         {
             var normalizedToken = token?.Trim();
@@ -121,7 +126,7 @@ namespace TummlyBackend.Controllers
                     var location = live.Location;
 
                     // First-party scan + form-open events for Capture / Reports KPIs
-                    // (QR, shared Smart Guest Link, and operator Preview form).
+                    // (QR and shared Smart Guest Link).
                     var openedAt = DateTime.UtcNow;
                     var isDemo =
                         IsMaveroDemoToken(normalizedToken)
@@ -131,8 +136,9 @@ namespace TummlyBackend.Controllers
                             location.LocationId,
                             HttpContext.RequestAborted
                         );
-                    // Product-demo QR: visits must not inflate shared KPIs.
-                    if (!isDemo)
+                    // Product-demo QR and operator Preview: visits must not inflate
+                    // shared KPIs.
+                    if (!isDemo && !preview)
                     {
                         _context.QrScanEvents.Add(
                             new QrScanEvent

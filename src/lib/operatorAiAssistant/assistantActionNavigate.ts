@@ -51,6 +51,7 @@ export type AssistantCampaignsIntent =
   | {
       /** Home Recommended next step — Review campaign draft (ticket 06). */
       openFromRecommendation: {
+        recommendationType: string
         draftPrefill: CampaignRecommendationDraftPrefill
       }
     }

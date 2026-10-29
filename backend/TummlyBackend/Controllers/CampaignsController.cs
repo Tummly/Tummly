@@ -248,7 +248,10 @@ namespace TummlyBackend.Controllers
         [HttpGet("eligibility")]
         public async Task<IActionResult> GetCampaignEligibility(
             [FromQuery] int locationId,
-            [FromQuery] string audienceKey
+            [FromQuery] string audienceKey,
+            [FromQuery] int? offerId = null,
+            [FromQuery] int? lookbackDays = null,
+            [FromQuery] string? timeZone = null
         )
         {
             var unauthorized =
@@ -272,7 +275,8 @@ namespace TummlyBackend.Controllers
             {
                 var eligibility = await _campaignEligibility.EvaluateAsync(
                     locationId,
-                    audienceKey
+                    audienceKey,
+                    new CampaignAudienceScope(offerId, lookbackDays, timeZone)
                 );
 
                 return Ok(new
@@ -508,6 +512,63 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        /// <summary>
+        /// Home recommendation click. Returns the open Draft for this recommendation
+        /// at the Location, or creates it. <c>reused</c> tells the wizard which one it got.
+        /// </summary>
+        [HttpPost("recommendation-drafts")]
+        public async Task<IActionResult> CreateRecommendationDraft(
+            [FromBody] CreateRecommendationCampaignDraftRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation = await GateLocationAsync(
+                request.Draft.LocationId
+            );
+            var denied = ownedLocation.ToHttpResult();
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignDrafts.CreateOrGetFromRecommendationAsync(
+                    request,
+                    userId
+                );
+                return Ok(new
+                {
+                    success = true,
+                    campaign = result.Campaign,
+                    reused = result.Reused,
+                });
+            }
+            catch (OperatorBillingLockedException ex)
+            {
+                return OperatorBillingLockGate.Forbidden(ex.Code);
+            }
+            catch (PlanEntitlementCapException ex)
+            {
+                return PlanEntitlementHttp.ToConflict(this, ex);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         [HttpGet("{campaignId:int}")]
         public async Task<IActionResult> GetCampaign(int campaignId)
         {
@@ -673,6 +734,16 @@ namespace TummlyBackend.Controllers
             if (denied != null)
             {
                 return denied;
+            }
+
+            if (!request.Confirmed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    code = "confirmation_required",
+                    message = "Confirm the send or schedule before committing.",
+                });
             }
 
             try
@@ -1097,6 +1168,12 @@ namespace TummlyBackend.Controllers
                     success = false,
                     code = "not_fireable",
                     message = notFireable.Message,
+                }),
+                CampaignFireResult.InProgress => Conflict(new
+                {
+                    success = false,
+                    code = "fire_in_progress",
+                    message = "This campaign is already being sent. Reload to see its status.",
                 }),
                 CampaignFireResult.Conflict => Conflict(new
                 {

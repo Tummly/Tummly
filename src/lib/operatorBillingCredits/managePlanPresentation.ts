@@ -1,4 +1,5 @@
 import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
+import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/createOperatorBillingCreditsPageModule"
 
 export const MANAGE_PLAN_IDS = ["Pilot", "Starter", "Growth", "Group"] as const
@@ -37,6 +38,71 @@ export type PlanCardCta =
 
 export type PlanFeatureIcon = "email" | "sms" | "ai"
 
+/** One Plan's net price from the server catalogue, in pence. */
+export type ManagePlanCatalogPrice = {
+  monthlyNetPence: number
+  annualNetPence: number
+}
+
+/** Server catalogue Plan row as returned on the Billing page (`currentCatalog.plans`). */
+export type ManagePlanCatalogPlanRow = ManagePlanCatalogPrice & {
+  id: string
+  extraLocationMonthlyNetPence: number | null
+  extraLocationAnnualNetPence: number | null
+}
+
+/** Prices by Plan. A Plan without a row has no price: its card shows a dash and cannot be bought. */
+export type ManagePlanCatalogPrices = Partial<
+  Record<ManagePlanId, ManagePlanCatalogPrice>
+>
+
+/** Shown in place of a price when the server catalogue has no row for the Plan. */
+export const MANAGE_PLAN_PRICE_UNAVAILABLE = "—"
+
+export function buildManagePlanCatalogPrices(
+  rows: readonly ManagePlanCatalogPlanRow[]
+): ManagePlanCatalogPrices {
+  const prices: ManagePlanCatalogPrices = {}
+  for (const row of rows) {
+    const id = MANAGE_PLAN_IDS.find(
+      (candidate) => candidate.toLowerCase() === row.id.trim().toLowerCase()
+    )
+    if (id != null) {
+      prices[id] = {
+        monthlyNetPence: row.monthlyNetPence,
+        annualNetPence: row.annualNetPence,
+      }
+    }
+  }
+  return prices
+}
+
+/** Extra Group Location price from the Group row; null when the catalogue has none. */
+export function buildGroupExtraLocationPrice(
+  rows: readonly ManagePlanCatalogPlanRow[]
+): ManagePlanCatalogPrice | null {
+  const group = rows.find((row) => row.id.trim().toLowerCase() === "group")
+  if (
+    group?.extraLocationMonthlyNetPence == null
+    || group.extraLocationAnnualNetPence == null
+  ) {
+    return null
+  }
+  return {
+    monthlyNetPence: group.extraLocationMonthlyNetPence,
+    annualNetPence: group.extraLocationAnnualNetPence,
+  }
+}
+
+/** “Save £X per year” from the catalogue; null when annual is not cheaper. */
+function annualSaveLabelFor(price: ManagePlanCatalogPrice): string | null {
+  const savePence = price.monthlyNetPence * 12 - price.annualNetPence
+  if (savePence <= 0) {
+    return null
+  }
+  return `Save ${formatPenceGbp(savePence)} per year`
+}
+
 export type ManagePlanFeatureRow = {
   label: string
   value: string
@@ -74,9 +140,6 @@ export type ManagePlanFaqItem = {
 
 type PlanCatalogEntry = {
   description: string
-  monthlyPriceNet: string
-  annualPriceNet: string
-  annualSaveLabel: string
   priceSublinePilot: string | null
   emailCreditsLabel: string
   smsCreditsLabel: string
@@ -102,9 +165,6 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
   Pilot: {
     description:
       "Try Guest Loop in one real Location before choosing a paid plan.",
-    monthlyPriceNet: "£0",
-    annualPriceNet: "£0",
-    annualSaveLabel: "",
     priceSublinePilot: "No payment card required",
     emailCreditsLabel: "500 once",
     smsCreditsLabel: "20 once",
@@ -135,9 +195,6 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
   Starter: {
     description:
       "For one Location that wants to hear from guests, build a guest list and bring people back.",
-    monthlyPriceNet: "£39",
-    annualPriceNet: "£398",
-    annualSaveLabel: "Save £70 per year",
     priceSublinePilot: null,
     emailCreditsLabel: "2,500/month",
     smsCreditsLabel: "100/month",
@@ -170,9 +227,6 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
   Growth: {
     description:
       "For active restaurants and small groups that need more reach and multi-Location visibility.",
-    monthlyPriceNet: "£99",
-    annualPriceNet: "£1,010",
-    annualSaveLabel: "Save £178 per year",
     priceSublinePilot: null,
     emailCreditsLabel: "10,000/month",
     smsCreditsLabel: "350/month",
@@ -205,9 +259,6 @@ export const MANAGE_PLAN_CATALOG: Record<ManagePlanId, PlanCatalogEntry> = {
   Group: {
     description:
       "For growing restaurant groups that need more Locations, control and consolidated reporting.",
-    monthlyPriceNet: "£199",
-    annualPriceNet: "£2,030",
-    annualSaveLabel: "Save £358 per year",
     priceSublinePilot: null,
     emailCreditsLabel: "25,000/month",
     smsCreditsLabel: "700/month",
@@ -375,12 +426,16 @@ export const MANAGE_PLAN_COMPARISON_ROWS: ManagePlanComparisonRow[] = [
 export function buildManagePlanFaqItems(options?: {
   /** Catalog / API rate in basis points; 0 omits “+ VAT” and VAT FAQ. */
   vatRateBps?: number
+  /** Extra Group Location price from the catalogue; null omits the price. */
+  groupExtraLocation?: ManagePlanCatalogPrice | null
 }): ManagePlanFaqItem[] {
   const vatRateBps = options?.vatRateBps ?? 0
   const showVat = vatRateBps > 0
-  const groupLocationPriceLine = showVat
-    ? "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual."
-    : "Additional Group Locations can be added for £39/month each, or £398/year on Annual."
+  const groupExtraLocation = options?.groupExtraLocation ?? null
+  const groupLocationPriceLine =
+    groupExtraLocation == null
+      ? "Additional Group Locations can be added on the Group plan."
+      : `Additional Group Locations can be added for ${formatPenceGbp(groupExtraLocation.monthlyNetPence)}/month${showVat ? " + VAT" : ""} each, or ${formatPenceGbp(groupExtraLocation.annualNetPence)}/year${showVat ? " + VAT" : ""} on Annual.`
 
   const items: ManagePlanFaqItem[] = [
     {
@@ -474,9 +529,6 @@ export function buildManagePlanFaqItems(options?: {
   return items
 }
 
-/** Active-VAT FAQ set (legacy export for static consumers). Prefer `buildManagePlanFaqItems`. */
-export const MANAGE_PLAN_FAQ_ITEMS: ManagePlanFaqItem[] =
-  buildManagePlanFaqItems({ vatRateBps: 2000 })
 
 export const MANAGE_PLAN_COPY = {
   pageTitle: "Manage plan",
@@ -495,6 +547,12 @@ export const MANAGE_PLAN_COPY = {
   pendingPaymentBody: (plan: string) =>
     `Your ${plan} plan is not active yet. Your account stays on Free until payment is complete. Retry payment to activate it.`,
   retryPendingPayment: "Retry payment",
+  /** The saved Custom quote is stale or retired: the owner reviews a fresh one first. */
+  reviewPendingPayment: "Review updated total",
+  pendingPaymentReviewTitle: "Review your updated total",
+  pendingPaymentReviewChoose: "Review updated total",
+  pendingPaymentReviewPay: "Continue to payment",
+  pendingPaymentReviewCancel: "Cancel",
   vatNotice:
     "Prices shown exclude VAT. VAT is added at checkout when applicable.",
   comparisonFeature: "Feature",
@@ -798,46 +856,70 @@ export function resolvePlanCardCta(options: {
 function formatPriceParts(
   planId: ManagePlanId,
   cadence: BillingCadence,
-  vatRateBps: number
+  vatRateBps: number,
+  price: ManagePlanCatalogPrice | undefined
 ): { amount: string; suffix: string } {
-  const entry = MANAGE_PLAN_CATALOG[planId]
+  if (price == null) {
+    return { amount: MANAGE_PLAN_PRICE_UNAVAILABLE, suffix: "" }
+  }
   if (planId === "Pilot") {
-    return { amount: entry.monthlyPriceNet, suffix: "/ for 30 days" }
+    return {
+      amount: formatPenceGbp(price.monthlyNetPence),
+      suffix: "/ for 30 days",
+    }
   }
   const vatSuffix = vatRateBps > 0 ? " + VAT" : ""
   if (cadence === "annual") {
-    return { amount: entry.annualPriceNet, suffix: `/ year${vatSuffix}` }
+    return {
+      amount: formatPenceGbp(price.annualNetPence),
+      suffix: `/ year${vatSuffix}`,
+    }
   }
-  return { amount: entry.monthlyPriceNet, suffix: `/ month${vatSuffix}` }
+  return {
+    amount: formatPenceGbp(price.monthlyNetPence),
+    suffix: `/ month${vatSuffix}`,
+  }
 }
 
 function formatPriceHeadline(
   planId: ManagePlanId,
   cadence: BillingCadence,
-  vatRateBps: number
+  vatRateBps: number,
+  price: ManagePlanCatalogPrice | undefined
 ): string {
-  const { amount, suffix } = formatPriceParts(planId, cadence, vatRateBps)
-  return `${amount} ${suffix}`
+  const { amount, suffix } = formatPriceParts(planId, cadence, vatRateBps, price)
+  return suffix === "" ? amount : `${amount} ${suffix}`
 }
 
 function resolvePriceSubline(
   planId: ManagePlanId,
-  previewCadence: BillingCadence
+  previewCadence: BillingCadence,
+  price: ManagePlanCatalogPrice | undefined
 ): string | null {
   const entry = MANAGE_PLAN_CATALOG[planId]
   if (planId === "Pilot") {
     return entry.priceSublinePilot
   }
-  if (previewCadence === "monthly" && entry.annualSaveLabel !== "") {
-    return entry.annualSaveLabel
+  if (previewCadence === "monthly" && price != null) {
+    return annualSaveLabelFor(price)
   }
   return null
+}
+
+/** A Plan without a catalogue price cannot start a purchase or change. */
+function disableUnpricedCta(cta: PlanCardCta): PlanCardCta {
+  if (cta.kind === "action") {
+    return { kind: "disabled", label: cta.label, disabled: true }
+  }
+  return cta
 }
 
 export function buildManagePlanCardViewModels(options: {
   plan: PlanSubscriptionSnapshot
   previewCadence: BillingCadence
   lockMode?: "none" | "pilot-restore" | "dunning"
+  /** Server catalogue prices. A missing Plan shows a dash and a disabled CTA. */
+  catalogPrices: ManagePlanCatalogPrices
   /** Catalog / API rate in basis points; 0 hides “+ VAT”. */
   vatRateBps?: number
 }): ManagePlanCardViewModel[] {
@@ -847,36 +929,46 @@ export function buildManagePlanCardViewModels(options: {
 
   return MANAGE_PLAN_IDS.map((id) => {
     const entry = MANAGE_PLAN_CATALOG[id]
-    const priceParts = formatPriceParts(id, options.previewCadence, vatRateBps)
-    const priceSubline = resolvePriceSubline(id, options.previewCadence)
+    const price = options.catalogPrices[id]
+    const priceParts = formatPriceParts(
+      id,
+      options.previewCadence,
+      vatRateBps,
+      price
+    )
+    const priceSubline = resolvePriceSubline(id, options.previewCadence, price)
+    const cta = resolvePlanCardCta({
+      cardPlanId: id,
+      currentPlanId,
+      isPilot: options.plan.isPilot,
+      liveCadence,
+      previewCadence: options.previewCadence,
+      lockMode: options.lockMode ?? "none",
+    })
 
     return {
       id,
       description: entry.description,
       priceAmount: priceParts.amount,
       priceSuffix: priceParts.suffix,
-      priceHeadline: formatPriceHeadline(id, options.previewCadence, vatRateBps),
+      priceHeadline: formatPriceHeadline(
+        id,
+        options.previewCadence,
+        vatRateBps,
+        price
+      ),
       priceSubline,
       annualSaveLabel:
-        id === "Pilot"
+        id === "Pilot" || price == null || options.previewCadence !== "monthly"
           ? null
-          : options.previewCadence === "monthly"
-            ? entry.annualSaveLabel || null
-            : null,
+          : annualSaveLabelFor(price),
       isMostPopular: entry.isMostPopular,
       coreFeatures: entry.coreFeatures,
       allowanceFeatures: entry.allowanceFeatures,
       emailCreditsLabel: entry.emailCreditsLabel,
       smsCreditsLabel: entry.smsCreditsLabel,
       aiCreditsLabel: entry.aiCreditsLabel,
-      cta: resolvePlanCardCta({
-        cardPlanId: id,
-        currentPlanId,
-        isPilot: options.plan.isPilot,
-        liveCadence,
-        previewCadence: options.previewCadence,
-        lockMode: options.lockMode ?? "none",
-      }),
+      cta: price == null ? disableUnpricedCta(cta) : cta,
     }
   })
 }
@@ -939,10 +1031,10 @@ export function buildPlanChangeConfirmCopy(options: {
 
 export function formatCurrentPlanSummary(plan: PlanSubscriptionSnapshot): string {
   if (plan.subscriptionPlan === "Free") {
-    return `${plan.planPriceNet ?? "£0"} · Free`
+    return `${plan.planPriceNet ?? MANAGE_PLAN_PRICE_UNAVAILABLE} · Free`
   }
   if (plan.isPilot) {
-    return `${plan.planPriceNet ?? "£0"}/ for 30 days · ${plan.renewalDateLabel ?? "Pilot"}`
+    return `${plan.planPriceNet ?? MANAGE_PLAN_PRICE_UNAVAILABLE}/ for 30 days · ${plan.renewalDateLabel ?? "Pilot"}`
   }
   const cadence =
     plan.billingCycle?.toLowerCase() === "annual" ? "year" : "month"

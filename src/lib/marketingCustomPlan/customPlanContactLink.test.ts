@@ -31,7 +31,7 @@ describe("buildCustomPlanContactMessage", () => {
     const message = buildCustomPlanContactMessage({
       locations: 650,
       cadence: "annual",
-      packs: { ...EMPTY_PACK_COUNTS, team_users_5: 2, email_20k: 1 },
+      packs: { ...EMPTY_PACK_COUNTS, team_user: 2, email_20k: 1 },
     })
 
     expect(message).toBe(
@@ -64,7 +64,7 @@ describe("buildCustomPlanContactHref", () => {
     const href = buildCustomPlanContactHref({
       locations: 650,
       cadence: "monthly",
-      packs: { ...EMPTY_PACK_COUNTS, offers_5: 3 },
+      packs: { ...EMPTY_PACK_COUNTS, offer: 3 },
     })
     const url = new URL(href, "https://tummly.test")
 

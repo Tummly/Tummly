@@ -1,3 +1,4 @@
+import { formatPenceGbp } from "@/lib/marketingCustomPlan/customPlanQuoteState"
 import type { ManagePlanId } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import {
   creditChannelLabel,
@@ -6,24 +7,12 @@ import {
   type CreditChannelUsageRecord,
 } from "@/lib/operatorBillingCredits/creditsUsagePresentation"
 
+/** One top-up pack from the server catalogue (`currentCatalog.topUpPacks`). */
 export type CreditTopUpPack = {
   channel: CreditChannelId
   quantity: number
-  netPounds: number
+  netPence: number
 }
-
-export const CREDIT_TOP_UP_PACKS: readonly CreditTopUpPack[] = [
-  { channel: "sms", quantity: 100, netPounds: 12 },
-  { channel: "sms", quantity: 500, netPounds: 55 },
-  { channel: "sms", quantity: 1000, netPounds: 100 },
-  { channel: "sms", quantity: 5000, netPounds: 450 },
-  { channel: "ai", quantity: 100, netPounds: 5 },
-  { channel: "ai", quantity: 500, netPounds: 15 },
-  { channel: "ai", quantity: 2000, netPounds: 39 },
-  { channel: "email", quantity: 5000, netPounds: 10 },
-  { channel: "email", quantity: 20000, netPounds: 30 },
-  { channel: "email", quantity: 50000, netPounds: 60 },
-] as const
 
 export type CreditTopUpPackChipViewModel = {
   quantity: number
@@ -53,26 +42,6 @@ export type CreditTopUpConfirmViewModel = {
   quantity: number
 }
 
-export function formatTopUpPounds(amount: number): string {
-  const formatted = Number.isInteger(amount)
-    ? amount.toString()
-    : amount.toFixed(2).replace(/\.?0+$/, "")
-  return `£${formatted}`
-}
-
-/** Derive fractional VAT rate from catalog basis points; missing → 0 (launch OFF). */
-export function vatRateFromBps(vatRateBps: number | null | undefined): number {
-  return (vatRateBps ?? 0) / 10_000
-}
-
-export function grossTopUpPounds(
-  netPounds: number,
-  vatRateBps: number | null | undefined = 0
-): number {
-  const rate = vatRateFromBps(vatRateBps)
-  return Math.round(netPounds * (1 + rate) * 100) / 100
-}
-
 export function isSms5000TopUpAllowed(options: {
   subscriptionPlan: string
   allowSms5000TopUp: boolean
@@ -98,24 +67,16 @@ export function isTopUpPackVisible(
 
 export function visibleTopUpPacksForChannel(
   channel: CreditChannelId,
+  topUpPacks: readonly CreditTopUpPack[],
   options: {
     subscriptionPlan: string
     allowSms5000TopUp: boolean
   }
 ): CreditTopUpPack[] {
-  return CREDIT_TOP_UP_PACKS.filter(
+  return topUpPacks.filter(
     (pack) =>
       pack.channel === channel
       && isTopUpPackVisible(pack, options)
-  )
-}
-
-export function findTopUpPack(
-  channel: CreditChannelId,
-  quantity: number
-): CreditTopUpPack | undefined {
-  return CREDIT_TOP_UP_PACKS.find(
-    (pack) => pack.channel === channel && pack.quantity === quantity
   )
 }
 
@@ -127,6 +88,8 @@ export function buildCreditTopUpCards(options: {
   canBuy: boolean
   selectedPackByChannel: Partial<Record<CreditChannelId, number>>
   focusedChannel: CreditChannelId | null
+  /** Server catalogue packs. No packs leaves every card without a chip and Buy disabled. */
+  topUpPacks: readonly CreditTopUpPack[]
   /** Catalog / API rate in basis points; 0 omits “+ VAT”. */
   vatRateBps?: number
 }): CreditTopUpCardViewModel[] {
@@ -147,7 +110,11 @@ export function buildCreditTopUpCards(options: {
     const usage = options.channels.find((row) => row.channel === channel)
     const remaining = usage?.combinedRemaining ?? 0
     const selectedQuantity = options.selectedPackByChannel[channel]
-    const packs = visibleTopUpPacksForChannel(channel, visibility)
+    const packs = visibleTopUpPacksForChannel(
+      channel,
+      options.topUpPacks,
+      visibility
+    )
     const selectedPack =
       selectedQuantity != null
         ? packs.find((pack) => pack.quantity === selectedQuantity)
@@ -169,7 +136,7 @@ export function buildCreditTopUpCards(options: {
       })),
       selectedNetLabel:
         selectedPack != null
-          ? `${formatTopUpPounds(selectedPack.netPounds)}${netLabelSuffix}`
+          ? `${formatPenceGbp(selectedPack.netPence)}${netLabelSuffix}`
           : null,
       buyLabel: `Buy ${creditChannelLabel(channel)}`,
       buyDisabled,

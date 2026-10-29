@@ -8,6 +8,7 @@ import {
   clearSignupPlanIntent,
   parseSignupPlanIntent,
   readSignupPlanIntent,
+  restoreSignupPlanIntentFromResume,
   saveSignupCustomPlanConfig,
   saveSignupPlanIntent,
   signupStepAfterLocation,
@@ -47,7 +48,7 @@ describe("buildSignupPath", () => {
         cadence: "monthly",
         basePlan: "growth",
         locations: 3,
-        packs: { offers_5: 1 },
+        packs: { offer: 1 },
       },
     })
     expect(path).toContain("plan=Custom")
@@ -78,7 +79,7 @@ describe("parseSignupPlanIntent", () => {
       cadence: "monthly",
       basePlan: "growth",
       locations: 3,
-      packs: { offers_5: 1 },
+      packs: { offer: 1 },
     })
     const parsed = parseSignupPlanIntent(
       new URLSearchParams(
@@ -88,13 +89,47 @@ describe("parseSignupPlanIntent", () => {
     expect(parsed?.plan).toBe("Custom")
     expect(parsed?.config?.basePlan).toBe("growth")
     expect(parsed?.config?.locations).toBe(3)
-    expect(parsed?.config?.packs.offers_5).toBe(1)
+    expect(parsed?.config?.packs.offer).toBe(1)
   })
 })
 
 describe("signupPlanIntent session", () => {
   beforeEach(() => {
     clearSignupPlanIntent()
+  })
+
+  it("drops a stored config with a replaced capacity pack and flags it", () => {
+    saveSignupPlanIntent({
+      plan: "Custom",
+      cadence: "monthly",
+      config: {
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 1,
+        packs: { team_users_5: 1 } as never,
+      },
+    })
+    const read = readSignupPlanIntent()
+    expect(read?.config).toBeUndefined()
+    expect(read?.capacityOptionRetired).toBe(true)
+  })
+
+  it("flags a signup URL whose saved selection names a replaced capacity pack", () => {
+    const legacy = btoa(
+      JSON.stringify({
+        version: 2,
+        cadence: "monthly",
+        basePlan: "starter",
+        locations: 1,
+        packs: { offers_5: 1 },
+      }),
+    )
+    const parsed = parseSignupPlanIntent(
+      new URLSearchParams({ plan: "Custom", customIntent: legacy }),
+    )
+    expect(parsed?.config).toBeUndefined()
+    expect(parsed?.capacityOptionRetired).toBe(true)
   })
 
   it("round-trips intent in sessionStorage", () => {
@@ -129,7 +164,7 @@ describe("signupPlanIntent session", () => {
       cadence: "monthly" as const,
       basePlan: "starter" as const,
       locations: 1,
-      packs: { offers_5: 1 },
+      packs: { offer: 1 },
     }
     saveSignupPlanIntent({ plan: "Custom", cadence: "monthly", config })
     expect(
@@ -268,7 +303,7 @@ describe("signupStepAfterLocation", () => {
     cadence: "monthly" as const,
     basePlan: "group" as const,
     locations: 8,
-    packs: { team_users_5: 2 },
+    packs: { team_user: 2 },
   }
 
   it("goes to review when the plan was built on the Custom plan page", () => {
@@ -280,5 +315,104 @@ describe("signupStepAfterLocation", () => {
     expect(signupStepAfterLocation({ plan: "Starter" })).toBe("choosePlan")
     expect(signupStepAfterLocation({ plan: "Pilot" })).toBe("choosePlan")
     expect(signupStepAfterLocation(null)).toBe("choosePlan")
+  })
+})
+
+describe("restoreSignupPlanIntentFromResume", () => {
+  beforeEach(() => {
+    clearSignupPlanIntent()
+  })
+
+  const NO_PLAN = { chosenPlan: null, chosenCadence: null, planConfig: null }
+
+  it("restores a saved Custom config when sessionStorage has no intent", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "annual",
+      planConfig: {
+        basePlan: "growth",
+        locations: 3,
+        packs: { team_user: 2 },
+        quoteHash: "abc",
+      },
+    })
+
+    const expected = {
+      plan: "Custom",
+      cadence: "annual",
+      config: {
+        version: 2,
+        cadence: "annual",
+        basePlan: "growth",
+        locations: 3,
+        packs: { team_user: 2 },
+        quoteHash: "abc",
+      },
+    }
+    expect(restored).toEqual(expected)
+    expect(readSignupPlanIntent()).toEqual(expected)
+  })
+
+  it("flags a saved config with a replaced capacity pack and drops it", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "monthly",
+      planConfig: { basePlan: "growth", locations: 3, packs: { qr_10: 2 }, quoteHash: "abc" },
+    })
+
+    expect(restored).toEqual({
+      plan: "Custom",
+      cadence: "monthly",
+      capacityOptionRetired: true,
+    })
+  })
+
+  it("restores a standard catalogue plan with its term", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Starter",
+      chosenCadence: "annual",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Starter", cadence: "annual" })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Starter", cadence: "annual" })
+  })
+
+  it("restores Pilot without a term", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Pilot",
+      chosenCadence: "monthly",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Pilot" })
+  })
+
+  it("keeps the intent already in sessionStorage", () => {
+    saveSignupPlanIntent({ plan: "Group", cadence: "monthly" })
+
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Starter",
+      chosenCadence: "annual",
+      planConfig: null,
+    })
+
+    expect(restored).toEqual({ plan: "Group", cadence: "monthly" })
+    expect(readSignupPlanIntent()).toEqual({ plan: "Group", cadence: "monthly" })
+  })
+
+  it("restores nothing when the server has no saved plan", () => {
+    expect(restoreSignupPlanIntentFromResume(NO_PLAN)).toBeNull()
+    expect(readSignupPlanIntent()).toBeNull()
+  })
+
+  it("drops a saved config with an invalid Location count", () => {
+    const restored = restoreSignupPlanIntentFromResume({
+      chosenPlan: "Custom",
+      chosenCadence: "monthly",
+      planConfig: { basePlan: "starter", locations: 0, packs: {}, quoteHash: null },
+    })
+
+    expect(restored).toEqual({ plan: "Custom", cadence: "monthly" })
   })
 })

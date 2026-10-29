@@ -3,13 +3,15 @@ import type { BillingCadence } from "@/lib/operatorBillingCredits/managePlanPres
 
 export const CUSTOM_PLAN_MAX_LOCATIONS = 500
 export const CUSTOM_PLAN_MAX_PACK_COUNT = 99
+/** Most single capacity units (team users, Offers, QR placements) of one kind. */
+export const CUSTOM_PLAN_MAX_CAPACITY_UNITS = 500
 
 export type CustomPlanBasePlanKey = "starter" | "growth" | "group"
 
 export type CustomPlanPackKey =
-  | "team_users_5"
-  | "offers_5"
-  | "qr_10"
+  | "team_user"
+  | "offer"
+  | "qr_placement"
   | "email_20k"
   | "email_50k"
   | "sms_500"
@@ -21,7 +23,10 @@ export type CustomPlanPackKey =
 export type CustomPlanPackDef = {
   packKey: CustomPlanPackKey
   rateKey: string
+  /** Units one count buys: 1 for capacity (single units), a pack size for credits. */
   packSize: number
+  /** Largest count one quote accepts. */
+  maxCount: number
   /** Short title for pack steppers. */
   title: string
   channel?: "capacity" | "email" | "sms" | "ai"
@@ -30,23 +35,26 @@ export type CustomPlanPackDef = {
 /** Fixed pack catalogue — contract §1 (both sides). */
 export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
   {
-    packKey: "team_users_5",
+    packKey: "team_user",
     rateKey: "team_user",
-    packSize: 5,
+    packSize: 1,
+    maxCount: CUSTOM_PLAN_MAX_CAPACITY_UNITS,
     title: "Additional team users",
     channel: "capacity",
   },
   {
-    packKey: "offers_5",
+    packKey: "offer",
     rateKey: "offer",
-    packSize: 5,
+    packSize: 1,
+    maxCount: CUSTOM_PLAN_MAX_CAPACITY_UNITS,
     title: "Additional active Offers",
     channel: "capacity",
   },
   {
-    packKey: "qr_10",
+    packKey: "qr_placement",
     rateKey: "qr_placement",
-    packSize: 10,
+    packSize: 1,
+    maxCount: CUSTOM_PLAN_MAX_CAPACITY_UNITS,
     title: "Extra QR placements",
     channel: "capacity",
   },
@@ -54,6 +62,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "email_20k",
     rateKey: "email_credit",
     packSize: 20_000,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+20,000 Email/month",
     channel: "email",
   },
@@ -61,6 +70,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "email_50k",
     rateKey: "email_credit",
     packSize: 50_000,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+50,000 Email/month",
     channel: "email",
   },
@@ -68,6 +78,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "sms_500",
     rateKey: "sms_credit",
     packSize: 500,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+500 SMS/month",
     channel: "sms",
   },
@@ -75,6 +86,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "sms_1000",
     rateKey: "sms_credit",
     packSize: 1_000,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+1,000 SMS/month",
     channel: "sms",
   },
@@ -82,6 +94,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "sms_5000",
     rateKey: "sms_credit",
     packSize: 5_000,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+5,000 SMS/month",
     channel: "sms",
   },
@@ -89,6 +102,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "ai_500",
     rateKey: "ai_credit",
     packSize: 500,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+500 AI actions/month",
     channel: "ai",
   },
@@ -96,6 +110,7 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
     packKey: "ai_2000",
     rateKey: "ai_credit",
     packSize: 2_000,
+    maxCount: CUSTOM_PLAN_MAX_PACK_COUNT,
     title: "+2,000 AI actions/month",
     channel: "ai",
   },
@@ -104,9 +119,9 @@ export const CUSTOM_PLAN_PACKS: readonly CustomPlanPackDef[] = [
 export type CustomPlanPackCounts = Record<CustomPlanPackKey, number>
 
 export const EMPTY_PACK_COUNTS: CustomPlanPackCounts = {
-  team_users_5: 0,
-  offers_5: 0,
-  qr_10: 0,
+  team_user: 0,
+  offer: 0,
+  qr_placement: 0,
   email_20k: 0,
   email_50k: 0,
   sms_500: 0,
@@ -153,12 +168,31 @@ export function normalizePackCounts(
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
       continue
     }
-    next[def.packKey] = Math.max(
-      0,
-      Math.min(CUSTOM_PLAN_MAX_PACK_COUNT, Math.floor(raw)),
-    )
+    // No clamp or rounding: the calculator shows an invalid saved count instead.
+    next[def.packKey] = raw
   }
   return next
+}
+
+/** Capacity packs Commercial V4 replaced by single units. They are no longer sold. */
+const LEGACY_CAPACITY_PACK_KEYS = ["team_users_5", "offers_5", "qr_10"] as const
+
+/** True when saved packs name a replaced capacity pack. It is never converted. */
+export function hasLegacyCapacityPack(
+  packs: Record<string, unknown> | null | undefined,
+): boolean {
+  return (
+    packs != null &&
+    LEGACY_CAPACITY_PACK_KEYS.some((key) => Object.hasOwn(packs, key))
+  )
+}
+
+/** Largest count for one pack key. */
+export function packMaxCount(packKey: CustomPlanPackKey): number {
+  return (
+    CUSTOM_PLAN_PACKS.find((def) => def.packKey === packKey)?.maxCount ??
+    CUSTOM_PLAN_MAX_PACK_COUNT
+  )
 }
 
 export function packsHaveAny(packs: CustomPlanPackCounts): boolean {
@@ -199,6 +233,11 @@ export function chosenPlanToBasePlan(
 /** Period suffix for a quote total: "/ per month" or "/ per year". */
 export function quoteCadenceSuffix(cadence: string): string {
   return cadence === "annual" ? "/ per year" : "/ per month"
+}
+
+/** "62 in your Workspace": the server's Workspace-wide QR pool, never per Location. */
+export function formatQrWorkspacePool(pool: number): string {
+  return `${pool.toLocaleString("en-GB")} in your Workspace`
 }
 
 /**
@@ -300,6 +339,33 @@ function packCountsForWire(
   return wire
 }
 
+function parseCustomPlanIntentJson(raw: string): Record<string, unknown> {
+  let json = raw.trim()
+  if (!json.startsWith("{")) {
+    json = decodeURIComponent(escape(atob(json)))
+  }
+  return JSON.parse(json) as Record<string, unknown>
+}
+
+/** True when an encoded saved selection names a replaced capacity pack. */
+export function customPlanIntentNamesRetiredPack(
+  raw: string | null | undefined,
+): boolean {
+  if (raw == null || raw.trim() === "") {
+    return false
+  }
+  try {
+    const parsed = parseCustomPlanIntentJson(raw)
+    return (
+      parsed.packs != null &&
+      typeof parsed.packs === "object" &&
+      hasLegacyCapacityPack(parsed.packs as Record<string, unknown>)
+    )
+  } catch {
+    return false
+  }
+}
+
 export function decodeCustomPlanIntentV2(
   raw: string | null | undefined,
 ): CustomPlanV2ConfigInput | null {
@@ -307,11 +373,7 @@ export function decodeCustomPlanIntentV2(
     return null
   }
   try {
-    let json = raw.trim()
-    if (!json.startsWith("{")) {
-      json = decodeURIComponent(escape(atob(json)))
-    }
-    const parsed = JSON.parse(json) as Record<string, unknown>
+    const parsed = parseCustomPlanIntentJson(raw)
     if (Number(parsed.version) !== 2) {
       return null
     }
@@ -329,6 +391,11 @@ export function decodeCustomPlanIntentV2(
       parsed.packs != null && typeof parsed.packs === "object"
         ? (parsed.packs as Record<string, number>)
         : {}
+    // A saved selection with a replaced pack is dropped, not converted: the
+    // customer chooses single units again.
+    if (hasLegacyCapacityPack(packsRaw)) {
+      return null
+    }
     const quoteHash =
       typeof parsed.quoteHash === "string" && parsed.quoteHash !== ""
         ? parsed.quoteHash

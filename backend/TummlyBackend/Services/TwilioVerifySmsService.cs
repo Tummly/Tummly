@@ -45,6 +45,22 @@ namespace TummlyBackend.Services
 
             EnsureConfigured();
 
+            // Defence in depth: the reserved test range never reaches Twilio
+            // Verify unless GuestContact:AllowReservedTestNumbers is on.
+            if (
+                PhoneNumberHelper.IsReservedTestRange(phoneNumber)
+                && !ReservedTestNumberPolicy.AllowReservedTestNumbers
+            )
+            {
+                _logger.LogWarning(
+                    "Refused Twilio Verify OTP to reserved test range {MaskedPhone}",
+                    LogContactMask.Phone(phoneNumber)
+                );
+                throw new InvalidOperationException(
+                    "Unable to send SMS verification code."
+                );
+            }
+
             var e164 = ToE164(phoneNumber);
 
             try

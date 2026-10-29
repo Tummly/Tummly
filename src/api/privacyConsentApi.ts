@@ -1,3 +1,5 @@
+import { isAxiosError } from "axios"
+
 import axiosInstance from "@/api/axiosInstance"
 import { getUserFacingApiErrorMessage } from "@/lib/apiErrorMessage"
 import type {
@@ -103,5 +105,29 @@ export async function getPrivacyConsentActivity(): Promise<{
     }
   } catch (error) {
     rethrow(error, "Could not load privacy activity.")
+  }
+}
+
+/**
+ * Owner-only historical view. The API returns 403 for every other role; that
+ * resolves as `accessRestricted` so the page can show the restricted state.
+ */
+export async function getPrivacyConsentArchivedActivity(): Promise<{
+  items: PrivacyConsentActivityApiItem[]
+  accessRestricted?: boolean
+}> {
+  try {
+    const { data } = await axiosInstance.get<{
+      success?: boolean
+      items?: PrivacyConsentActivityApiItem[]
+    }>("/privacy-consent/activity", { params: { includeArchived: true } })
+    return {
+      items: data.items ?? [],
+    }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 403) {
+      return { items: [], accessRestricted: true }
+    }
+    rethrow(error, "Could not load archived Location history.")
   }
 }

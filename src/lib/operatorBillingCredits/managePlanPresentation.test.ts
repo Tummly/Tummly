@@ -4,7 +4,9 @@ import type { PlanSubscriptionSnapshot } from "@/lib/operatorBillingCredits/crea
 import {
   buildAdditionalGroupLocationViewModel,
   buildGroupCapUpsell,
+  buildGroupExtraLocationPrice,
   buildManagePlanCardViewModels,
+  buildManagePlanCatalogPrices,
   buildManagePlanFaqItems,
   buildPlanChangeConfirmCopy,
   buildPlanRenewalDateMetric,
@@ -17,8 +19,43 @@ import {
   MANAGE_PLAN_FAQ_TRIGGER_CLASS,
   resolvePlanCardCta,
   resolvePlanChangeKind,
+  type ManagePlanCatalogPlanRow,
 } from "@/lib/operatorBillingCredits/managePlanPresentation"
 import { BILLING_CREDITS_PAGE_COPY } from "@/lib/operatorBillingCredits/billingCreditsPresentation"
+
+/** Server catalogue rows as the Billing page returns them (pence). */
+const SERVER_PLAN_ROWS: ManagePlanCatalogPlanRow[] = [
+  {
+    id: "Pilot",
+    monthlyNetPence: 0,
+    annualNetPence: 0,
+    extraLocationMonthlyNetPence: null,
+    extraLocationAnnualNetPence: null,
+  },
+  {
+    id: "Starter",
+    monthlyNetPence: 3900,
+    annualNetPence: 39800,
+    extraLocationMonthlyNetPence: null,
+    extraLocationAnnualNetPence: null,
+  },
+  {
+    id: "Growth",
+    monthlyNetPence: 9900,
+    annualNetPence: 101000,
+    extraLocationMonthlyNetPence: null,
+    extraLocationAnnualNetPence: null,
+  },
+  {
+    id: "Group",
+    monthlyNetPence: 19900,
+    annualNetPence: 203000,
+    extraLocationMonthlyNetPence: 3900,
+    extraLocationAnnualNetPence: 39800,
+  },
+]
+const SERVER_PRICES = buildManagePlanCatalogPrices(SERVER_PLAN_ROWS)
+const SERVER_GROUP_EXTRA = { monthlyNetPence: 3900, annualNetPence: 39800 }
 
 function paidPlan(
   overrides: Partial<PlanSubscriptionSnapshot> = {}
@@ -112,6 +149,7 @@ describe("resolvePlanCardCta", () => {
 describe("buildManagePlanCardViewModels", () => {
   it("shows pack prices and channel credit rows", () => {
     const cards = buildManagePlanCardViewModels({
+      catalogPrices: SERVER_PRICES,
       plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
       previewCadence: "monthly",
       vatRateBps: 2000,
@@ -133,6 +171,7 @@ describe("buildManagePlanCardViewModels", () => {
 
   it("hides annual save when preview cadence is annual", () => {
     const cards = buildManagePlanCardViewModels({
+      catalogPrices: SERVER_PRICES,
       plan: paidPlan(),
       previewCadence: "annual",
       vatRateBps: 2000,
@@ -145,6 +184,7 @@ describe("buildManagePlanCardViewModels", () => {
 
   it("disables catalog CTAs while on Custom", () => {
     const cards = buildManagePlanCardViewModels({
+      catalogPrices: SERVER_PRICES,
       plan: paidPlan({ subscriptionPlan: "Custom", isPilot: false }),
       previewCadence: "monthly",
       vatRateBps: 0,
@@ -159,6 +199,7 @@ describe("buildManagePlanCardViewModels", () => {
 
   it("omits + VAT from price headlines when vatRateBps is 0", () => {
     const cards = buildManagePlanCardViewModels({
+      catalogPrices: SERVER_PRICES,
       plan: paidPlan({ subscriptionPlan: "Pilot", isPilot: true }),
       previewCadence: "monthly",
       vatRateBps: 0,
@@ -166,6 +207,98 @@ describe("buildManagePlanCardViewModels", () => {
 
     expect(cards[1]?.priceHeadline).toBe("£39 / month")
     expect(cards[1]?.priceSuffix).toBe("/ month")
+  })
+})
+
+describe("catalogue prices on Manage plan cards", () => {
+  it("builds prices by Plan from the server rows, matching ids case-insensitively", () => {
+    expect(
+      buildManagePlanCatalogPrices([
+        ...SERVER_PLAN_ROWS,
+        {
+          id: "free",
+          monthlyNetPence: 0,
+          annualNetPence: 0,
+          extraLocationMonthlyNetPence: null,
+          extraLocationAnnualNetPence: null,
+        },
+      ])
+    ).toEqual({
+      Pilot: { monthlyNetPence: 0, annualNetPence: 0 },
+      Starter: { monthlyNetPence: 3900, annualNetPence: 39800 },
+      Growth: { monthlyNetPence: 9900, annualNetPence: 101000 },
+      Group: { monthlyNetPence: 19900, annualNetPence: 203000 },
+    })
+  })
+
+  it("reads the price text and the annual saving from the catalogue, not from copy", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan(),
+      previewCadence: "monthly",
+      vatRateBps: 2000,
+      catalogPrices: buildManagePlanCatalogPrices([
+        { ...SERVER_PLAN_ROWS[1]!, monthlyNetPence: 4500, annualNetPence: 40000 },
+      ]),
+    })
+
+    expect(cards[1]?.priceHeadline).toBe("£45 / month + VAT")
+    expect(cards[1]?.annualSaveLabel).toBe("Save £140 per year")
+  })
+
+  it("shows a dash and disables the action when the catalogue has no price for the Plan", () => {
+    const cards = buildManagePlanCardViewModels({
+      plan: paidPlan(),
+      previewCadence: "monthly",
+      vatRateBps: 2000,
+      catalogPrices: buildManagePlanCatalogPrices(
+        SERVER_PLAN_ROWS.filter((row) => row.id !== "Starter")
+      ),
+    })
+
+    const starter = cards.find((card) => card.id === "Starter")
+    expect(starter?.priceAmount).toBe("—")
+    expect(starter?.priceHeadline).toBe("—")
+    expect(starter?.annualSaveLabel).toBeNull()
+    expect(starter?.cta.kind).toBe("disabled")
+    expect(starter?.cta.disabled).toBe(true)
+    expect(cards.find((card) => card.id === "Growth")?.cta.disabled).toBe(
+      true
+    )
+  })
+
+  it("reads the Group location price from the Group row only", () => {
+    expect(buildGroupExtraLocationPrice(SERVER_PLAN_ROWS)).toEqual(
+      SERVER_GROUP_EXTRA
+    )
+    expect(
+      buildGroupExtraLocationPrice(
+        SERVER_PLAN_ROWS.map((row) => ({
+          ...row,
+          extraLocationMonthlyNetPence: null,
+          extraLocationAnnualNetPence: null,
+        }))
+      )
+    ).toBeNull()
+  })
+
+  it("names the Group plan in the FAQ when no location price is published", () => {
+    const group = buildManagePlanFaqItems({
+      vatRateBps: 0,
+      groupExtraLocation: null,
+    }).find((item) => item.id === "group-locations")
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added on the Group plan."
+    )
+  })
+
+  it("puts the catalogue location price into the FAQ", () => {
+    const group = buildManagePlanFaqItems({
+      vatRateBps: 2000,
+      groupExtraLocation: { monthlyNetPence: 4500, annualNetPence: 45000 },
+    }).find((item) => item.id === "group-locations")
+    expect(group?.answerParagraphs[1]).toBe(
+      "Additional Group Locations can be added for £45/month + VAT each, or £450/year + VAT on Annual."
+    )
   })
 })
 
@@ -205,21 +338,21 @@ describe("Active QR placements copy (Workspace pool)", () => {
 
 describe("buildManagePlanFaqItems", () => {
   it("includes + VAT on group location copy when vatRateBps is active", () => {
-    const group = buildManagePlanFaqItems({ vatRateBps: 2000 }).find(
+    const group = buildManagePlanFaqItems({ vatRateBps: 2000, groupExtraLocation: SERVER_GROUP_EXTRA }).find(
       (item) => item.id === "group-locations"
     )
     expect(group?.answerParagraphs[1]).toBe(
       "Additional Group Locations can be added for £39/month + VAT each, or £398/year + VAT on Annual."
     )
     expect(
-      buildManagePlanFaqItems({ vatRateBps: 2000 }).some(
+      buildManagePlanFaqItems({ vatRateBps: 2000, groupExtraLocation: SERVER_GROUP_EXTRA }).some(
         (item) => item.id === "vat"
       )
     ).toBe(true)
   })
 
   it("omits + VAT and VAT FAQ when vatRateBps is 0", () => {
-    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const items = buildManagePlanFaqItems({ vatRateBps: 0, groupExtraLocation: SERVER_GROUP_EXTRA })
     const group = items.find((item) => item.id === "group-locations")
     expect(group?.answerParagraphs[1]).toBe(
       "Additional Group Locations can be added for £39/month each, or £398/year on Annual."
@@ -228,7 +361,7 @@ describe("buildManagePlanFaqItems", () => {
   })
 
   it("FAQ starter kit items describe one kit per Active Location", () => {
-    const items = buildManagePlanFaqItems({ vatRateBps: 0 })
+    const items = buildManagePlanFaqItems({ vatRateBps: 0, groupExtraLocation: SERVER_GROUP_EXTRA })
     const perLocation = items.find((i) => i.id === "starter-kit-per-location")
     expect(perLocation?.answerParagraphs.join(" ")).toMatch(/Active Location/i)
     expect(perLocation?.answerParagraphs.join(" ")).not.toMatch(
@@ -308,6 +441,7 @@ describe("buildPlanChangeConfirmCopy", () => {
 describe("plan and cadence upgrade CTAs", () => {
   it("labels plan and cadence upgrade CTAs as upgrades", () => {
     const cards = buildManagePlanCardViewModels({
+      catalogPrices: SERVER_PRICES,
       plan: paidPlan({ subscriptionPlan: "Starter", billingCycle: "Monthly" }),
       previewCadence: "annual",
     })

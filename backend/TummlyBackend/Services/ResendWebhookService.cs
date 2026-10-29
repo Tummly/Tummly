@@ -154,6 +154,33 @@ namespace TummlyBackend.Services
             return ResendWebhookHandleStatus.Accepted;
         }
 
+        private static string? ReadFirstRecipient(JsonElement data)
+        {
+            if (
+                !data.TryGetProperty("to", out var to)
+                || to.ValueKind != JsonValueKind.Array
+            )
+            {
+                return null;
+            }
+
+            foreach (var item in to.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var address = item.GetString()?.Trim();
+                if (!string.IsNullOrWhiteSpace(address))
+                {
+                    return address;
+                }
+            }
+
+            return null;
+        }
+
         private static GuestReplyDeliveryState? ReplyStateForEvent(string? type) =>
             type switch
             {
@@ -200,9 +227,12 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Suppresses Email marketing for the guest behind a Campaign delivery. The
-        /// restaurant-scoped contact suppression is the same one the unsubscribe form
-        /// writes. Events with no Campaign email recipient are logged and skipped.
+        /// Suppresses Email marketing for the guest behind a Campaign delivery, or for
+        /// the <c>to</c> address of a Feedback guest reply. The restaurant-scoped contact
+        /// suppression is the same one the unsubscribe form writes. A hard bounce also
+        /// stages an <c>EmailDelivery</c> suppression: the address cannot receive mail, so
+        /// service email (guest replies) is blocked too. Events that match no sent email
+        /// are logged and skipped.
         /// </summary>
         private async Task SuppressEmailMarketingAsync(
             string? emailId,
@@ -226,9 +256,22 @@ namespace TummlyBackend.Services
                     );
             }
 
-            var address = guest?.MasterGuest?.Email ?? guest?.MasterGuest?.NormalizedEmail;
+            int? restaurantId;
+            string? address;
+            if (guest?.RestaurantLocation != null)
+            {
+                restaurantId = guest.RestaurantLocation.RestaurantId;
+                address = guest.MasterGuest?.Email ?? guest.MasterGuest?.NormalizedEmail;
+            }
+            else
+            {
+                guest = null;
+                restaurantId = await ReplyRestaurantIdAsync(emailId, cancellationToken);
+                address = ReadFirstRecipient(data);
+            }
+
             if (
-                guest?.RestaurantLocation == null
+                restaurantId == null
                 || !GuestContactKey.TryCreate(
                     address,
                     ContactType.Email,
@@ -237,40 +280,50 @@ namespace TummlyBackend.Services
             )
             {
                 _logger.LogInformation(
-                    "Resend {Source} event has no Campaign email recipient; Email marketing not suppressed (email_id={EmailId}).",
+                    "Resend {Source} event has no Campaign or guest reply email recipient; Email marketing not suppressed (email_id={EmailId}).",
                     source,
                     emailId
                 );
                 return;
             }
 
-            var restaurantId = guest.RestaurantLocation.RestaurantId;
-
             // Stage first. A repeat event finds the staged row and changes nothing.
             await _suppressions.StageAsync(
-                restaurantId,
+                restaurantId.Value,
                 contactKey,
                 LocationGuestPermissionKind.EmailMarketing,
                 atUtc,
                 source,
                 cancellationToken
             );
+            if (source == GuestContactSuppressionSources.Bounce)
+            {
+                await _suppressions.StageAsync(
+                    restaurantId.Value,
+                    contactKey,
+                    LocationGuestPermissionKind.EmailDelivery,
+                    atUtc,
+                    source,
+                    cancellationToken
+                );
+            }
             // Same scope as the unsubscribe form: every Location guest of this
             // restaurant with this address, so a sister Location cannot send to it.
             var widened = await _withdraw.WithdrawForRestaurantContactAsync(
-                restaurantId,
-                guest.MasterGuest!.NormalizedEmail ?? address!.Trim().ToLowerInvariant(),
+                restaurantId.Value,
+                guest?.MasterGuest?.NormalizedEmail ?? address!.Trim().ToLowerInvariant(),
                 isEmail: true,
                 LocationGuestPermissionKind.EmailMarketing,
                 source,
-                cancellationToken
+                cancellationToken,
+                suppressionSource: source
             );
-            if (widened.GuestsTouched == 0)
+            if (widened.GuestsTouched == 0 && guest != null)
             {
                 // Legacy row without NormalizedEmail: withdraw the recipient at least.
                 await _withdraw.WithdrawForLocationGuestAsync(
                     guest.Id,
-                    restaurantId,
+                    restaurantId.Value,
                     LocationGuestPermissionKind.EmailMarketing,
                     source,
                     cancellationToken
@@ -278,6 +331,24 @@ namespace TummlyBackend.Services
             }
             // Saves the staged suppression even when the withdraw wrote nothing.
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>Restaurant of the Feedback guest reply sent with this provider email id.</summary>
+        private async Task<int?> ReplyRestaurantIdAsync(
+            string? emailId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.IsNullOrWhiteSpace(emailId))
+            {
+                return null;
+            }
+
+            var restaurantId = await _context.FeedbackGuestResponses
+                .Where(row => row.ProviderMessageId == emailId)
+                .Select(row => row.Feedback!.RestaurantLocation!.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+            return restaurantId > 0 ? restaurantId : null;
         }
 
         /// <summary>

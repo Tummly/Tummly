@@ -12,6 +12,7 @@ import {
 import {
   mapGuestPermissionCardsFromApi,
   mapPermissionRecordRowFromApi,
+  mapArchivedPrivacyActivityItemFromApi,
   mapPrivacyActivityItemFromApi,
   mapPrivacySetupRowsFromApi,
   patchPayloadForGuestPermission,
@@ -39,6 +40,7 @@ import {
   type GuestPermissionId,
   type PermissionRecordRow,
   type PrivacyActivityItem,
+  type PrivacyArchivedActivityItem,
   type PrivacyConsentTabId,
   type PrivacySetupStatusRow,
 } from "@/lib/operatorPrivacyConsent/privacyConsentPresentation"
@@ -72,6 +74,9 @@ export type PrivacyConsentSnapshot = {
   permissionRecordsCanGoPrevious: boolean
   permissionRecordsCanGoNext: boolean
   activityItems: PrivacyActivityItem[]
+  actorIsWorkspaceOwner: boolean
+  archivedActivityItems: PrivacyArchivedActivityItem[]
+  archivedActivityAccessRestricted: boolean
   toast: { kind: "success" | "error"; message: string } | null
 }
 
@@ -86,6 +91,11 @@ export type OperatorPrivacyConsentPageAdapters = {
     params: PermissionRecordsListQueryParams
   ) => Promise<PermissionRecordsListResponse>
   getActivity: () => Promise<{ items: PrivacyConsentActivityApiItem[] }>
+  /** Owner-only. Called only when the page data reports the actor is the workspace owner. */
+  getArchivedActivity: () => Promise<{
+    items: PrivacyConsentActivityApiItem[]
+    accessRestricted?: boolean
+  }>
   getLocationFilterOptions: () => Array<{ id: string; label: string }>
   navigateToGuestProfile?: (
     locationGuestId: number,
@@ -217,6 +227,9 @@ export function createOperatorPrivacyConsentPageModule(
   ]
   let actorCanManage = false
   let canViewGuests = false
+  let actorIsWorkspaceOwner = false
+  let archivedActivityItems: PrivacyArchivedActivityItem[] = []
+  let archivedActivityAccessRestricted = false
   let privacyReady = false
   let loadStatus: PrivacyConsentSnapshot["loadStatus"] = isDemo
     ? "loaded"
@@ -321,6 +334,9 @@ export function createOperatorPrivacyConsentPageModule(
       permissionRecordsCanGoPrevious: clampedPage > 1,
       permissionRecordsCanGoNext: clampedPage * pageSize < permissionRecordsTotalCount,
       activityItems,
+      actorIsWorkspaceOwner,
+      archivedActivityItems,
+      archivedActivityAccessRestricted,
       toast,
     }
   }
@@ -332,6 +348,7 @@ export function createOperatorPrivacyConsentPageModule(
     guestPermissions = mapGuestPermissionCardsFromApi(data)
     actorCanManage = data.actorCanManage
     canViewGuests = data.canViewGuests
+    actorIsWorkspaceOwner = data.actorIsWorkspaceOwner === true
     privacyReady = data.privacyReady
   }
 
@@ -353,6 +370,39 @@ export function createOperatorPrivacyConsentPageModule(
     activityItems = response.items.map((item) =>
       mapPrivacyActivityItemFromApi(item, now)
     )
+  }
+
+  const fetchArchivedActivity = async (generation: number) => {
+    if (!actorIsWorkspaceOwner) {
+      archivedActivityItems = []
+      archivedActivityAccessRestricted = false
+      return
+    }
+
+    try {
+      const response = await adapters.getArchivedActivity()
+      if (generation !== loadGeneration) {
+        return
+      }
+      const now = getNow()
+      archivedActivityAccessRestricted = response.accessRestricted === true
+      archivedActivityItems = response.items.map((item) =>
+        mapArchivedPrivacyActivityItemFromApi(item, now)
+      )
+    } catch (error) {
+      if (generation !== loadGeneration) {
+        return
+      }
+      archivedActivityItems = []
+      archivedActivityAccessRestricted = false
+      toast = {
+        kind: "error",
+        message: getUserFacingApiErrorMessage(
+          error,
+          PRIVACY_CONSENT_PAGE_COPY.archivedLocationsLoadError
+        ),
+      }
+    }
   }
 
   const fetchPermissionRecords = async () => {
@@ -445,6 +495,7 @@ export function createOperatorPrivacyConsentPageModule(
       applyPageData(pageData)
       applyRecordsResponse(recordsResponse)
       applyActivityResponse(activityResponse)
+      await fetchArchivedActivity(generation)
 
       if (
         actorCanManage

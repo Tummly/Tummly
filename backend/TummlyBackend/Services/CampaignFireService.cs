@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
@@ -31,6 +32,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignSendStartGate _sendStartGate;
         private readonly ICampaignProductAnalytics _analytics;
         private readonly IOfferIssueService _offerIssues;
+        private readonly ICampaignFireLock _fireLock;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignFireService(
@@ -41,7 +43,8 @@ namespace TummlyBackend.Services
             ICampaignSendStartGate sendStartGate,
             ICampaignProductAnalytics? analytics = null,
             IOfferIssueService? offerIssues = null,
-            Func<DateTime>? utcNow = null
+            Func<DateTime>? utcNow = null,
+            ICampaignFireLock? fireLock = null
         )
         {
             _context = context;
@@ -51,12 +54,36 @@ namespace TummlyBackend.Services
             _sendStartGate = sendStartGate;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
             _offerIssues = offerIssues ?? new OfferIssueService(context);
+            _fireLock = fireLock
+                ?? new CampaignFireLock(NullLogger<CampaignFireLock>.Instance);
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
+        /// <summary>
+        /// Takes the per-Campaign claim before reading status, so a run that
+        /// waits behind another sees the state that run left behind.
+        /// </summary>
         public async Task<CampaignFireResult> FireAsync(
             int campaignId,
             CancellationToken cancellationToken = default
+        )
+        {
+            await using var claim = await _fireLock.TryAcquireAsync(
+                _context,
+                campaignId,
+                cancellationToken
+            );
+            if (claim is null)
+            {
+                return new CampaignFireResult.InProgress();
+            }
+
+            return await FireClaimedAsync(campaignId, cancellationToken);
+        }
+
+        private async Task<CampaignFireResult> FireClaimedAsync(
+            int campaignId,
+            CancellationToken cancellationToken
         )
         {
             var entity = await _context.Campaigns
@@ -126,6 +153,7 @@ namespace TummlyBackend.Services
                         entity.RestaurantLocationId,
                         audienceKey,
                         channel,
+                        CampaignAudienceScope.ForCampaign(entity),
                         cancellationToken
                     );
             }

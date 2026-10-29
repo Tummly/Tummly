@@ -6,6 +6,7 @@ import {
   cancelCampaign,
   commitCampaignSchedule,
   createCampaignDraft,
+  createRecommendationCampaignDraft,
   createCatalogOffer,
   deleteCampaignDraft,
   duplicateCampaignAsDraft,
@@ -119,19 +120,30 @@ async function loadAudienceSmartGroupCounts(input: {
 async function loadAudienceEligibility(input: {
   locationId: number
   audienceKey: string
+  offerId?: number | null
+  lookbackDays?: number | null
+  lookbackTimeZone?: string | null
 }): Promise<CampaignAudienceEligibilityBreakdown> {
   const response = await getCampaignEligibility({
     locationId: input.locationId,
     audienceKey: input.audienceKey,
+    offerId: input.offerId,
+    lookbackDays: input.lookbackDays,
+    timeZone: input.lookbackTimeZone,
   })
   if (!response.success || response.eligibility == null) {
     throw new Error("Campaign eligibility request failed.")
   }
   const eligibility = response.eligibility
   if (!eligibility.evaluable) {
-    return unavailableCampaignAudienceEligibilityBreakdown()
+    return {
+      ...unavailableCampaignAudienceEligibilityBreakdown(),
+      unavailableReason: eligibility.unavailableReason ?? null,
+    }
   }
   return {
+    unavailableReason: null,
+    lookbackDays: eligibility.lookbackDays ?? null,
     matched: eligibility.matched,
     currentlyEligible: eligibility.currentlyEligible,
     excluded: eligibility.excluded,
@@ -245,6 +257,13 @@ export function CampaignsPage() {
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign draft create failed.")
+        }
+        return response.campaign
+      },
+      createRecommendationDraft: async (body) => {
+        const response = await createRecommendationCampaignDraft(body)
         if (!response.success || response.campaign == null) {
           throw new Error("Campaign draft create failed.")
         }
@@ -414,6 +433,7 @@ export function CampaignsPage() {
   }
 
   const openWizardFromRecommendationDraft = (
+    recommendationType: string,
     draftPrefill: NonNullable<CampaignRecommendation["draftPrefill"]>
   ) => {
     const viewModel = snapshot.viewModel
@@ -425,6 +445,7 @@ export function CampaignsPage() {
         locationId: viewModel.locationId,
         locationName: viewModel.locationName,
         locationAddress: selectedLocationAddress,
+        recommendationType,
         draftPrefill,
       })
     })
@@ -436,7 +457,10 @@ export function CampaignsPage() {
     if (recommendation.draftPrefill == null) {
       return
     }
-    openWizardFromRecommendationDraft(recommendation.draftPrefill)
+    openWizardFromRecommendationDraft(
+      recommendation.type,
+      recommendation.draftPrefill
+    )
   }
 
   const handleOpenTemplatePicker = () => {
@@ -521,9 +545,10 @@ export function CampaignsPage() {
     if (snapshot.viewModel == null) {
       return
     }
-    const draftPrefill = campaignsIntent.openFromRecommendation.draftPrefill
+    const { recommendationType, draftPrefill } =
+      campaignsIntent.openFromRecommendation
     setCampaignsIntent(null)
-    openWizardFromRecommendationDraft(draftPrefill)
+    openWizardFromRecommendationDraft(recommendationType, draftPrefill)
   }, [
     campaignWizard,
     campaignsIntent,

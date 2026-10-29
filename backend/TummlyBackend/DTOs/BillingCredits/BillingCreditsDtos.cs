@@ -74,6 +74,8 @@
         public int IncludedAi { get; set; }
 
         public int? ExtraLocationNetPence { get; set; }
+
+        public int? ExtraLocationAnnualNetPence { get; set; }
     }
 
     public sealed class BillingCatalogTopUpPackDto
@@ -181,6 +183,19 @@
         public string Cadence { get; set; } = "monthly";
 
         public DateTime? FailedAtUtc { get; set; }
+
+        /// <summary>
+        /// Why the last attempt failed. <c>quote_changed</c> and <c>legacy_pack_key</c>
+        /// mean the owner must review a current quote before paying.
+        /// </summary>
+        public string? FailureCode { get; set; }
+
+        /// <summary>Saved Custom choices, so the page can ask for a fresh quote.</summary>
+        public string? BasePlan { get; set; }
+
+        public int? Locations { get; set; }
+
+        public Dictionary<string, int>? Packs { get; set; }
     }
 
     public sealed class CustomPlanSnapshotDto

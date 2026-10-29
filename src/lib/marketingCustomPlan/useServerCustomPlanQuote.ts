@@ -10,6 +10,7 @@ import type {
 } from "@/lib/marketingCustomPlan/customPlanEstimate"
 import {
   checkLocationInput,
+  checkPackCount,
   quoteReducer,
   type LocationInputCheck,
   type QuoteState,
@@ -22,7 +23,8 @@ export type ServerCustomPlanQuoteInput = {
   cadence: BillingCadence
   basePlan: CustomPlanBasePlanKey | null
   locations: number | null
-  packs: Partial<Record<CustomPlanPackKey, number>>
+  /** A null count is typed text that is not a number yet. */
+  packs: Partial<Record<CustomPlanPackKey, number | null>>
 }
 
 /** Zero packs are left out; the server treats an absent pack as none. */
@@ -49,14 +51,25 @@ function errorCode(error: unknown): string | null {
 /**
  * Server-priced quote for the custom plan calculator. Each input change marks
  * the quote loading at once, then sends one request after the debounce. Only a
- * response for the newest request id can change the state.
+ * response for the newest request id can change the state. No request is sent
+ * while the Location count or any pack count is invalid.
  */
 export function useServerCustomPlanQuote(
   input: ServerCustomPlanQuoteInput,
   options?: { debounceMs?: number },
-): { state: QuoteState; check: LocationInputCheck; retry: () => void } {
+): {
+  state: QuoteState
+  check: LocationInputCheck
+  packsValid: boolean
+  retry: () => void
+} {
   const debounceMs = options?.debounceMs ?? DEFAULT_DEBOUNCE_MS
   const check = checkLocationInput(input.locations)
+  const packsValid = Object.entries(input.packs).every(
+    ([packKey, count]) =>
+      checkPackCount(count, packKey as CustomPlanPackKey) === "ok",
+  )
+  const inputValid = check === "ok" && packsValid
   // A string key keeps an inline packs object from restarting the debounce on every render.
   const requestKey = JSON.stringify(toRequestBody(input))
   const [state, dispatch] = useReducer(quoteReducer, { status: "idle" })
@@ -64,7 +77,7 @@ export function useServerCustomPlanQuote(
   const requestIdRef = useRef(0)
 
   useEffect(() => {
-    if (check !== "ok") {
+    if (!inputValid) {
       return
     }
     requestIdRef.current += 1
@@ -81,9 +94,9 @@ export function useServerCustomPlanQuote(
     }, debounceMs)
 
     return () => window.clearTimeout(timer)
-  }, [check, requestKey, debounceMs, attempt])
+  }, [inputValid, requestKey, debounceMs, attempt])
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
-  return { state, check, retry }
+  return { state, check, packsValid, retry }
 }

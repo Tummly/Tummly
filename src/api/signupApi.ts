@@ -84,6 +84,16 @@ export type SignupSession = {
   status: string
 }
 
+/** Saved Custom plan calculator config. Null for a standard catalogue plan. */
+export type SignupResumePlanConfig = {
+  /** starter | growth | group */
+  basePlan: string
+  locations: number
+  /** Extras: pack key → pack count. */
+  packs: Record<string, number>
+  quoteHash: string | null
+}
+
 /** `GET /Signup/session` never returns the token. A Complete row returns status only. */
 export type SignupResume = Omit<SignupSession, "sessionToken"> & {
   lastStepHint: string
@@ -96,6 +106,11 @@ export type SignupResume = Omit<SignupSession, "sessionToken"> & {
   onboardingJson: string | null
   /** Google | Microsoft when social pending; null for email signup. */
   authProvider: string | null
+  /** Pilot | Starter | Growth | Group | Custom. Null until onboarding is saved. */
+  chosenPlan: string | null
+  /** monthly | annual. Null until onboarding is saved. */
+  chosenCadence: string | null
+  planConfig: SignupResumePlanConfig | null
 }
 
 export type SignupOnboardingLocation = {
@@ -123,12 +138,21 @@ export type SignupOnboardingPayload = {
   customPlanConfigJson?: string | null
 }
 
+/** The plan the guest saved, returned when its quote needs a new review. */
+export type SignupSavedPlan = {
+  chosenPlan: string | null
+  chosenCadence: string | null
+  customPlanConfigJson: string | null
+}
+
 export type SignupProvisioningStatus = {
   status: string
   ready: boolean
   paymentRedirectUrl?: string | null
   /** With status `PaymentFailed`: the paid checkout did not open. */
   paymentFailureCode?: string | null
+  /** With `quote_changed` or `legacy_pack_key`: the saved plan to review again. */
+  savedPlan?: SignupSavedPlan | null
 }
 
 function asSignupSession(data: Record<string, unknown>): SignupSession {
@@ -136,6 +160,29 @@ function asSignupSession(data: Record<string, unknown>): SignupSession {
     sessionToken: String(data.sessionToken ?? ""),
     email: String(data.email ?? ""),
     status: String(data.status ?? ""),
+  }
+}
+
+function asSignupResumePlanConfig(
+  value: unknown
+): SignupResumePlanConfig | null {
+  if (value == null || typeof value !== "object") {
+    return null
+  }
+  const raw = value as Record<string, unknown>
+  const packs: Record<string, number> = {}
+  if (raw.packs != null && typeof raw.packs === "object") {
+    for (const [key, count] of Object.entries(raw.packs)) {
+      if (typeof count === "number") {
+        packs[key] = count
+      }
+    }
+  }
+  return {
+    basePlan: String(raw.basePlan ?? ""),
+    locations: typeof raw.locations === "number" ? raw.locations : 0,
+    packs,
+    quoteHash: typeof raw.quoteHash === "string" ? raw.quoteHash : null,
   }
 }
 
@@ -157,6 +204,10 @@ function asSignupResume(data: Record<string, unknown>): SignupResume {
       typeof data.onboardingJson === "string" ? data.onboardingJson : null,
     authProvider:
       typeof data.authProvider === "string" ? data.authProvider : null,
+    chosenPlan: typeof data.chosenPlan === "string" ? data.chosenPlan : null,
+    chosenCadence:
+      typeof data.chosenCadence === "string" ? data.chosenCadence : null,
+    planConfig: asSignupResumePlanConfig(data.planConfig),
   }
 }
 
@@ -254,7 +305,38 @@ export async function getSignupProvisioningStatus(
       typeof payload.paymentFailureCode === "string"
         ? payload.paymentFailureCode
         : null,
+    savedPlan: asSavedPlan(payload.savedPlan),
   }
+}
+
+function asSavedPlan(value: unknown): SignupSavedPlan | null {
+  if (value == null || typeof value !== "object") {
+    return null
+  }
+  const row = value as Record<string, unknown>
+  const text = (field: unknown) => (typeof field === "string" ? field : null)
+  return {
+    chosenPlan: text(row.chosenPlan),
+    chosenCadence: text(row.chosenCadence),
+    customPlanConfigJson: text(row.customPlanConfigJson),
+  }
+}
+
+/** Saves the quote the guest reviewed again and opens checkout for it. */
+export async function updateSignupPlan(
+  sessionToken: string,
+  data: Pick<
+    SignupOnboardingPayload,
+    "chosenPlan" | "chosenCadence" | "customPlanConfigJson"
+  >
+): Promise<void> {
+  await withSignupErrorFields(
+    axiosInstance.post(
+      "/Signup/update-plan",
+      data,
+      signupSessionConfig(sessionToken)
+    )
+  )
 }
 
 function asSignupSessionLogin(

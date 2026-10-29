@@ -9,6 +9,13 @@ namespace TummlyBackend.Models
         EmailMarketing,
         SmsMarketing,
         FeedbackFollowUp,
+
+        /// <summary>
+        /// Suppression-only kind for a confirmed permanent Email hard bounce.
+        /// It is a delivery fact, not a guest consent. It is never a ledger
+        /// permission and is not in <see cref="LocationGuestPermissionKindExtensions.All"/>.
+        /// </summary>
+        EmailDelivery,
     }
 
     public static class LocationGuestPermissionKindExtensions
@@ -16,6 +23,7 @@ namespace TummlyBackend.Models
         public const string EmailMarketingWire = "email-marketing";
         public const string SmsMarketingWire = "sms-marketing";
         public const string FeedbackFollowUpWire = "feedback-follow-up";
+        public const string EmailDeliveryWire = "email-delivery";
 
         public static string ToWireString(this LocationGuestPermissionKind kind) =>
             kind switch
@@ -24,6 +32,7 @@ namespace TummlyBackend.Models
                 LocationGuestPermissionKind.SmsMarketing => SmsMarketingWire,
                 LocationGuestPermissionKind.FeedbackFollowUp =>
                     FeedbackFollowUpWire,
+                LocationGuestPermissionKind.EmailDelivery => EmailDeliveryWire,
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(kind),
                     kind,
@@ -66,6 +75,9 @@ namespace TummlyBackend.Models
                     return true;
                 case FeedbackFollowUpWire:
                     kind = LocationGuestPermissionKind.FeedbackFollowUp;
+                    return true;
+                case EmailDeliveryWire:
+                    kind = LocationGuestPermissionKind.EmailDelivery;
                     return true;
                 default:
                     return false;

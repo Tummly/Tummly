@@ -15,6 +15,10 @@ import {
   redirectIfSignupSessionExpired,
   redirectToLoginIfSessionLoginExpired,
 } from "@/lib/signupSession"
+import {
+  signupPaymentFailureView,
+  type SignupPaymentFailureView,
+} from "@/lib/signupPaymentReview"
 import { persistSignupLoginSession } from "@/pages/utils/authHelpers"
 
 const POLL_INTERVAL_MS = 2000
@@ -34,6 +38,19 @@ const PAYMENT_FAILED_CONTINUE_FREE = "Continue on Free for now"
 
 const PAYMENT_FAILED_MESSAGE =
   "Your paid plan is not active yet because the payment page didn't open. Select Retry to open it again."
+
+/** A saved quote that is stale or names a retired option: review a fresh quote instead of Retry. */
+const PAYMENT_REVIEW_ACTION = "Review updated total"
+
+/** The paid checkout did not open. Carries what the status said about the saved quote. */
+class PaymentFailedError extends Error {
+  readonly view: SignupPaymentFailureView
+
+  constructor(view: SignupPaymentFailureView) {
+    super(view.kind === "review" ? view.message : PAYMENT_FAILED_MESSAGE)
+    this.view = view
+  }
+}
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -63,8 +80,12 @@ function SignupProvisioningPage() {
   const [isBusy, setIsBusy] = useState(false)
   const [provisioningAttempt, setProvisioningAttempt] = useState(0)
 
+  const [paymentFailure, setPaymentFailure] =
+    useState<SignupPaymentFailureView | null>(null)
+
   const provisioningRunId = useRef(0)
-  const isPaymentFailed = provisioningError === PAYMENT_FAILED_MESSAGE
+  const isPaymentFailed = paymentFailure != null
+  const needsQuoteReview = paymentFailure?.kind === "review"
 
   const goToComplete = useCallback(() => {
     navigate("/signup/complete", { replace: true })
@@ -113,7 +134,7 @@ function SignupProvisioningPage() {
         }
 
         if (status.status === "PaymentFailed") {
-          throw new Error(PAYMENT_FAILED_MESSAGE)
+          throw new PaymentFailedError(signupPaymentFailureView(status))
         }
 
         if (status.status === "AwaitingPayment") {
@@ -153,7 +174,7 @@ function SignupProvisioningPage() {
         const status = await getSignupProvisioningStatus(sessionToken)
 
         if (status.status === "PaymentFailed") {
-          throw new Error(PAYMENT_FAILED_MESSAGE)
+          throw new PaymentFailedError(signupPaymentFailureView(status))
         }
 
         if (status.ready || status.status === "Complete") {
@@ -188,6 +209,7 @@ function SignupProvisioningPage() {
 
     void (async () => {
       setProvisioningError(null)
+      setPaymentFailure(null)
 
       try {
         const gate = await pollUntilProvisionable()
@@ -201,6 +223,9 @@ function SignupProvisioningPage() {
         if (!isCurrent()) return
         if (redirectIfSignupSessionExpired(error, navigate)) {
           return
+        }
+        if (error instanceof PaymentFailedError) {
+          setPaymentFailure(error.view)
         }
         setProvisioningError(
           getApiErrorMessage(
@@ -246,6 +271,10 @@ function SignupProvisioningPage() {
       setProvisioningAttempt((current) => current + 1)
       setIsBusy(false)
     })()
+  }
+
+  const goToReviewPlan = () => {
+    navigate("/signup/review-plan", { replace: true })
   }
 
   const handleContinueOnFree = () => {
@@ -309,10 +338,14 @@ function SignupProvisioningPage() {
           <Button
             type="button"
             disabled={isBusy}
-            onClick={handleRetry}
+            onClick={needsQuoteReview ? goToReviewPlan : handleRetry}
             className="h-[45px] w-full rounded-[4px] bg-[#14a74a] text-sm font-medium text-white shadow-none hover:bg-[#14a74a]/90"
           >
-            {isBusy ? "Retrying…" : "Retry"}
+            {needsQuoteReview
+              ? PAYMENT_REVIEW_ACTION
+              : isBusy
+                ? "Retrying…"
+                : "Retry"}
           </Button>
           {isPaymentFailed ? (
             <Button

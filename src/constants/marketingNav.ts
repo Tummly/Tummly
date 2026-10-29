@@ -268,6 +268,11 @@ export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
     href: { kind: "route", to: LEGAL_ROUTES.cookiePolicy },
   },
   {
+    id: "cookie-settings",
+    label: "Cookie settings",
+    href: { kind: "cookie-settings" },
+  },
+  {
     id: "terms",
     label: "Terms",
     href: { kind: "route", to: LEGAL_ROUTES.terms },
