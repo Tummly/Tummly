@@ -47,3 +47,10 @@ infra/qa/secrets.qa.env.bak.*
 
 # Local DB dumps (*.local already covers .env.development.local)
 *.bacpac
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+.playwright-mcp/

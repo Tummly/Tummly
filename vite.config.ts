@@ -13,4 +13,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    // Worktree checkouts exhaust the inotify watcher limit.
+    watch: { ignored: ["**/.worktrees/**"] },
+  },
 });
