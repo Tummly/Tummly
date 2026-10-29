@@ -1,0 +1,206 @@
+{
+    "success": true,
+    "item": {
+        "catalogPublicId": "TUMMLY-UK-GBP-BANDS-20261026",
+        "vatRateBps": 2000,
+        "maxLocations": 500,
+        "unitRates": [
+            {
+                "id": "1b5fe24a-9049-4544-8b02-f8858d782766",
+                "rateKey": "ai_credit",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3,
+                "annualNetPence": null
+            },
+            {
+                "id": "10b5816b-db4b-4b5a-8271-a6779cc994a2",
+                "rateKey": "email_credit",
+                "unitQuantity": 1000,
+                "monthlyNetPence": 120,
+                "annualNetPence": null
+            },
+            {
+                "id": "86be0a7c-098a-44ce-b6a7-ed1ef27a60af",
+                "rateKey": "extra_location_band_2",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3700,
+                "annualNetPence": 37740
+            },
+            {
+                "id": "1480547c-b97e-441d-8723-6eae121515b3",
+                "rateKey": "extra_location_band_3",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3500,
+                "annualNetPence": 35700
+            },
+            {
+                "id": "3e5e652d-b5a6-4943-b673-176bae2a35d3",
+                "rateKey": "extra_location_band_4",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3300,
+                "annualNetPence": 33660
+            },
+            {
+                "id": "f187d3c4-33fa-4bf9-815b-06315e0dda04",
+                "rateKey": "extra_location_band_5",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3100,
+                "annualNetPence": 31620
+            },
+            {
+                "id": "c0682e74-f2c1-4ac2-ae02-3e35e512e8ff",
+                "rateKey": "location",
+                "unitQuantity": 1,
+                "monthlyNetPence": 3900,
+                "annualNetPence": 39800
+            },
+            {
+                "id": "ab1785d1-27d6-4fc4-a0b8-bc8b8f8c2b7b",
+                "rateKey": "offer",
+                "unitQuantity": 1,
+                "monthlyNetPence": 240,
+                "annualNetPence": null
+            },
+            {
+                "id": "ef334cce-cb88-46f0-9e2a-76c4ef992dd8",
+                "rateKey": "qr_placement",
+                "unitQuantity": 1,
+                "monthlyNetPence": 60,
+                "annualNetPence": null
+            },
+            {
+                "id": "1aa71fea-c3fd-488a-8522-93d5410d4ef1",
+                "rateKey": "sms_credit",
+                "unitQuantity": 1,
+                "monthlyNetPence": 10,
+                "annualNetPence": null
+            },
+            {
+                "id": "49048a87-1371-4d8a-b96f-6a0163e62b44",
+                "rateKey": "team_user",
+                "unitQuantity": 1,
+                "monthlyNetPence": 300,
+                "annualNetPence": null
+            }
+        ],
+        "plans": [
+            {
+                "planKey": "starter",
+                "displayName": "Starter",
+                "monthlyNetPence": 3900,
+                "annualNetPence": 39800,
+                "includedLocations": 1,
+                "includedTeamMembers": 3,
+                "activeOffersAccount": 3,
+                "activeQrPlacementsPerLocation": 10,
+                "creditsMonthlyAi": 100,
+                "creditsMonthlyEmail": 2500,
+                "creditsMonthlySms": 100
+            },
+            {
+                "planKey": "growth",
+                "displayName": "Growth",
+                "monthlyNetPence": 9900,
+                "annualNetPence": 101000,
+                "includedLocations": 3,
+                "includedTeamMembers": 10,
+                "activeOffersAccount": 10,
+                "activeQrPlacementsPerLocation": 25,
+                "creditsMonthlyAi": 500,
+                "creditsMonthlyEmail": 10000,
+                "creditsMonthlySms": 350
+            },
+            {
+                "planKey": "group",
+                "displayName": "Group",
+                "monthlyNetPence": 19900,
+                "annualNetPence": 203000,
+                "includedLocations": 5,
+                "includedTeamMembers": 25,
+                "activeOffersAccount": 25,
+                "activeQrPlacementsPerLocation": 50,
+                "creditsMonthlyAi": 1500,
+                "creditsMonthlyEmail": 25000,
+                "creditsMonthlySms": 700
+            }
+        ],
+        "extraLocation": {
+            "usersAdded": 2,
+            "creditsMonthlyAi": 100,
+            "creditsMonthlyEmail": 5000,
+            "creditsMonthlySms": 100
+        },
+        "packs": [
+            {
+                "packKey": "team_user",
+                "rateKey": "team_user",
+                "packSize": 1,
+                "monthlyNetPence": 300,
+                "annualNetPence": 3060
+            },
+            {
+                "packKey": "offer",
+                "rateKey": "offer",
+                "packSize": 1,
+                "monthlyNetPence": 240,
+                "annualNetPence": 2448
+            },
+            {
+                "packKey": "qr_placement",
+                "rateKey": "qr_placement",
+                "packSize": 1,
+                "monthlyNetPence": 60,
+                "annualNetPence": 612
+            },
+            {
+                "packKey": "email_20k",
+                "rateKey": "email_credit",
+                "packSize": 20000,
+                "monthlyNetPence": 2400,
+                "annualNetPence": 24480
+            },
+            {
+                "packKey": "email_50k",
+                "rateKey": "email_credit",
+                "packSize": 50000,
+                "monthlyNetPence": 6000,
+                "annualNetPence": 61200
+            },
+            {
+                "packKey": "sms_500",
+                "rateKey": "sms_credit",
+                "packSize": 500,
+                "monthlyNetPence": 5000,
+                "annualNetPence": 51000
+            },
+            {
+                "packKey": "sms_1000",
+                "rateKey": "sms_credit",
+                "packSize": 1000,
+                "monthlyNetPence": 10000,
+                "annualNetPence": 102000
+            },
+            {
+                "packKey": "sms_5000",
+                "rateKey": "sms_credit",
+                "packSize": 5000,
+                "monthlyNetPence": 50000,
+                "annualNetPence": 510000
+            },
+            {
+                "packKey": "ai_500",
+                "rateKey": "ai_credit",
+                "packSize": 500,
+                "monthlyNetPence": 1500,
+                "annualNetPence": 15300
+            },
+            {
+                "packKey": "ai_2000",
+                "rateKey": "ai_credit",
+                "packSize": 2000,
+                "monthlyNetPence": 6000,
+                "annualNetPence": 61200
+            }
+        ]
+    }
+}
