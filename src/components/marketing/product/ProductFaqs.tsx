@@ -1,20 +1,26 @@
+import { PlusIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
-import { FaqsAccordionItem } from "@/components/marketing/faqs/FaqsAccordionItem"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
-import { Accordion } from "@/components/ui/accordion"
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+import {
+  PRODUCT_DISPLAY_HEADING,
   PRODUCT_FAQS,
-  PRODUCT_SECTION_HEADING,
   PRODUCT_SECTION_INSET,
 } from "@/content/marketing/productPage"
 import { marketingHeaderStickyTopClass } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
-/** Figma Product FAQs `5661:24202` — same accordion pattern as AI Assistant. */
+/**
+ * Figma Product FAQs `5661:24202`: sticky title left, 746px list right.
+ * Plus glyph turns into a cross when open; Figma shows every answer open.
+ */
 export function ProductFaqs() {
-  const defaultOpen = PRODUCT_FAQS.items[0]?.id
-
   return (
     <section className="w-full rounded-bl-[12px] rounded-br-[12px] bg-white">
       <div
@@ -26,38 +32,50 @@ export function ProductFaqs() {
       >
         <header
           className={cn(
-            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137",
+            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137 lg:py-5",
             marketingHeaderStickyTopClass,
           )}
         >
-          <h2 className={cn("m-0", PRODUCT_SECTION_HEADING)}>
-            {PRODUCT_FAQS.title}
-          </h2>
+          <h2 className={PRODUCT_DISPLAY_HEADING}>{PRODUCT_FAQS.title}</h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-1 flex-col gap-7.5 lg:max-w-[746px]">
+        <div className="flex min-w-0 w-full flex-1 flex-col gap-[30px] lg:max-w-[746px] lg:pt-5">
           <Accordion
-            type="single"
-            collapsible
-            defaultValue={defaultOpen}
-            className="gap-7.5"
+            type="multiple"
+            defaultValue={PRODUCT_FAQS.items.map((item) => item.id)}
+            className="gap-[30px]"
           >
             {PRODUCT_FAQS.items.map((item) => (
-              <FaqsAccordionItem
+              <AccordionItem
                 key={item.id}
                 value={item.id}
-                question={item.question}
-                answer={item.answer}
-              />
+                className="border-0 border-b border-[#c9c9c9] pb-[30px]"
+              >
+                <AccordionTrigger className="items-center gap-4 rounded-none border-0 py-0 hover:cursor-pointer hover:no-underline focus-visible:border-0 focus-visible:ring-2 focus-visible:ring-[#141414]/40 **:data-[slot=accordion-trigger-icon]:hidden">
+                  <span className="m-0 min-w-0 flex-1 text-left font-jakarta text-lg font-semibold leading-[normal] text-[#141414]">
+                    {item.question}
+                  </span>
+                  <PlusIcon
+                    aria-hidden
+                    strokeWidth={1.4}
+                    className="size-7 shrink-0 text-[#141414] transition-transform duration-200 group-data-[state=open]/accordion-trigger:rotate-45"
+                  />
+                </AccordionTrigger>
+                <AccordionContent className="pt-4 pb-0">
+                  <p className="m-0 font-sans text-sm font-normal leading-[18px] text-[#141414]">
+                    {item.answer}
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
             ))}
           </Accordion>
 
           <div className="flex flex-col gap-7 pb-5">
             <div className="flex flex-col gap-3">
-              <h3 className="m-0 font-jakarta text-[28px] font-medium leading-none text-black sm:text-[36px]">
+              <h3 className="m-0 font-jakarta text-lg font-semibold leading-[normal] text-black">
                 {PRODUCT_FAQS.moreTitle}
               </h3>
-              <p className="m-0 text-sm font-normal leading-[19px] text-[#141414]">
+              <p className="m-0 font-sans text-sm font-normal leading-[19px] text-[#141414]">
                 {PRODUCT_FAQS.moreBody}
               </p>
             </div>

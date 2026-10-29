@@ -4,9 +4,9 @@ import {
   MARKETING_FAQS_PATH,
   MARKETING_FOR_GROUPS_PATH,
   MARKETING_HOW_IT_WORKS_PATH,
-  MARKETING_QR_MATERIALS_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
 } from "@/constants/marketingNav"
+import { AI_ASSISTANT_PLANS } from "@/content/marketing/aiAssistantPage"
 
 /** Shared section inset — matches AI Assistant / Pricing (20px mobile, 60px desktop). */
 export const PRODUCT_SECTION_INSET = "px-5 lg:px-[60px]"
@@ -20,66 +20,40 @@ export const PRODUCT_SECTION_HEADING =
 export const PRODUCT_SECTION_BODY =
   "font-sans text-base font-normal leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6"
 
-/** Figma Product hero `5661:22625`. */
-export const PRODUCT_HERO = {
-  titleLine1: "Run the whole Guest Loop",
-  titleLine2: "from one place.",
-  body: "Manage QR touchpoints, private Feedback, guest relationships, Offers, Campaigns and reporting from one restaurant-first workspace — with Tummly AI available to help you understand what is happening and prepare the next step.",
-  primaryLabel: "Start 30-day Pilot",
-  secondaryLabel: "See how it works",
-  secondaryTo: MARKETING_HOW_IT_WORKS_PATH,
-  trustItems: ["£0 for 30 days", "No payment card required"] as const,
-  dashboardImageAlt:
-    "Restaurant operator at a laptop with a Campaign Draft ready for review, recent guests selected, and follow-up available.",
-} as const
+/** Figma eyebrow — functional 14px SemiBold, uppercase, 1.12px tracking, `#4a4a4a`. */
+export const PRODUCT_EYEBROW =
+  "m-0 font-sans text-sm font-semibold uppercase leading-4 tracking-[1.12px] text-[#4a4a4a]"
 
-export type ProductGuestLoopStep = {
+/** Figma split-band title — Jakarta Medium 36/48 (28/38 below `lg`). */
+export const PRODUCT_BAND_HEADING =
+  "m-0 font-jakarta text-[28px] font-medium leading-[38px] text-black lg:text-[36px] lg:leading-[48px]"
+
+/** Figma split-band body — 16/22, `#141414`. */
+export const PRODUCT_BAND_BODY =
+  "m-0 font-sans text-base font-normal leading-[22px] text-[#141414]"
+
+/** Figma section title — Jakarta Medium 46/52 (34/40 below `lg`). */
+export const PRODUCT_DISPLAY_HEADING =
+  "m-0 font-jakarta text-[34px] font-medium leading-10 text-black lg:text-[46px] lg:leading-[52px]"
+
+export type ProductFeaturePoint = {
   id: string
   title: string
   body: string
 }
 
-/** Figma Guest Loop overview `5661:22650`. */
-export const PRODUCT_GUEST_LOOP = {
-  eyebrow: "The Guest Loop",
-  title: "From first scan to the next useful action.",
-  body: "Tummly connects what happens in the restaurant with what your team can do next — from a QR interaction and private Feedback to guest follow-up, Campaigns, Offers and clearer reporting.",
-  steps: [
-    {
-      id: "capture",
-      title: "Capture",
-      body: "Tracked QR touchpoints connect guests to the right Guest Form.",
-    },
-    {
-      id: "feedback",
-      title: "Feedback",
-      body: "Private Feedback arrives with Location and source context.",
-    },
-    {
-      id: "guests",
-      title: "Guests",
-      body: "Guest details and contactability stay connected to activity.",
-    },
-    {
-      id: "act",
-      title: "Act",
-      body: "Prepare recovery, Campaigns and Offers for operator review.",
-    },
-    {
-      id: "learn",
-      title: "Learn",
-      body: "Reports, Weekly Briefs and AI show what changed and where to look next.",
-    },
-  ] satisfies ProductGuestLoopStep[],
-} as const
 
-/** Figma Product Capture / QR materials `5661:22668`. */
-export const PRODUCT_CAPTURE = {
-  eyebrow: "Capture",
-  title: "Capture starts with the right touchpoint.",
-  body: "Create tracked QR placements for the moments that matter — counter, table, receipt, takeaway, delivery or window — and connect each one to the right Location and Guest Form.",
-  ctaLabel: "Explore QR materials",
-  ctaTo: MARKETING_QR_MATERIALS_PATH,
+/** Figma Product hero `5661:22625`. */
+export const PRODUCT_HERO = {
+  eyebrow: "The Tummly Guest Loop",
+  title: "Run the whole Guest Loop from one place.",
+  body: "Collect private feedback from orders and visits, understand the customer’s context and prepare the response. Connect service replies, offers, campaigns and reporting so your team can act on what it learns.",
+  primaryLabel: "Get started",
+  secondaryLabel: "See how it works",
+  secondaryTo: MARKETING_HOW_IT_WORKS_PATH,
+  trustItems: ["£0 for 30 days", "No payment card required"] as const,
+  imageAlt:
+    "Restaurant operator at a laptop with a Campaign Draft ready for review, recent guests selected, and follow-up available.",
 } as const
 
 export type ProductCaptureMaterial = {
@@ -186,266 +160,402 @@ export const PRODUCT_CAPTURE_MATERIALS = [
   },
 ] as const satisfies readonly ProductCaptureMaterial[]
 
-export type ProductFeaturePoint = {
-  id: string
+/** Figma Product QR materials `5661:22668`. */
+export const PRODUCT_QR_MATERIALS = {
+  eyebrow: "QR MATERIALS",
+  title: "Make it easy to tell you how it went.",
+  body: "Put your restaurant’s QR where customers notice it. Open a private feedback form from the counter, a collection point or a digital link, with a wider range of physical formats to explore.",
+  /** Figma list order and labels; captions and photos reuse the Capture catalogue. */
+  items: [
+    {
+      id: "counter-display",
+      label: "QR Counter Display",
+      caption:
+        "Freestanding QR display for tills, counters and collection points.",
+      mediaId: "product/capture-counter-display",
+      imageAlt: "Freestanding QR counter display on a restaurant counter.",
+    },
+    {
+      id: "guest-cards",
+      label: "QR Guest Cards",
+      caption: "Compact cards for takeaway, delivery and counter handout.",
+      mediaId: "product/capture-guest-cards",
+      imageAlt: "Hand holding a green Tummly QR guest card with an offer.",
+    },
+    {
+      id: "tray-liner",
+      label: "QR Tray Liner",
+      caption: "Printed QR tray liner for dine-in Feedback and Offers.",
+      mediaId: "product/capture-tray-liner",
+      imageAlt: "Printed QR tray liner on a tray with a meal.",
+    },
+    {
+      id: "table-tent",
+      label: "QR Table Tent",
+      caption:
+        "Table display that makes private Feedback easy to share while dining.",
+      mediaId: "product/capture-table-tent",
+      imageAlt: "QR table tent standing on a dining table.",
+    },
+    {
+      id: "table-talker",
+      label: "QR Table Talker",
+      caption:
+        "Three-sided table display that keeps the QR visible from more angles.",
+      mediaId: "product/capture-table-talker",
+      imageAlt: "Three-sided QR table talker on a restaurant table.",
+    },
+    {
+      id: "window-sticker",
+      label: "QR Window Sticker",
+      caption: "Branded QR sticker for entrances, exits and front windows.",
+      mediaId: "product/capture-window-sticker",
+      imageAlt: "Branded QR window sticker on a restaurant window.",
+    },
+    {
+      id: "receipt-label",
+      label: "QR Receipt Sticker",
+      caption:
+        "Small QR label for receipts, designed to collect private Feedback.",
+      mediaId: "product/capture-receipt-label",
+      imageAlt: "Receipt with a small Tummly QR label.",
+    },
+    {
+      id: "delivery-bag-seal",
+      label: "QR Delivery Bag Seal",
+      caption: "QR-enabled seal for takeaway and delivery bags.",
+      mediaId: "product/capture-delivery-bag-seal",
+      imageAlt: "Delivery bag sealed with a QR-enabled sticker.",
+    },
+    {
+      id: "package-label",
+      label: "QR Packaging Sticker",
+      caption: "Flexible QR label for boxes, bags and takeaway packaging.",
+      mediaId: "product/capture-package-label",
+      imageAlt: "Takeaway packaging with a standard QR package label.",
+    },
+    {
+      id: "drink-cup-seal",
+      label: "QR Cup Seal",
+      caption: "Compact QR seal designed for drinks and cups.",
+      mediaId: "product/capture-drink-cup-seal",
+      imageAlt: "Drink cup with a compact QR seal on the lid.",
+    },
+    {
+      id: "pizza-box-label",
+      label: "QR Pizza Box Sticker",
+      caption: "QR label for pizza boxes, inviting Feedback after the order.",
+      mediaId: "product/capture-pizza-box-label",
+      imageAlt: "Pizza box with a Tummly QR label.",
+    },
+    {
+      id: "poster-club",
+      label: "QR Customer Club Poster",
+      caption: "Larger QR display designed to grow your guest list.",
+      mediaId: "product/capture-poster-club",
+      imageAlt: "Customer club poster with a large Tummly QR code.",
+    },
+  ],
+} as const satisfies {
+  eyebrow: string
   title: string
   body: string
+  items: readonly ProductCaptureMaterial[]
 }
 
-/** Figma Product Feedback section `5661:22688`. */
+
+/** Figma Product Guest Form `5661:22688`. */
 export const PRODUCT_FEEDBACK = {
-  title: "Make private Feedback easy to give.",
-  body: "Guests can type what happened or use the microphone to dictate it. They can then add their details, review the offers-and-updates opt-in shown in the Guest Form and submit their Feedback privately to the restaurant.",
+  eyebrow: "THE GUEST FORM",
+  title: "Let customers explain in their own words.",
+  body: "A short, restaurant-branded form invites customers to type or dictate their experience, then add a first name and either an email address or a UK mobile number. They can separately confirm their contact details for a reply about that feedback. Marketing is an optional choice and requires its own confirmation.",
   points: [
     {
-      id: "type-or-dictate",
-      title: "Type or dictate",
-      body: "Guests can enter Feedback in the way that suits the moment.",
+      id: "private-feedback",
+      title: "Private feedback, directly to your restaurant",
+      body: "Give customers a simple way to share their experience privately with your team.",
     },
     {
-      id: "restaurant-branded",
-      title: "Restaurant-branded",
-      body: "The restaurant and Location stay clear throughout the guest experience.",
+      id: "in-their-own-words",
+      title: "In their own words",
+      body: "Customers can type or dictate their feedback, making it easier to explain what happened.",
     },
     {
-      id: "private-by-design",
-      title: "Private by design",
-      body: "Guest Feedback goes into the restaurant workflow rather than becoming a public review.",
-    },
-    {
-      id: "built-for-mobile",
-      title: "Built for mobile",
-      body: "The experience is designed for the phone already in the guest’s hand.",
+      id: "marketing-optional",
+      title: "Marketing is always optional",
+      body: "Customers can submit feedback without agreeing to receive promotional emails or texts.",
     },
   ] satisfies ProductFeaturePoint[],
-  phoneImageAlt:
+  imageAlt:
     "Guest Feedback form on a phone for Mehmet’s Grill, showing type-or-dictate input and contact details.",
 } as const
 
-/** Figma Product Feedback & Recovery `5661:22714`. */
+/** Figma Product Feedback management `5661:22714`. */
 export const PRODUCT_FEEDBACK_RECOVERY = {
-  eyebrow: "Feedback & Recovery",
-  title: "Hear what guests want you to know, privately.",
-  body: "Bring private Feedback into one working inbox with the Location, QR source and available guest context attached. See what is new, what needs attention and what your team has already acted on.",
+  eyebrow: "FEEDBACK MANAGEMENT",
+  title: "Give service concerns the attention they deserve.",
+  body: "A late collection or a disappointing meal deserves a considered response. Read the original comment, see the restaurant and date, then prepare a personal reply about the experience.",
   points: [
     {
-      id: "one-private-inbox",
-      title: "One private inbox",
-      body: "Keep guest Feedback separate from public-review activity.",
+      id: "find-right-feedback",
+      title: "Find the right feedback",
+      body: "Review customer comments by restaurant, date and status to understand what happened.",
     },
     {
-      id: "context-attached",
-      title: "Context attached",
-      body: "See the Location, QR placement/source and relevant guest history together.",
+      id: "focus-what-matters",
+      title: "Focus on what matters",
+      body: "Identify service concerns that need a closer look or follow-up from your team.",
     },
     {
-      id: "recovery-workflow",
-      title: "Recovery workflow",
-      body: "Move Feedback through New, Needs attention, In progress and Resolved states.",
-    },
-    {
-      id: "ai-assisted-drafting",
-      title: "AI-assisted drafting",
-      body: "Where appropriate, Tummly can help prepare a recovery Draft for operator review.",
+      id: "prepare-thoughtful-reply",
+      title: "Prepare a thoughtful reply",
+      body: "Draft a personal response that addresses the customer’s experience.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
     "Feedback inbox showing a private guest response draft with AI recovery assistance.",
 } as const
 
-/** Figma Product Guests `5661:23065`. */
+/** Figma Product Guest context `5661:23065`. */
 export const PRODUCT_GUESTS = {
-  eyebrow: "Guests",
-  title: "Build a guest list with the right context attached.",
-  body: "Bring guest details, interaction history, Location/source context and current contactability together, so your team understands the relationship before taking the next action.",
+  eyebrow: "Guest context",
+  title: "See the person behind the latest comment.",
+  body: "Bring previous feedback and recorded offer activity into the conversation. Help your team understand the customer’s experience before deciding how to respond.",
   points: [
     {
-      id: "guest-details",
-      title: "Guest details",
-      body: "See the guest information collected through Guest Loop.",
+      id: "understand-previous-feedback",
+      title: "Understand previous feedback",
+      body: "See what customers have shared before and identify recurring experiences or concerns.",
     },
     {
-      id: "contactability",
-      title: "Contactability",
-      body: "Understand the relevant contactability and permission context before taking action.",
+      id: "review-offer-activity",
+      title: "Review offer activity",
+      body: "View recorded offer claims and confirmed redemptions alongside customer feedback.",
     },
     {
-      id: "location-source",
-      title: "Location & source",
-      body: "Keep each guest connected to the Location and QR source where the relationship began.",
-    },
-    {
-      id: "interaction-history",
-      title: "Interaction history",
-      body: "See Feedback, Campaign, Offer and Redemption activity together.",
+      id: "channel-choices",
+      title: "Channel choices",
+      body: "See whether the customer chose email or text marketing.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
-    "Guest profile for Alex Thompson with contactability, tags, and interaction history.",
+    "Guest list with a profile for Charlotte Wilson showing feedback shared, offers redeemed and email marketing choice.",
 } as const
 
-/** Figma Product Campaigns & Offers `5661:23511` — media left. */
+/** Figma Product Offers & campaigns `5661:23511` — media left. */
 export const PRODUCT_CAMPAIGNS = {
-  eyebrow: "Campaigns & Offers",
-  title: "Give eligible guests a useful reason to come back.",
-  body: "Build a Campaign for an eligible guest audience, choose Email or SMS, add an Offer where useful and review everything before it is sent. Tummly can prepare the Campaign. You stay in control of the send.",
+  eyebrow: "OFFERS & CAMPAIGNS",
+  title: "Give customers a reason to order or visit again.",
+  body: "Promote a new dish, fill customers in on a menu change or offer a midweek treat. Choose customers who have agreed to hear from you, prepare your email or text and review it before sending or scheduling.",
   points: [
     {
-      id: "choose-a-goal",
-      title: "Choose a goal",
-      body: "Thank recent guests, fill a quieter time, re-engage or promote something new.",
+      id: "make-offer-clear",
+      title: "Make the offer clear",
+      body: "Set the benefit, terms, restaurant and expiry.",
     },
     {
-      id: "choose-eligible-audience",
-      title: "Choose an eligible audience",
-      body: "Tummly applies the relevant contactability and Campaign eligibility rules.",
+      id: "prepare-invitation",
+      title: "Prepare the invitation",
+      body: "Create an email or text for the appropriate audience.",
     },
     {
-      id: "add-an-offer",
-      title: "Add an Offer if useful",
-      body: "Offers have clear validity, expiry and controlled Redemption.",
-    },
-    {
-      id: "review-before-send",
-      title: "Review before send",
-      body: "Final audience, message, Offer, schedule and usage are confirmed before execution.",
-    },
-    {
-      id: "track-redemption",
-      title: "Track Redemption",
-      body: "See Claims and Redemptions against the relevant Offer and Campaign execution.",
+      id: "review-response",
+      title: "Review the response",
+      body: "See campaign engagement and staff-confirmed offer use.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
-    "Create a campaign screen with goal options such as thank recent guests and boost a quieter time.",
+    "Campaign draft “Come back this Sunday” with a free dessert offer for 212 eligible guests.",
 } as const
 
-/** Figma Product Reports & Briefs `5661:23587`. */
+/** Figma Product Reports `5661:23587`. */
 export const PRODUCT_REPORTS = {
-  eyebrow: "Reports & Briefs",
-  title: "See what happened, what changed and what needs attention.",
-  body: "Understand Capture, Feedback, guest growth, Campaign and Offer activity with the relevant period, Location and source context attached.",
+  eyebrow: "REPORTS",
+  title: "Know what deserves your attention.",
+  body: "See recurring feedback, campaign engagement and confirmed offer redemptions by restaurant and reporting period. Use the picture to plan your next promotion or decide what to discuss with the team.",
   points: [
     {
-      id: "capture-feedback",
-      title: "Capture & Feedback",
-      body: "See scans, Feedback and issue themes with period, Location and source context.",
+      id: "spot-recurring-feedback",
+      title: "Spot recurring feedback",
+      body: "Identify common themes and explore the customer comments behind them.",
     },
     {
-      id: "guest-growth",
-      title: "Guest growth",
-      body: "Understand guest growth and contactability over the selected period.",
+      id: "measure-campaign-response",
+      title: "Measure campaign response",
+      body: "Review message engagement and confirmed offer redemptions.",
     },
     {
-      id: "campaigns-offers",
-      title: "Campaigns & Offers",
-      body: "Track Campaign activity and Offer Redemption in the same reporting context.",
-    },
-    {
-      id: "weekly-brief",
-      title: "Weekly Brief",
-      body: "See what changed, what needs attention and the evidence-backed next place to look.",
+      id: "make-informed-decisions",
+      title: "Make informed decisions",
+      body: "Use reporting insights to guide your next team discussion and priorities.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
-    "Reports overview with guest growth chart, feedback themes, and weekly brief.",
+    "Weekly brief for Mavero Kitchen showing guests captured, positive feedback and a service-speed concern.",
 } as const
 
 /** Figma Product AI Assistant `5661:23627`. */
 export const PRODUCT_AI_ASSISTANT = {
-  eyebrow: "AI Assistant",
-  /** Two lines — rendered with `whitespace-pre-line`. */
-  title: "Ask what is happening.\nPrepare the next step.",
-  body: "Ask Tummly about the Guest Loop activity you are allowed to see. Get a concise answer with the relevant scope and evidence, then prepare a governed Draft for your review where an action is useful.",
+  eyebrow: "AI ASSISTANT",
+  title: "From a restaurant question to a useful draft.",
+  body: "Ask what customers have mentioned this week, explore the response to an offer or prepare a reply. Tummly AI helps with the analysis and first draft, ready for your judgement.",
   points: [
     {
-      id: "evidence-aware-answers",
-      title: "Evidence-aware answers",
-      body: "See the relevant Location, period and supporting context with each answer.",
+      id: "ask-about-feedback",
+      title: "Ask about feedback",
+      body: "Explore what customers have mentioned in a chosen period.",
     },
     {
-      id: "prepare-governed-drafts",
-      title: "Prepare governed Drafts",
-      body: "Prepare Campaign or recovery Drafts for operator review.",
+      id: "understand-figures",
+      title: "Understand the figures",
+      body: "Ask for an explanation of the activity shown.",
     },
     {
-      id: "stay-in-control",
-      title: "Stay in control",
-      body: "Tummly AI does not autonomously send Campaigns or bypass eligibility and permission rules.",
+      id: "prepare-wording",
+      title: "Prepare the wording",
+      body: "Create an offer, reply or campaign draft to review.",
     },
   ] satisfies ProductFeaturePoint[],
-  ctaLabel: "Explore AI Assistant",
+  ctaLabel: "Explore Tummly AI",
   ctaTo: MARKETING_AI_ASSISTANT_PATH,
   imageAlt:
-    "AI Assistant workspace greeting Oliver and inviting a question about Guest Loop activity.",
+    "AI Assistant workspace asking what guests love most about the restaurant and what to do with it this Sunday.",
 } as const
 
-/** Figma Product “Built to work with your restaurant” `5661:24151`. */
-export const PRODUCT_SYSTEMS = {
-  eyebrow: "Built to work with your restaurant",
-  title: "Start without replacing the systems you already use.",
-  body: "Guest Loop works alongside the way your restaurant already operates. You can start with Tummly QR touchpoints without replacing your POS, ordering channels or existing restaurant systems.",
+/** Figma Product outcomes `5661:24151`. */
+export const PRODUCT_OUTCOMES = {
+  title: "More useful work from the feedback you collect.",
   cards: [
     {
-      id: "no-pos",
-      title: "No POS integration required",
-      body: "Guest Loop can deliver its core value without a POS connection.",
+      id: "considered-service-reply",
+      title: "A considered service reply",
+      body: "Give the team context to answer a concern with care.",
     },
     {
-      id: "no-website",
-      title: "No website required",
-      body: "Guests reach the restaurant’s Guest Form directly from Tummly QR touchpoints or a Smart Guest Link.",
+      id: "relevant-reason-to-return",
+      title: "A relevant reason to return",
+      body: "Prepare invitations that fit your restaurant and the people who chose to hear from you.",
     },
     {
-      id: "no-printer",
-      title: "No in-house printer required",
-      body: "Restaurant-ready QR materials support physical deployment, with digital and self-print options available where suitable.",
+      id: "clearer-management-conversation",
+      title: "A clearer management conversation",
+      body: "Discuss recurring comments and promotional response with evidence in front of you.",
     },
   ] satisfies ProductFeaturePoint[],
 } as const
 
-/** Figma Product multi-location banner `5661:24169`. */
+/** Figma Product For Groups `6821:36359`. */
 export const PRODUCT_GROUPS = {
-  eyebrow: "For single and multi-location teams",
-  title: "Keep the Location context as you grow.",
-  body: "Run Guest Loop across multiple Locations while keeping Feedback, guests, QR sources and reporting connected to the right place. Eligible plans can also provide consolidated reporting and group-level operating views.",
-  ctaLabel: "See Tummly for groups",
+  eyebrow: "BUILT FOR GROWING RESTAURANTS",
+  title: "Keep the local detail as your group grows.",
+  body: "Review your restaurants together, then look closer at the Location behind a change. Give managers access to the restaurants they look after.",
+  points: [
+    {
+      id: "view-across-restaurants",
+      title: "A view across restaurants",
+      body: "Review customer feedback and engagement across your group.",
+    },
+    {
+      id: "local-responsibility",
+      title: "Local responsibility",
+      body: "Give managers access to the restaurants they manage.",
+    },
+    {
+      id: "room-to-look-closer",
+      title: "Room to look closer",
+      body: "Open the Location detail behind a group-level change.",
+    },
+  ] satisfies ProductFeaturePoint[],
+  primaryLabel: "Get started",
+  ctaLabel: "Explore For Groups",
   ctaTo: MARKETING_FOR_GROUPS_PATH,
+  trustItems: ["£0 for 30 days", "No payment card required"] as const,
+  imageAlt:
+    "Friends laughing around a restaurant table with a Tummly QR table tent.",
 } as const
 
-/** Figma Product “Built around restaurant control” `5661:24177`. */
-export const PRODUCT_CONTROL = {
-  eyebrow: "Built around restaurant control",
-  title: "Guest choice. Restaurant control. Clear history.",
-  body: "Private Feedback, communication controls, human review and traceable activity keep important decisions under restaurant control.",
-  columns: [
-    [
-      {
-        id: "private-feedback",
-        title: "Private Feedback",
-        body: "Feedback stays within the restaurant workflow and remains separate from public reviews.",
-      },
-      {
-        id: "controlled-communication",
-        title: "Controlled communication",
-        body: "Guest contact and Campaign eligibility are evaluated before communication is sent.",
-      },
-    ],
-    [
-      {
-        id: "human-review",
-        title: "Human review",
-        body: "Tummly AI can prepare work; consequential actions remain under operator control.",
-      },
-      {
-        id: "traceable-activity",
-        title: "Traceable activity",
-        body: "Important product actions retain the relevant Location, source, time and history.",
-      },
-    ],
-  ] satisfies ProductFeaturePoint[][],
-  ctaLabel: "Learn about trust & privacy",
+export type ProductTrustItem = {
+  id: string
+  title: string
+  body: string
+}
+
+export type ProductCertification = {
+  id: string
+  label: string
+}
+
+/** Figma Product Trust & privacy `6937:13422`. */
+export const PRODUCT_TRUST = {
+  eyebrow: "TRUST & PRIVACY",
+  title: "Guest trust.\nRestaurant control.",
+  body: "Private feedback, optional marketing and review before important actions help keep the experience clear for customers and practical for your team.",
+  ctaLabel: "Explore Trust & Privacy",
   ctaTo: MARKETING_TRUST_PRIVACY_PATH,
+  items: [
+    {
+      id: "private-way-to-be-heard",
+      title: "A private way to be heard",
+      body: "The customer’s feedback goes to your restaurant team.",
+    },
+    {
+      id: "clear-marketing-choice",
+      title: "A clear choice about marketing",
+      body: "Customers choose whether to receive offers and updates by email or text.",
+    },
+    {
+      id: "access-fits-the-job",
+      title: "Access that fits the job",
+      body: "Give managers and staff the access they need for their restaurants.",
+    },
+    {
+      id: "oversight-of-the-decision",
+      title: "Help with the work, oversight of the decision",
+      body: "AI can explain feedback and prepare drafts for your team to review.",
+    },
+  ] satisfies ProductTrustItem[],
+  certifications: [
+    { id: "iso-27001", label: "ISO/IEC 27001" },
+    { id: "cyber-essentials-plus", label: "Cyber Essentials Plus" },
+    { id: "ico-dpe", label: "ICO Data Protection Essentials" },
+    { id: "ico-data", label: "ICO Data Protection Fee Registration" },
+    { id: "cyber-essentials", label: "Cyber Essentials" },
+    { id: "iasme-level-1", label: "IASME Cyber Assurance Level One" },
+    { id: "good-business-charter", label: "Good Business Charter" },
+    { id: "iso-27701", label: "ISO/IEC 27701:2025" },
+    { id: "uk-gdpr", label: "UK GDPR & Data Protection" },
+    { id: "privacy-choices", label: "Cookie & Privacy Choices" },
+    { id: "opt-in-marketing", label: "Permission-Based Marketing" },
+    { id: "data-rights", label: "Guest Data Rights" },
+  ] satisfies ProductCertification[],
+} as const
+
+/**
+ * Figma Product Pricing `6823:36468`. Plan names, CTAs and the Growth highlight
+ * come from the AI Assistant plan cards; monthly amounts come from the published
+ * catalogue at render time. `subline` is the grey location-limit line.
+ */
+const PRODUCT_PRICING_SUBLINES = {
+  Pilot: "No payment card required.",
+  Starter: "1 location only",
+  Growth: "Up to 3 locations",
+  Group: "Up to 5 locations",
+} as const
+
+export const PRODUCT_PRICING = {
+  eyebrow: "PRICING",
+  title: "Choose a plan for the way you run your restaurant.",
+  body: "Try one Location with the 30-day Pilot, or compare paid plans for your restaurants, team and marketing capacity.",
+  compareLabel: AI_ASSISTANT_PLANS.compareLabel,
+  compareTo: AI_ASSISTANT_PLANS.compareTo,
+  cards: AI_ASSISTANT_PLANS.cards.map((card) => ({
+    ...card,
+    description:
+      card.id === "Pilot"
+        ? "Try Tummly at one Location before choosing a paid plan."
+        : card.description,
+    subline: PRODUCT_PRICING_SUBLINES[card.id],
+  })),
 } as const
 
 export type ProductFaqItem = {
@@ -464,61 +574,64 @@ export const PRODUCT_FAQS = {
   moreCtaTo: MARKETING_FAQS_PATH,
   items: [
     {
-      id: "replace-pos",
-      question: "Do I need to replace my POS or ordering system?",
+      id: "what-tummly-does",
+      question: "What does Tummly help my restaurant do?",
       answer:
-        "No. Tummly is designed to work alongside the way your restaurant already operates. Its core Guest Loop does not require you to replace your POS or ordering channels.",
+        "Tummly connects private feedback with service replies, guest context, relevant offers and campaigns. It helps your team understand customer experiences, respond to concerns and create more reasons for customers to return.",
     },
     {
-      id: "guest-app",
-      question: "Do guests need to download an app?",
+      id: "takeaway-delivery",
+      question: "Is it suitable for takeaway and delivery?",
       answer:
-        "No. Guests open the restaurant’s Guest Form from a Tummly QR touchpoint or Smart Guest Link in their browser.",
+        "Yes. Customers can reach your feedback form after collection, delivery or a visit, using your QR or guest link.",
     },
     {
-      id: "feedback-public",
-      question: "Is Feedback public?",
+      id: "multiple-locations",
+      question: "Can I manage multiple Locations?",
       answer:
-        "No. Feedback submitted through the Guest Form stays within the restaurant workflow and remains separate from public-review activity.",
+        "Yes. Growth includes up to three Locations and Group up to five. You can configure a paid plan for up to 500 Locations.",
     },
     {
-      id: "contact-details",
-      question: "Do guests need to provide contact details?",
+      id: "website",
+      question: "Do I need a website?",
       answer:
-        "No. Guests can submit private Feedback without providing contact details. They can optionally add a first name and one contact method if they want the restaurant to follow up.",
+        "No. Your restaurant’s Tummly feedback form has its own link, which customers can open from a QR code.",
     },
     {
-      id: "multi-location",
-      question: "Can I use Tummly across multiple Locations?",
+      id: "contact-customers",
+      question: "Can I contact customers?",
       answer:
-        "Yes. Eligible plans support multiple Locations while retaining the relevant Location context across Capture, Feedback, guests and reporting.",
+        "Your team can reply about the feedback where the contact has been confirmed and a service reply is available. Promotional email and text require the appropriate confirmed marketing permission for that channel. Providing contact details alone does not grant marketing permission.",
     },
     {
-      id: "ai-auto-campaigns",
-      question: "Can Tummly AI send Campaigns automatically?",
+      id: "create-offers",
+      question: "Can I create offers?",
       answer:
-        "No. Tummly AI can analyse permitted data and prepare governed Drafts, but consequential communications remain subject to operator review and controlled sending.",
+        "Yes. Set the offer, terms and expiry, then invite eligible customers to use it. A standard thank-you offer is separate from any offer explicitly conditional on joining marketing.",
     },
     {
-      id: "website-printer",
-      question: "Do I need my own website or printer?",
+      id: "how-ai-works",
+      question: "How does AI work?",
       answer:
-        "No. Guest Loop can be entered through Tummly QR touchpoints or a Smart Guest Link, and restaurant-ready QR materials are available alongside digital and self-print options where suitable.",
+        "Ask practical questions about your restaurant’s feedback and activity. AI can explain the information and prepare drafts for you to review.",
     },
     {
-      id: "without-campaigns",
-      question: "Can I use Tummly without creating Offers or Campaigns?",
+      id: "try-before-paid",
+      question: "Can I try before choosing a paid plan?",
       answer:
-        "Yes. Tummly can deliver value from private Feedback, guest context and reporting before you choose to run a Campaign or Offer.",
+        "Yes. Start a £0 30-day Pilot at one eligible Location, with no card and no automatic paid renewal.",
     },
   ] satisfies ProductFaqItem[],
 } as const
 
-/** Shared bottom Sign-up CTA — same Pilot copy as Pricing / AI Assistant. */
+/**
+ * Bottom Sign-up CTA — Figma Sign up `6824:12527` (editorial variant, no trust
+ * badge, "Read our Terms of Service…" note).
+ */
 export const PRODUCT_SIGN_UP_CTA: MarketingSignUpCtaContent = {
-  title: "Ready to see Guest Loop in a real restaurant?",
-  body: "Start with one Location and see how Guest Loop works with real guests.",
-  primaryLabel: "Start 30-day Pilot",
-  badge: "No payment card required",
+  title: "Put the Guest Loop to work in your restaurant.",
+  body: "Start with one Location and try the work behind repeat business: hear the experience, respond thoughtfully and invite customers who want to hear from you to order or visit again.",
+  primaryLabel: "Get started",
   planIntent: { plan: "Pilot" },
+  legalNote: "read",
 }

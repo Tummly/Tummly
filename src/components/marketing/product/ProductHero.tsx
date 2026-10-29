@@ -1,22 +1,20 @@
 import { CheckIcon } from "lucide-react"
+import { Link } from "react-router-dom"
 
+import heroImage from "@/assets/images/marketing/product/hero.webp"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
+  PRODUCT_EYEBROW,
   PRODUCT_HERO,
-  PRODUCT_SECTION_BODY,
   PRODUCT_SECTION_INSET,
   PRODUCT_SECTION_Y,
 } from "@/content/marketing/productPage"
-import { marketingHeroHeading } from "@/lib/marketing-layout"
-import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
-
-const heroCollageImage = remoteSimpleImg("product/hero-collage")
 
 /**
  * Figma Product hero `5661:22625` (1668×749).
- * Left copy + CTAs; right collage frame `5838:27265`.
+ * Left copy + CTAs (616px); right media plate `5838:27265` (766×609).
  */
 export function ProductHero() {
   return (
@@ -28,20 +26,15 @@ export function ProductHero() {
           PRODUCT_SECTION_Y,
         )}
       >
-        <div className="flex w-full max-w-[785px] flex-col items-start justify-center gap-[46px] lg:min-w-0 lg:flex-1">
-          <div className="flex w-full flex-col items-start gap-[18px]">
-            <h1
-              className={cn(
-                "m-0 w-full text-black",
-                marketingHeroHeading,
-                "font-semibold lg:text-[54px] lg:leading-[70px]",
-              )}
-            >
-              {PRODUCT_HERO.titleLine1}
-              <br aria-hidden />
-              {PRODUCT_HERO.titleLine2}
-            </h1>
-            <p className={cn("m-0 w-full max-w-[634px]", PRODUCT_SECTION_BODY)}>
+        <div className="flex w-full flex-col items-start justify-center gap-[46px] lg:min-w-0 lg:max-w-[616px] lg:flex-1">
+          <div className="flex w-full flex-col gap-[22px]">
+            <div className="flex w-full flex-col gap-3.5">
+              <p className={PRODUCT_EYEBROW}>{PRODUCT_HERO.eyebrow}</p>
+              <h1 className="m-0 font-jakarta text-[36px] font-semibold leading-10 text-black lg:text-[54px] lg:leading-[60px]">
+                {PRODUCT_HERO.title}
+              </h1>
+            </div>
+            <p className="m-0 font-sans text-base font-normal leading-[22px] text-[#141414] lg:text-[18px] lg:leading-6">
               {PRODUCT_HERO.body}
             </p>
           </div>
@@ -54,9 +47,9 @@ export function ProductHero() {
                 </RequestTrialLink>
               </MarketingButton>
               <MarketingButton asChild variant="secondary">
-                <a href={PRODUCT_HERO.secondaryHref}>
+                <Link to={PRODUCT_HERO.secondaryTo}>
                   {PRODUCT_HERO.secondaryLabel}
-                </a>
+                </Link>
               </MarketingButton>
             </div>
 
@@ -64,12 +57,12 @@ export function ProductHero() {
               {PRODUCT_HERO.trustItems.map((item) => (
                 <p
                   key={item}
-                  className="m-0 flex items-center gap-1.5 text-xs font-inter font-medium leading-[normal] text-[#727272]"
+                  className="m-0 flex items-center gap-1.5 font-inter text-xs font-medium leading-[normal] text-[#727272]"
                 >
                   <CheckIcon
-                    className="size-3 shrink-0 text-[#14a74a]"
+                    className="size-3 shrink-0 text-[#727272]"
                     aria-hidden
-                    strokeWidth={2.5}
+                    strokeWidth={2}
                   />
                   {item}
                 </p>
@@ -78,15 +71,13 @@ export function ProductHero() {
           </div>
         </div>
 
-        <div className="w-full shrink-0 overflow-hidden rounded-[12px] lg:w-[min(100%,766px)] lg:max-w-[766px]">
+        <div className="relative aspect-[766/609] w-full shrink-0 overflow-hidden rounded-[12px] bg-[#e9e9e9] lg:w-auto lg:max-w-[766px] lg:flex-1">
           <img
-            src={heroCollageImage.src}
-            srcSet={heroCollageImage.srcSet}
-            sizes="(min-width: 1024px) 766px, 100vw"
-            alt={PRODUCT_HERO.dashboardImageAlt}
-            width={heroCollageImage.width}
-            height={heroCollageImage.height}
-            className="block h-auto w-full"
+            src={heroImage}
+            alt={PRODUCT_HERO.imageAlt}
+            width={2160}
+            height={2160}
+            className="absolute left-[3.55%] top-[-6.85%] h-[116.86%] w-[92.91%] max-w-none"
             decoding="async"
             fetchPriority="high"
           />
