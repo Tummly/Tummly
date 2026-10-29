@@ -107,34 +107,6 @@ namespace TummlyBackend.Controllers
             return Ok(new { success = true });
         }
 
-        [HttpPost("form")]
-        public async Task<IActionResult> Form(
-            [FromBody] UnsubscribeFormRequest? request,
-            CancellationToken cancellationToken
-        )
-        {
-            if (request != null && request.RestaurantId > 0)
-            {
-                var normalized = (request.Email ?? string.Empty)
-                    .Trim()
-                    .ToLowerInvariant();
-
-                if (normalized.Length > 0)
-                {
-                    await _withdraw.WithdrawForRestaurantContactAsync(
-                        request.RestaurantId,
-                        normalized,
-                        isEmail: true,
-                        LocationGuestPermissionKind.EmailMarketing,
-                        LocationGuestPermissionLedgerSources.EmailUnsubscribe,
-                        cancellationToken
-                    );
-                }
-            }
-
-            return Ok(new { success = true });
-        }
-
         private bool TryVerifyToken(
             string? token,
             out int locationGuestId,

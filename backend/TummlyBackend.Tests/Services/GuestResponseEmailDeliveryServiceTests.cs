@@ -183,7 +183,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(_emailService.LastOffer);
             Assert.False(string.IsNullOrWhiteSpace(_emailService.LastUnsubscribeHref));
             Assert.Contains(
-                "/unsubscribe",
+                "/preferences",
                 _emailService.LastUnsubscribeHref!,
                 StringComparison.Ordinal
             );
@@ -1091,7 +1091,8 @@ namespace TummlyBackend.Tests.Services
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null,
                 string? unsubscribeHref = null,
-                string? ticketSubject = null
+                string? ticketSubject = null,
+                string? oneClickUnsubscribeUrl = null
             )
             {
                 CallCount++;

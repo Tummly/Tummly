@@ -3,12 +3,13 @@ using Microsoft.Extensions.Configuration;
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Builds unsubscribe URLs for non-transactional email footers.
+    /// Builds preference centre links for email footers, and RFC 8058 one-click URLs for the
+    /// <c>List-Unsubscribe</c> header.
     /// </summary>
     public static class UnsubscribeLink
     {
         /// <summary>
-        /// Signed one-click URL when JWT secret is available.
+        /// Signed preference centre link for one Location Guest (<c>/preferences?t=</c>).
         /// </summary>
         public static string ForLocationGuest(
             string frontendBaseUrl,
@@ -26,42 +27,61 @@ namespace TummlyBackend.Helpers
                 issued,
                 secret
             );
-            return $"{baseUrl}/unsubscribe?t={token}";
+            return $"{baseUrl}/preferences?t={token}";
         }
 
         /// <summary>
-        /// Form fallback when a signed token cannot be minted but restaurant
-        /// context is known (<c>/unsubscribe?restaurantId=</c>).
+        /// Preference centre entry page, used when no signed token can be minted. The page asks
+        /// for the guest's contact, so no restaurant id is needed in the URL.
         /// </summary>
-        public static string ForRestaurant(
-            string frontendBaseUrl,
-            int restaurantId
-        )
+        public static string ForRestaurant(string frontendBaseUrl)
         {
             var baseUrl = NormalizeBaseUrl(frontendBaseUrl);
-            return $"{baseUrl}/unsubscribe?restaurantId={restaurantId}";
+            return $"{baseUrl}/preferences";
         }
 
         /// <summary>
-        /// Prefer <c>Unsubscribe:SigningSecret</c>; fall back to JWT secret so
-        /// existing deploys keep working until a dedicated secret is set.
+        /// RFC 8058 one-click URL on the API origin. Mailbox providers POST to it.
         /// </summary>
-        public static string? ResolveSigningSecret(IConfiguration configuration)
+        public static string OneClickUrl(string apiBaseUrl, string token)
         {
-            var dedicated = configuration["Unsubscribe:SigningSecret"];
-            if (!string.IsNullOrWhiteSpace(dedicated))
+            var baseUrl = NormalizeBaseUrl(apiBaseUrl);
+            return $"{baseUrl}/api/public/preferences/one-click?t={Uri.EscapeDataString(token)}";
+        }
+
+        /// <summary>
+        /// One-click URL for a campaign or guest-response email, or null when it cannot be
+        /// built. It needs <c>Api:PublicBaseUrl</c> with an <c>https://</c> origin (unset in local
+        /// dev, so no headers are sent), a signing secret, and a Location Guest to withdraw.
+        /// </summary>
+        public static string? OneClickUrlFor(
+            IConfiguration configuration,
+            int restaurantId,
+            int? locationGuestId
+        )
+        {
+            var apiBaseUrl = configuration["Api:PublicBaseUrl"]?.Trim();
+            var secret = ResolveSigningSecret(configuration);
+            if (
+                string.IsNullOrWhiteSpace(apiBaseUrl)
+                || !apiBaseUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrEmpty(secret)
+                || locationGuestId is not int lg
+                || lg <= 0
+                || restaurantId <= 0
+            )
             {
-                return dedicated.Trim();
+                return null;
             }
 
-            var jwt = configuration["JwtSettings:Secret"];
-            return string.IsNullOrWhiteSpace(jwt) ? null : jwt.Trim();
+            var token = UnsubscribeToken.Create(lg, restaurantId, DateTime.UtcNow, secret);
+            return OneClickUrl(apiBaseUrl, token);
         }
 
         /// <summary>
-        /// Prefer signed <c>?t=</c> when secret is present; otherwise
-        /// restaurant-scoped form URL when <paramref name="restaurantId"/> is
-        /// positive. Returns null only when neither path applies.
+        /// Prefers the signed <c>?t=</c> link when a secret and Location Guest are present.
+        /// Otherwise returns the entry page when <paramref name="restaurantId"/> is positive.
+        /// Returns null only when neither applies.
         /// </summary>
         public static string? PreferSignedOrRestaurant(
             string frontendBaseUrl,
@@ -89,10 +109,26 @@ namespace TummlyBackend.Helpers
 
             if (restaurantId > 0)
             {
-                return ForRestaurant(frontendBaseUrl, restaurantId);
+                return ForRestaurant(frontendBaseUrl);
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Prefer <c>Unsubscribe:SigningSecret</c>; fall back to JWT secret so
+        /// existing deploys keep working until a dedicated secret is set.
+        /// </summary>
+        public static string? ResolveSigningSecret(IConfiguration configuration)
+        {
+            var dedicated = configuration["Unsubscribe:SigningSecret"];
+            if (!string.IsNullOrWhiteSpace(dedicated))
+            {
+                return dedicated.Trim();
+            }
+
+            var jwt = configuration["JwtSettings:Secret"];
+            return string.IsNullOrWhiteSpace(jwt) ? null : jwt.Trim();
         }
 
         private static string NormalizeBaseUrl(string frontendBaseUrl) =>

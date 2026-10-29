@@ -242,15 +242,15 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void Generate_UsesDefaultBareUnsubscribe_WhenHrefOmitted()
+        public void Generate_UsesDefaultPreferencesPage_WhenHrefOmitted()
         {
             var html = GenerateSample();
 
             Assert.Contains(
-                "href=\"https://app.tummly.test/unsubscribe\"",
+                "href=\"https://app.tummly.test/preferences\"",
                 html
             );
-            Assert.DoesNotContain("unsubscribe?t=", html);
+            Assert.DoesNotContain("preferences?t=", html);
         }
 
         [Fact]
@@ -281,7 +281,7 @@ namespace TummlyBackend.Tests.Helpers
         public void Generate_UsesProvidedUnsubscribeHref_WhenSet()
         {
             const string signed =
-                "https://app.tummly.test/unsubscribe?t=payload.sig";
+                "https://app.tummly.test/preferences?t=payload.sig";
 
             var html = GuestResponseEmailTemplate.Generate(
                 Env(),
@@ -298,7 +298,7 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.Contains($"href=\"{signed}\"", html);
             Assert.DoesNotContain(
-                "href=\"https://app.tummly.test/unsubscribe\"",
+                "href=\"https://app.tummly.test/preferences\"",
                 html
             );
         }

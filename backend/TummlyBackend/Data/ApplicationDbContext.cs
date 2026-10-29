@@ -199,6 +199,22 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<TummlyGuest> TummlyGuests { get; set; }
+
+        public DbSet<TummlyGuestContact> TummlyGuestContacts { get; set; }
+
+        public DbSet<TummlyGuestMarketingEvent> TummlyGuestMarketingEvents
+        {
+            get;
+            set;
+        }
+
+        public DbSet<TummlyGuestLocationMute> TummlyGuestLocationMutes
+        {
+            get;
+            set;
+        }
+
         public DbSet<QrScanEvent> QrScanEvents { get; set; }
 
         public DbSet<QrFormOpenEvent> QrFormOpenEvents { get; set; }
@@ -1696,6 +1712,50 @@ namespace TummlyBackend.Data
                     row.PermissionKind,
                     row.ContactHash,
                 })
+                .IsUnique();
+
+            /*
+             =========================================
+             TUMMLY GUEST (guest preference centre)
+             Platform-level identity. Cascades from
+             TummlyGuests; locations cascade to mutes.
+             No FK to Users (SQL Server error 1785).
+             =========================================
+            */
+
+            modelBuilder.Entity<TummlyGuestContact>()
+                .HasOne(c => c.TummlyGuest)
+                .WithMany(g => g.Contacts)
+                .HasForeignKey(c => c.TummlyGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyGuestContact>()
+                .HasIndex(c => new { c.ContactType, c.NormalizedValue })
+                .IsUnique();
+
+            modelBuilder.Entity<TummlyGuestMarketingEvent>()
+                .HasOne(e => e.TummlyGuest)
+                .WithMany(g => g.MarketingEvents)
+                .HasForeignKey(e => e.TummlyGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyGuestMarketingEvent>()
+                .HasIndex(e => new { e.TummlyGuestId, e.Channel, e.OccurredAt });
+
+            modelBuilder.Entity<TummlyGuestLocationMute>()
+                .HasOne(m => m.TummlyGuest)
+                .WithMany(g => g.LocationMutes)
+                .HasForeignKey(m => m.TummlyGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyGuestLocationMute>()
+                .HasOne(m => m.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(m => m.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TummlyGuestLocationMute>()
+                .HasIndex(m => new { m.TummlyGuestId, m.RestaurantLocationId })
                 .IsUnique();
 
             /*

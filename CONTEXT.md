@@ -760,6 +760,15 @@ _Avoid_: Customer, diner, CRM contact, guest profile (as the canonical noun), vi
 The restaurant-scoped durable identity for a Guest, keyed by normalized email or phone. Shared across Owned locations so the same person is not duplicated as disconnected identities. Not what the Guests page lists per location.
 _Avoid_: Global guest, guest account, CRM contact, person record
 
+**Tummly Guest**:
+Platform-level identity of a person who uses the preference centre. Owns one or more **verified contacts**. Distinct from **Master Guest** (restaurant-scoped). Restaurants never see it.
+
+**Tummly marketing**:
+Marketing that Tummly itself may send. Consent is per channel on the **Tummly Guest**. No sender exists yet.
+
+**Location mute**:
+A **Tummly Guest**'s choice that one Owned location must not market to them and must not feature in **Tummly marketing**.
+
 **Location Guest**:
 The membership of a **Master Guest** at one **Owned location** — what that location’s operators see and manage on the Guests page (activity, consent, **Guest tags**, **Location Guest notes**, and list rows for that venue). Created when the Master Guest first interacts at that location.
 _Avoid_: Venue guest, location membership (as the product noun), site guest, local guest

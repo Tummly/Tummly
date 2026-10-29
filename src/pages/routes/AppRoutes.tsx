@@ -57,8 +57,9 @@ import ForGroupsPage from "../public/ForGroupsPage";
 import PilotPage from "../public/PilotPage";
 import TrustPrivacyPage from "../public/TrustPrivacyPage";
 import AboutPage from "../public/AboutPage";
-import UnsubscribePage from "../public/UnsubscribePage";
+import GuestPreferencesPage from "../public/GuestPreferencesPage";
 import NotFoundPage from "../public/NotFoundPage";
+import { UnsubscribeRedirect } from "./UnsubscribeRedirect";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { CaptureNestedRoute } from "@/components/dashboard/operator/Capture/CaptureNestedRoute";
 import { CaptureArchiveRoute } from "@/components/dashboard/operator/Capture/CaptureArchiveRoute";
@@ -299,6 +300,14 @@ function AppRoutes() {
           element={
             <ErrorBoundary>
               <GuestFeedbackPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="preferences"
+          element={
+            <ErrorBoundary>
+              <GuestPreferencesPage />
             </ErrorBoundary>
           }
         />
@@ -638,7 +647,7 @@ function AppRoutes() {
           <Route path="30-day-pilot" element={<PilotPage />} />
           <Route path="trust-privacy" element={<TrustPrivacyPage />} />
           <Route path="about" element={<AboutPage />} />
-          <Route path="unsubscribe" element={<UnsubscribePage />} />
+          <Route path="unsubscribe" element={<UnsubscribeRedirect />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
           <Route

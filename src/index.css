@@ -60,6 +60,7 @@
   --color-guest-feedback-bg: var(--guest-feedback-bg);
   --color-guest-feedback-surface: var(--guest-feedback-surface);
   --color-guest-feedback-surface-solid: var(--guest-feedback-surface-solid);
+  --color-guest-feedback-card: var(--guest-feedback-card);
   --color-guest-feedback-glass: var(--guest-feedback-glass);
   --color-guest-feedback-glass-strong: var(--guest-feedback-glass-strong);
   --color-guest-feedback-border: var(--guest-feedback-border);
@@ -73,6 +74,7 @@
   --color-guest-feedback-submit-fg: var(--guest-feedback-submit-fg);
   --color-guest-feedback-secondary: var(--guest-feedback-secondary);
   --color-guest-feedback-secondary-fg: var(--guest-feedback-secondary-fg);
+  --color-guest-feedback-destructive: var(--guest-feedback-destructive);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -340,6 +342,8 @@
   --guest-feedback-bg: #0f0f0f;
   --guest-feedback-surface: rgba(20, 20, 20, 0.7);
   --guest-feedback-surface-solid: #141414;
+  /* Preference centre card / dialog — Figma 7191:821 (#1a1a1a). */
+  --guest-feedback-card: #1a1a1a;
   /* Glass fills — Figma Overlay+Border / offer code (6807:1608). */
   --guest-feedback-glass: rgba(54, 54, 56, 0.15);
   --guest-feedback-glass-strong: rgba(20, 20, 20, 0.5);
@@ -354,6 +358,9 @@
   --guest-feedback-submit-fg: #141414;
   --guest-feedback-secondary: #232323;
   --guest-feedback-secondary-fg: #777777;
+  /* Mute / Unmute action red — Figma 7191:748 (#fa4e4e). The root --destructive
+     (oklch 0.577) is #e7000b, too far from it for this dark surface. */
+  --guest-feedback-destructive: #fa4e4e;
 }
 
 .dark {
