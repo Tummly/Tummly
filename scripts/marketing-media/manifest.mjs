@@ -104,21 +104,23 @@ export const SIMPLE_ASSETS = [
   },
   // Product Capture scroll-hijack media (Figma `6106:17567` … `6106:18055`)
   // Sources are often ~1100–1448; request 1500 so publish emits native max.
+  // `-v2` sources are the Figma frame crops (750×661); a new baseName keeps
+  // the immutable Blob cache from serving the old photos.
   ...[
-    "capture-guest-cards",
-    "capture-counter-display",
-    "capture-tray-liner",
+    "capture-guest-cards-v2",
+    "capture-counter-display-v2",
+    "capture-tray-liner-v2",
     "capture-table-tent",
-    "capture-table-talker",
-    "capture-window-sticker",
-    "capture-receipt-label",
-    "capture-delivery-bag-seal",
-    "capture-package-label",
-    "capture-drink-cup-seal",
-    "capture-pizza-box-label",
-    "capture-poster-club",
+    "capture-table-talker-v2",
+    "capture-window-sticker-v2",
+    "capture-receipt-label-v2",
+    "capture-delivery-bag-seal-v2",
+    "capture-package-label-v2",
+    "capture-drink-cup-seal-v2",
+    "capture-pizza-box-label-v2",
+    "capture-poster-club-v2",
   ].map((name) => ({
-    id: `product/${name}`,
+    id: `product/${name.replace(/-v\d+$/, "")}`,
     source: `.scratch/marketing-media-sources/product/${name}.png`,
     blobDir: "images/product",
     baseName: name,

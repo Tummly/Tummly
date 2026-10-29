@@ -261,10 +261,9 @@ function MobileMaterialsList({
   )
 }
 
-/** Figma frames pin Table Tent / Receipt Label toward the lower subject. */
+/** Table Tent keeps its old photo; pin it toward the lower subject. */
 const MEDIA_OBJECT_POSITION: Partial<Record<string, string>> = {
   "table-tent": "object-bottom",
-  "receipt-label": "object-bottom",
 }
 
 function MediaPane({
