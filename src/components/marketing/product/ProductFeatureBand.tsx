@@ -80,7 +80,7 @@ export function ProductFeatureBand({
                 id={headingId}
                 className={cn(
                   PRODUCT_BAND_HEADING,
-                  "lg:whitespace-pre-line xl:whitespace-pre",
+                  "xl:whitespace-pre-line",
                 )}
               >
                 {title}

@@ -377,7 +377,7 @@ function MaterialsIntro({ intro }: { intro: CaptureMaterialsIntro }) {
         ) : null}
         <h2
           id={intro.titleId}
-          className="m-0 max-w-[565px] whitespace-pre-line font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
+          className="m-0 max-w-[565px] xl:whitespace-pre-line font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
         >
           {intro.title}
         </h2>

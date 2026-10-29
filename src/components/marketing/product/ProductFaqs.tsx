@@ -35,7 +35,7 @@ export function ProductFaqs() {
       >
         <header
           className={cn(
-            "flex w-full flex-col lg:sticky lg:min-w-0 lg:max-w-137 lg:flex-1 lg:py-5",
+            "flex w-full flex-col lg:sticky lg:w-[380px] lg:flex-none lg:py-5",
             marketingHeaderStickyTopClass,
           )}
         >
@@ -44,7 +44,7 @@ export function ProductFaqs() {
           </h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-col gap-[30px] lg:w-[746px] lg:max-w-[calc(100%-300px)] lg:flex-none lg:pt-5">
+        <div className="flex min-w-0 w-full flex-col gap-[30px] lg:min-w-0 lg:max-w-[746px] lg:flex-1 lg:pt-5">
           <Accordion
             type="multiple"
             defaultValue={PRODUCT_FAQS.items.map((item) => item.id)}
