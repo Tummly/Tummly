@@ -204,7 +204,8 @@ namespace TummlyBackend.Tests.Integration
                 bool isEmail,
                 LocationGuestPermissionKind kind,
                 string ledgerSource,
-                CancellationToken cancellationToken = default
+                CancellationToken cancellationToken = default,
+                string? suppressionSource = null
             ) => throw new InvalidOperationException("withdraw unavailable in test");
         }
 
