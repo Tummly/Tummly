@@ -110,96 +110,6 @@
     "kind": "simple",
     "primaryFormat": "webp"
   },
-  "product/feedback-recovery": {
-    "w": 1516,
-    "h": 1242,
-    "blobDir": "images/product",
-    "baseName": "feedback-recovery",
-    "widths": [
-      766,
-      1516
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "feedback-recovery-1516.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
-  "product/guests": {
-    "w": 1516,
-    "h": 1296,
-    "blobDir": "images/product",
-    "baseName": "guests",
-    "widths": [
-      766,
-      1516
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "guests-1516.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
-  "product/campaigns": {
-    "w": 1516,
-    "h": 1296,
-    "blobDir": "images/product",
-    "baseName": "campaigns",
-    "widths": [
-      766,
-      1516
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "campaigns-1516.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
-  "product/reports": {
-    "w": 1516,
-    "h": 1296,
-    "blobDir": "images/product",
-    "baseName": "reports",
-    "widths": [
-      766,
-      1516
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "reports-1516.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
-  "product/ai-assistant": {
-    "w": 1516,
-    "h": 1296,
-    "blobDir": "images/product",
-    "baseName": "ai-assistant",
-    "widths": [
-      766,
-      1516
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "ai-assistant-1516.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
   "pricing/qr-featured-guest-cards": {
     "w": 1024,
     "h": 1280,
@@ -569,24 +479,6 @@
       "png"
     ],
     "primary": "capture-poster-club-1086.webp",
-    "kind": "simple",
-    "primaryFormat": "webp"
-  },
-  "product/hero-collage": {
-    "w": 1532,
-    "h": 1218,
-    "blobDir": "images/product",
-    "baseName": "hero-collage",
-    "widths": [
-      766,
-      1532
-    ],
-    "formats": [
-      "avif",
-      "webp",
-      "png"
-    ],
-    "primary": "hero-collage-1532.webp",
     "kind": "simple",
     "primaryFormat": "webp"
   },

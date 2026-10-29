@@ -42,8 +42,9 @@ export type ProductFeatureBandProps = {
 
 /**
  * Product page split band — Figma `5661:22688` … `5661:23627`.
- * 640px copy column (intro top, point list bottom, 580px tall) and a 758×650
- * media plate, 120px apart on desktop.
+ * Copy column (640px max, intro top, point list bottom) and a 758×650 media
+ * plate, 120px apart at Figma width. Below 1668px both columns scale down; the
+ * explicit title breaks stay.
  */
 export function ProductFeatureBand({
   headingId,
@@ -60,7 +61,7 @@ export function ProductFeatureBand({
     <section className="w-full bg-white" aria-labelledby={headingId}>
       <div
         className={cn(
-          "flex w-full flex-col items-start gap-10 lg:flex-row lg:items-center lg:gap-12 xl:gap-[120px]",
+          "flex w-full flex-col items-start gap-10 lg:flex-row lg:items-stretch lg:gap-[clamp(32px,3.5vw,120px)]",
           mediaFirst ? "lg:justify-start" : "lg:justify-end",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
@@ -68,7 +69,7 @@ export function ProductFeatureBand({
       >
         <div
           className={cn(
-            "flex w-full flex-col gap-10 lg:min-h-[580px] lg:min-w-0 lg:max-w-[640px] lg:flex-1 lg:justify-between",
+            "flex w-full flex-col gap-10 lg:w-[49.5%] lg:max-w-[640px] lg:flex-none lg:justify-between",
             mediaFirst ? "order-1 lg:order-2" : null,
           )}
         >
@@ -77,7 +78,10 @@ export function ProductFeatureBand({
               <p className={PRODUCT_EYEBROW}>{eyebrow}</p>
               <h2
                 id={headingId}
-                className={cn(PRODUCT_BAND_HEADING, "max-w-[470px]")}
+                className={cn(
+                  PRODUCT_BAND_HEADING,
+                  "lg:whitespace-pre-line xl:whitespace-pre",
+                )}
               >
                 {title}
               </h2>
@@ -102,7 +106,7 @@ export function ProductFeatureBand({
                       <h3 className="m-0 font-jakarta text-base font-bold leading-[normal]">
                         {point.title}
                       </h3>
-                      <p className="m-0 font-sans text-sm font-normal leading-5">
+                      <p className="m-0 font-sans text-sm font-normal leading-[22px] tracking-normal">
                         {point.body}
                       </p>
                     </div>
@@ -124,7 +128,7 @@ export function ProductFeatureBand({
 
         <div
           className={cn(
-            "relative aspect-[758/650] w-full shrink-0 overflow-hidden rounded-[12px] lg:w-auto lg:max-w-[758px] lg:flex-1",
+            "relative aspect-[758/650] w-full shrink-0 self-start overflow-hidden rounded-[12px] lg:self-center xl:self-start lg:w-auto lg:max-w-[758px] lg:min-w-0 lg:flex-1",
             media.plateClassName ?? "bg-[#e9e9e9]",
             mediaFirst ? "order-2 lg:order-1" : null,
           )}

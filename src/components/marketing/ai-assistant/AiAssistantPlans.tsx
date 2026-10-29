@@ -267,7 +267,7 @@ export function AiAssistantPlans({
               </p>
               <h2
                 className={cn(
-                  "m-0",
+                  "m-0 whitespace-pre-line",
                   splitHeader
                     ? "max-w-[548px] font-jakarta text-[34px] font-medium leading-10 text-[#141414] lg:text-[46px] lg:leading-[52px]"
                     : compactHeader

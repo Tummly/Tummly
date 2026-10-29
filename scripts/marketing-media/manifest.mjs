@@ -89,38 +89,19 @@ export const PICTURE_ASSETS = [
 /** Plain <img> / email assets — one primary URL + optional extra formats. */
 /** @type {SimpleAsset[]} */
 export const SIMPLE_ASSETS = [
-  // Product page UI mocks — sources live in gitignored scratch; runtime via Blob.
-  // Hero collage (Figma `5838:27265`) — baseName distinct from retired
-  // `hero-dashboard` so immutable blob URLs cache-bust after visual swaps.
+  // Product page UI mock — source lives in gitignored scratch; runtime via Blob.
   // Product UI mocks display at max 766 CSS px → need ≥1532 master for 2×.
   // Until masters are replaced, publish skips 1532 and keeps 766 (see checklist).
   {
-    id: "product/hero-collage",
-    source: ".scratch/marketing-media-sources/product/hero-dashboard.png",
+    id: "product/feedback-phone",
+    source: ".scratch/marketing-media-sources/product/feedback-phone.png",
     blobDir: "images/product",
-    baseName: "hero-collage",
+    baseName: "feedback-phone",
     widths: [766, 1532],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
     quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
-  ...[
-    "feedback-phone",
-    "feedback-recovery",
-    "guests",
-    "campaigns",
-    "reports",
-    "ai-assistant",
-  ].map((name) => ({
-    id: `product/${name}`,
-    source: `.scratch/marketing-media-sources/product/${name}.png`,
-    blobDir: "images/product",
-    baseName: name,
-    widths: [766, 1532],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 90,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  })),
   // Product Capture scroll-hijack media (Figma `6106:17567` … `6106:18055`)
   // Sources are often ~1100–1448; request 1500 so publish emits native max.
   ...[

@@ -27,7 +27,7 @@ export function ProductFeedback() {
         alt: PRODUCT_FEEDBACK.imageAlt,
         width: feedbackPhoneImage.width,
         height: feedbackPhoneImage.height,
-        imageClassName: "inset-0 size-full object-contain",
+        imageClassName: "inset-0 size-full object-cover",
       }}
     />
   )

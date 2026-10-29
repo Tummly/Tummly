@@ -163,7 +163,7 @@ export const PRODUCT_CAPTURE_MATERIALS = [
 /** Figma Product QR materials `5661:22668`. */
 export const PRODUCT_QR_MATERIALS = {
   eyebrow: "QR MATERIALS",
-  title: "Make it easy to tell you how it went.",
+  title: "Make it easy to tell you\nhow it went.",
   body: "Put your restaurant’s QR where customers notice it. Open a private feedback form from the counter, a collection point or a digital link, with a wider range of physical formats to explore.",
   /** Figma list order and labels; captions and photos reuse the Capture catalogue. */
   items: [
@@ -267,7 +267,7 @@ export const PRODUCT_QR_MATERIALS = {
 /** Figma Product Guest Form `5661:22688`. */
 export const PRODUCT_FEEDBACK = {
   eyebrow: "THE GUEST FORM",
-  title: "Let customers explain in their own words.",
+  title: "Let customers explain in\ntheir own words.",
   body: "A short, restaurant-branded form invites customers to type or dictate their experience, then add a first name and either an email address or a UK mobile number. They can separately confirm their contact details for a reply about that feedback. Marketing is an optional choice and requires its own confirmation.",
   points: [
     {
@@ -293,7 +293,7 @@ export const PRODUCT_FEEDBACK = {
 /** Figma Product Feedback management `5661:22714`. */
 export const PRODUCT_FEEDBACK_RECOVERY = {
   eyebrow: "FEEDBACK MANAGEMENT",
-  title: "Give service concerns the attention they deserve.",
+  title: "Give service concerns the\nattention they deserve.",
   body: "A late collection or a disappointing meal deserves a considered response. Read the original comment, see the restaurant and date, then prepare a personal reply about the experience.",
   points: [
     {
@@ -319,7 +319,7 @@ export const PRODUCT_FEEDBACK_RECOVERY = {
 /** Figma Product Guest context `5661:23065`. */
 export const PRODUCT_GUESTS = {
   eyebrow: "Guest context",
-  title: "See the person behind the latest comment.",
+  title: "See the person behind\nthe latest comment.",
   body: "Bring previous feedback and recorded offer activity into the conversation. Help your team understand the customer’s experience before deciding how to respond.",
   points: [
     {
@@ -345,7 +345,7 @@ export const PRODUCT_GUESTS = {
 /** Figma Product Offers & campaigns `5661:23511` — media left. */
 export const PRODUCT_CAMPAIGNS = {
   eyebrow: "OFFERS & CAMPAIGNS",
-  title: "Give customers a reason to order or visit again.",
+  title: "Give customers a reason\nto order or visit again.",
   body: "Promote a new dish, fill customers in on a menu change or offer a midweek treat. Choose customers who have agreed to hear from you, prepare your email or text and review it before sending or scheduling.",
   points: [
     {
@@ -371,7 +371,7 @@ export const PRODUCT_CAMPAIGNS = {
 /** Figma Product Reports `5661:23587`. */
 export const PRODUCT_REPORTS = {
   eyebrow: "REPORTS",
-  title: "Know what deserves your attention.",
+  title: "Know what deserves\nyour attention.",
   body: "See recurring feedback, campaign engagement and confirmed offer redemptions by restaurant and reporting period. Use the picture to plan your next promotion or decide what to discuss with the team.",
   points: [
     {
@@ -397,7 +397,7 @@ export const PRODUCT_REPORTS = {
 /** Figma Product AI Assistant `5661:23627`. */
 export const PRODUCT_AI_ASSISTANT = {
   eyebrow: "AI ASSISTANT",
-  title: "From a restaurant question to a useful draft.",
+  title: "From a restaurant\nquestion to a useful draft.",
   body: "Ask what customers have mentioned this week, explore the response to an offer or prepare a reply. Tummly AI helps with the analysis and first draft, ready for your judgement.",
   points: [
     {
@@ -544,7 +544,7 @@ const PRODUCT_PRICING_SUBLINES = {
 
 export const PRODUCT_PRICING = {
   eyebrow: "PRICING",
-  title: "Choose a plan for the way you run your restaurant.",
+  title: "Choose a plan for the way\nyou run your restaurant.",
   body: "Try one Location with the 30-day Pilot, or compare paid plans for your restaurants, team and marketing capacity.",
   compareLabel: AI_ASSISTANT_PLANS.compareLabel,
   compareTo: AI_ASSISTANT_PLANS.compareTo,

@@ -17,12 +17,15 @@ import { marketingHeaderStickyTopClass } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
 /**
- * Figma Product FAQs `5661:24202`: sticky title left, 746px list right.
+ * Figma Product FAQs `5661:24202`: sticky title left (548px max), 746px list right.
  * Plus glyph turns into a cross when open; Figma shows every answer open.
  */
 export function ProductFaqs() {
   return (
-    <section className="w-full rounded-bl-[12px] rounded-br-[12px] bg-white">
+    <section
+      className="w-full rounded-bl-[12px] rounded-br-[12px] bg-white"
+      aria-labelledby="product-faqs-heading"
+    >
       <div
         className={cn(
           "flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-[60px]",
@@ -32,14 +35,16 @@ export function ProductFaqs() {
       >
         <header
           className={cn(
-            "flex w-full shrink-0 flex-col lg:sticky lg:w-137 lg:max-w-137 lg:py-5",
+            "flex w-full flex-col lg:sticky lg:min-w-0 lg:max-w-137 lg:flex-1 lg:py-5",
             marketingHeaderStickyTopClass,
           )}
         >
-          <h2 className={PRODUCT_DISPLAY_HEADING}>{PRODUCT_FAQS.title}</h2>
+          <h2 id="product-faqs-heading" className={PRODUCT_DISPLAY_HEADING}>
+            {PRODUCT_FAQS.title}
+          </h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-1 flex-col gap-[30px] lg:max-w-[746px] lg:pt-5">
+        <div className="flex min-w-0 w-full flex-col gap-[30px] lg:w-[746px] lg:max-w-[calc(100%-300px)] lg:flex-none lg:pt-5">
           <Accordion
             type="multiple"
             defaultValue={PRODUCT_FAQS.items.map((item) => item.id)}

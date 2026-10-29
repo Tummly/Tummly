@@ -161,7 +161,7 @@ function MaterialsList({
       {showBottomFade ? (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-linear-to-t from-[#f0f0f0] to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-[#f0f0f0] from-25% to-transparent"
         />
       ) : null}
       <ul
@@ -377,7 +377,7 @@ function MaterialsIntro({ intro }: { intro: CaptureMaterialsIntro }) {
         ) : null}
         <h2
           id={intro.titleId}
-          className="m-0 max-w-[565px] font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
+          className="m-0 max-w-[565px] whitespace-pre-line font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
         >
           {intro.title}
         </h2>
@@ -406,6 +406,7 @@ function PanelChrome({
   onListPointerEnter,
   onListPointerLeave,
   intro,
+  mobileMedia,
 }: {
   materials: readonly CaptureMaterial[]
   images: Readonly<Record<string, CaptureMaterialImage>>
@@ -418,11 +419,12 @@ function PanelChrome({
   onListPointerEnter?: () => void
   onListPointerLeave?: () => void
   intro?: CaptureMaterialsIntro
+  mobileMedia: CaptureMaterialsMobileMedia
 }) {
   const material = materials[activeIndex] ?? materials[0]
   const image = images[material.id]
   /** Home catalogue: floating card on mobile (`6241:18115`). Product: stacked media. */
-  const homeFloatingMedia = intro != null
+  const homeFloatingMedia = intro != null && mobileMedia === "floating"
 
   return (
     <div
@@ -431,9 +433,9 @@ function PanelChrome({
         /* Home mobile Figma `6241:18094`: 12px radius on the grey card. */
         "rounded-[12px]",
       )}
-      role="region"
-      aria-label="QR capture materials"
-      aria-labelledby={intro?.titleId}
+      {...(intro == null
+        ? { role: "region", "aria-label": "QR capture materials" }
+        : null)}
     >
       <div
         className={cn(
@@ -443,6 +445,7 @@ function PanelChrome({
           intro != null
             ? "gap-10 px-[30px] pt-[50px] pb-0 sm:px-8 lg:gap-[50px] lg:px-[50px] lg:pt-[50px]"
             : "gap-8 px-5 py-8",
+          intro != null && mobileMedia === "stacked" && "pb-8 lg:pb-0",
         )}
       >
         {intro != null ? <MaterialsIntro intro={intro} /> : null}
@@ -499,6 +502,12 @@ function PanelChrome({
   )
 }
 
+/**
+ * With `intro`, how the photo sits below `lg`: `floating` = Home card over the
+ * list; `stacked` = full-width photo under the list.
+ */
+export type CaptureMaterialsMobileMedia = "floating" | "stacked"
+
 type ProductCaptureMaterialsPanelProps = {
   /**
    * Optional copy above the materials list (Home QR materials `4902:19649`).
@@ -509,6 +518,8 @@ type ProductCaptureMaterialsPanelProps = {
   materials?: readonly CaptureMaterial[]
   /** Local photo per material `id`; others load from `mediaId` on Blob. */
   imageOverrides?: Readonly<Record<string, CaptureMaterialImage>>
+  /** Only read when `intro` is set. Default `floating` (Home). */
+  mobileMedia?: CaptureMaterialsMobileMedia
 }
 
 /**
@@ -520,6 +531,7 @@ export function ProductCaptureMaterialsPanel({
   intro,
   materials = PRODUCT_CAPTURE_MATERIALS,
   imageOverrides,
+  mobileMedia = "floating",
 }: ProductCaptureMaterialsPanelProps = {}) {
   const isLgUp = useIsLgUp()
   const reduceMotion = useReducedMotion()
@@ -631,6 +643,7 @@ export function ProductCaptureMaterialsPanel({
           : undefined
       }
       intro={intro}
+      mobileMedia={mobileMedia}
     />
   )
 }

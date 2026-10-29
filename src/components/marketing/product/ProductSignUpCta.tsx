@@ -14,7 +14,7 @@ export function ProductSignUpCta() {
       editorialBackgroundSrc={signUpBackground}
       editorialBackgroundWidth={2400}
       editorialBackgroundHeight={1000}
-      editorialAspectClass="lg:aspect-[1668/595]"
+      editorialAspectClass="lg:aspect-[1668/595] lg:min-h-[576px]"
     />
   )
 }

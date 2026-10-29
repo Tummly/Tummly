@@ -42,6 +42,7 @@ export function ProductCapture() {
           }}
           materials={PRODUCT_QR_MATERIALS.items}
           imageOverrides={PRODUCT_QR_MATERIAL_IMAGES}
+          mobileMedia="stacked"
         />
       </div>
     </section>

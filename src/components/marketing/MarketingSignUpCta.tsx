@@ -386,7 +386,13 @@ export function MarketingSignUpCta({
                   onBeforeStart={persistPlanIntent}
                   className={
                     isEditorial
-                      ? "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)] hover:text-[#141414]"
+                      ? cn(
+                          "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] hover:text-[#141414]",
+                          // Figma `6788:42946`: solid white buttons.
+                          isReadLegalNote
+                            ? "bg-white hover:bg-white/90"
+                            : "bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)]",
+                        )
                       : undefined
                   }
                 />
@@ -396,7 +402,7 @@ export function MarketingSignUpCta({
                 <MarketingSignupLegalNote
                   className={cn(
                     "max-w-[382px] leading-4",
-                    isEditorial ? "text-[#141414]" : "text-[#7c7c7c]",
+                    isEditorial ? "text-[#141414]" : "text-[#a3a3a3]",
                   )}
                 />
               ) : (
