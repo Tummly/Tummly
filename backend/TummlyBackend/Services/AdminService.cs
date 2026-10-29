@@ -605,20 +605,23 @@
                 on restaurant.Id equals billing.RestaurantId
             join owner in _context.Users.AsNoTracking()
                 on restaurant.OwnerUserId equals owner.Id
-            select new PilotAccountRow(
-                restaurant.Id,
-                owner.Id,
-                restaurant.Name,
-                owner.Email,
-                billing.SubscriptionPlan,
-                billing.BillingStatus,
-                billing.PilotStartedAtUtc,
-                billing.PilotOriginalEndUtc,
-                billing.PilotPeriodEnd,
-                billing.PilotExtensionCount,
-                billing.PilotExtensionDaysTotal,
-                billing.RenewalDateUtc != null
-            );
+            // Member-init, not a constructor: callers filter and sort on these
+            // members, and SQL Server cannot translate members of a constructor projection.
+            select new PilotAccountRow
+            {
+                RestaurantId = restaurant.Id,
+                OwnerUserId = owner.Id,
+                RestaurantName = restaurant.Name,
+                OwnerEmail = owner.Email,
+                SubscriptionPlan = billing.SubscriptionPlan,
+                BillingStatus = billing.BillingStatus,
+                PilotStartedAtUtc = billing.PilotStartedAtUtc,
+                PilotOriginalEndUtc = billing.PilotOriginalEndUtc,
+                PilotPeriodEnd = billing.PilotPeriodEnd,
+                ExtensionCount = billing.PilotExtensionCount,
+                ExtensionDaysTotal = billing.PilotExtensionDaysTotal,
+                HasPaidHistory = billing.RenewalDateUtc != null,
+            };
 
         private static AdminPilotAccountDto ToPilotAccountDto(
             PilotAccountRow row,
@@ -807,20 +810,21 @@
                 }
             );
 
-        private sealed record PilotAccountRow(
-            int RestaurantId,
-            int OwnerUserId,
-            string RestaurantName,
-            string OwnerEmail,
-            string SubscriptionPlan,
-            string BillingStatus,
-            DateTime? PilotStartedAtUtc,
-            DateTime? PilotOriginalEndUtc,
-            DateTime? PilotPeriodEnd,
-            int ExtensionCount,
-            int ExtensionDaysTotal,
-            bool HasPaidHistory
-        );
+        private sealed record PilotAccountRow
+        {
+            public required int RestaurantId { get; init; }
+            public required int OwnerUserId { get; init; }
+            public required string RestaurantName { get; init; }
+            public required string OwnerEmail { get; init; }
+            public required string SubscriptionPlan { get; init; }
+            public required string BillingStatus { get; init; }
+            public DateTime? PilotStartedAtUtc { get; init; }
+            public DateTime? PilotOriginalEndUtc { get; init; }
+            public DateTime? PilotPeriodEnd { get; init; }
+            public required int ExtensionCount { get; init; }
+            public required int ExtensionDaysTotal { get; init; }
+            public required bool HasPaidHistory { get; init; }
+        }
 
         public async Task<(byte[] Content, string FileName, string ContentType)?>
             GetActivationDownloadAsync(int userId)
