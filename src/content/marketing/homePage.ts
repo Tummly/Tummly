@@ -364,13 +364,18 @@ export const HOME_TRUST_CONTROL = {
  * monthly amounts come from the published catalogue at render time. `subline` is the
  * grey Location-limit line (derived from the Pricing page plan cards; the Pilot note is Home copy).
  */
-function locationLimitLine(planId: "Starter" | "Growth" | "Group") {
+export function planLocationsLimit(planId: "Starter" | "Growth" | "Group") {
   const limit = PRICING_PLAN_CARDS.find(
     (card) => card.id === planId,
   )?.coreFeatures.find((feature) => feature.label === "Locations")?.value
   if (limit == null) {
     throw new Error(`Pricing plan ${planId} has no Locations limit`)
   }
+  return limit
+}
+
+function locationLimitLine(planId: "Starter" | "Growth" | "Group") {
+  const limit = planLocationsLimit(planId)
   return limit === "1" ? "1 Location only" : `${limit} Locations`
 }
 

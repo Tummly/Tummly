@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import {
@@ -10,6 +11,21 @@ import { cn } from "@/lib/utils"
 /** Figma FAQ row: chevron chip #dbdbdb, 2px radius, 10px pad, 14px glyph. */
 const faqTriggerClassName =
   "items-center rounded-none border-0 py-0 hover:no-underline hover:cursor-pointer focus-visible:border-0 focus-visible:ring-0 **:data-[slot=accordion-trigger-icon]:box-content **:data-[slot=accordion-trigger-icon]:size-3.5 **:data-[slot=accordion-trigger-icon]:shrink-0 **:data-[slot=accordion-trigger-icon]:rounded-[2px] **:data-[slot=accordion-trigger-icon]:bg-[#dbdbdb] **:data-[slot=accordion-trigger-icon]:p-2.5 **:data-[slot=accordion-trigger-icon]:text-[#141414]"
+
+/**
+ * QR materials FAQ toggle (`I6858:12617;6417:37022`): bare 28px plus, no chip.
+ * Rotates 45° when the row is open so it reads as ×.
+ */
+const faqTriggerPlusClassName =
+  "items-center rounded-none border-0 py-0 hover:no-underline hover:cursor-pointer focus-visible:border-0 focus-visible:ring-0 **:data-[slot=accordion-trigger-icon]:size-7 **:data-[slot=accordion-trigger-icon]:text-[#141414]"
+
+const faqPlusIcon = (
+  <Plus
+    aria-hidden
+    className="size-[22px] transition-transform duration-200 group-data-[state=open]/accordion-trigger:rotate-45"
+    strokeWidth={1.5}
+  />
+)
 
 const faqQuestionClassName =
   "m-0 min-w-0 flex-1 text-left font-sans text-lg font-medium leading-[normal] tracking-normal text-[#141414] sm:text-[22px]"
@@ -35,6 +51,9 @@ const faqCtaClassName =
 
 type FaqsAccordionItemVariant = "default" | "compact"
 
+/** `chip` = grey chevron chip (default). `plus` = bare plus that turns into ×. */
+type FaqsAccordionItemToggle = "chip" | "plus"
+
 type FaqsAccordionItemProps = {
   value: string
   question: string
@@ -44,6 +63,7 @@ type FaqsAccordionItemProps = {
     to: string
   }
   variant?: FaqsAccordionItemVariant
+  toggle?: FaqsAccordionItemToggle
 }
 
 function FaqAnswerBody({
@@ -87,8 +107,10 @@ export function FaqsAccordionItem({
   answer,
   cta,
   variant = "default",
+  toggle = "chip",
 }: FaqsAccordionItemProps) {
   const compact = variant === "compact"
+  const plusToggle = toggle === "plus"
 
   return (
     <AccordionItem
@@ -98,7 +120,10 @@ export function FaqsAccordionItem({
         compact ? "pb-7.5" : "pb-3.5",
       )}
     >
-      <AccordionTrigger className={faqTriggerClassName}>
+      <AccordionTrigger
+        className={plusToggle ? faqTriggerPlusClassName : faqTriggerClassName}
+        icon={plusToggle ? faqPlusIcon : undefined}
+      >
         <span
           className={
             compact ? faqQuestionCompactClassName : faqQuestionClassName

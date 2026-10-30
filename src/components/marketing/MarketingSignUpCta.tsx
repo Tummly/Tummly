@@ -84,12 +84,19 @@ type MarketingSignUpCtaProps = {
   editorialBackgroundHeight?: number
   /** Desktop aspect for editorial plate. Defaults to About `1668/525`. */
   editorialAspectClass?: string
+  /** Merged onto the editorial background `<img>` (e.g. crop focus on mobile). */
+  editorialBackgroundClassName?: string
+  /** Merged onto the title. QR materials `6942:25257` wraps at 536px. */
+  titleClassName?: string
+  /** Merged onto the body. QR materials `6942:25257` wraps at 403px. */
+  bodyClassName?: string
 }
 
 /**
  * Shared marketing bottom CTA.
  * - `media` — Figma `5661:14510` / `4151:3811` (dark + video)
  * - `editorial` — light type on marble (About `5661:24424`, For Groups `6405:36178`)
+ *   or a heat-map plate (QR materials `6942:25257`, with `legalNote: "read"`)
  */
 export function MarketingSignUpCta({
   content,
@@ -99,6 +106,9 @@ export function MarketingSignUpCta({
   editorialBackgroundWidth = 1920,
   editorialBackgroundHeight = 800,
   editorialAspectClass = "lg:aspect-[1668/525]",
+  editorialBackgroundClassName,
+  titleClassName,
+  bodyClassName,
 }: MarketingSignUpCtaProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
@@ -212,7 +222,10 @@ export function MarketingSignUpCta({
             alt=""
             width={editorialBackgroundWidth}
             height={editorialBackgroundHeight}
-            className="pointer-events-none absolute inset-0 size-full max-w-none object-cover object-center"
+            className={cn(
+              "pointer-events-none absolute inset-0 size-full max-w-none object-cover object-center",
+              editorialBackgroundClassName,
+            )}
             decoding="async"
             aria-hidden
           />
@@ -285,6 +298,9 @@ export function MarketingSignUpCta({
                   // Figma `6788:42946` title box is 544px; Jakarta renders slightly wider here.
                   isReadLegalNote ? "md:max-w-[580px]" : "md:max-w-[544px]",
                   isEditorial ? SIGN_UP_TITLE_EDITORIAL : SIGN_UP_TITLE_MEDIA,
+                  // Figma `6942:25257` title uses line-height normal (~58) like `6788:42946`.
+                  isEditorial && isReadLegalNote && "lg:leading-[58px]",
+                  titleClassName,
                 )}
               >
                 {content.title}
@@ -296,6 +312,7 @@ export function MarketingSignUpCta({
                   marketingHeroBody,
                   "font-normal lg:text-[18px] lg:leading-6",
                   isEditorial ? "text-[#141414]" : "text-white",
+                  bodyClassName,
                 )}
               >
                 {content.body}
@@ -378,7 +395,8 @@ export function MarketingSignUpCta({
               {isReadLegalNote ? (
                 <MarketingSignupLegalNote
                   className={cn(
-                    "max-w-[382px] leading-4 text-[#7c7c7c]",
+                    "max-w-[382px] leading-4",
+                    isEditorial ? "text-[#141414]" : "text-[#7c7c7c]",
                   )}
                 />
               ) : (

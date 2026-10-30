@@ -52,6 +52,11 @@ type AiAssistantPlansProps = {
    */
   splitHeader?: boolean
   /**
+   * With `splitHeader`: keep the 46/52 header but put "Compare all plans" under the
+   * cards instead of beside the title (QR materials pricing `6859:12685`).
+   */
+  compareBelow?: boolean
+  /**
    * Where the grey line under the price comes from. `catalogue` (default) shows the
    * published annual price; `card` shows `card.subline` (Home Pricing location limits).
    * Monthly amounts always come from the catalogue.
@@ -115,7 +120,8 @@ function PlanCard({
             ),
       )}
     >
-      <div className="flex flex-col gap-3">
+      {/* flex-1 keeps price + button on one line across cards with different copy lengths. */}
+      <div className="flex flex-col gap-3 lg:flex-1">
         <h3
           className={cn(
             "m-0 font-jakarta text-[30px] font-medium leading-none text-[#141414]",
@@ -152,11 +158,13 @@ function PlanCard({
             <PublicPlanPriceFallback status={status} />
           )}
           {price.subline != null ? (
+            // Narrow cards (lg–xl) wrap "No payment card required." to two lines;
+            // reserve both so the price rows of all cards stay on one line.
             <p
               className={cn(
                 "m-0 text-sm font-normal leading-[normal] text-[#7c7c7c]",
                 // Figma `7183:10947`: Medium 500, 18.228px line height.
-                homeFigma && "font-medium leading-[18.228px]",
+                homeFigma && "font-medium leading-[18.228px] lg:min-h-[2lh] xl:min-h-0",
               )}
             >
               {price.subline}
@@ -210,8 +218,10 @@ export function AiAssistantPlans({
   surfaceClassName = "bg-[#f0f0f0]",
   compactHeader = false,
   splitHeader = false,
+  compareBelow = false,
   sublineSource = "catalogue",
 }: AiAssistantPlansProps = {}) {
+  const compareInHeader = splitHeader && !compareBelow
   const body = content.body?.trim() ?? ""
   const showBody = body.length > 0
   const { status, prices, retry } = usePublicPlanPrices()
@@ -228,7 +238,7 @@ export function AiAssistantPlans({
         <div
           className={cn(
             "flex w-full flex-col gap-[46px]",
-            splitHeader && "lg:flex-row lg:items-end lg:justify-between",
+            compareInHeader && "lg:flex-row lg:items-end lg:justify-between",
           )}
         >
           <header
@@ -237,18 +247,20 @@ export function AiAssistantPlans({
               compactHeader
                 ? "max-w-[548px] gap-3.5"
                 : "max-w-[651px] gap-[22px]",
-              splitHeader && "lg:w-auto",
+              compareInHeader && "lg:w-auto",
             )}
           >
             <div className="flex w-full flex-col gap-3.5">
               <p
                 className={cn(
                   "m-0 font-medium text-[#141414]",
-                  splitHeader
-                    ? "font-sans text-sm font-medium uppercase leading-4 tracking-[1.12px] text-[#4a4a4a]"
-                    : compactHeader
-                      ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
-                      : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
+                  compareBelow
+                    ? "font-jakarta text-sm uppercase leading-4 tracking-[1.12px] text-[#141414]"
+                    : splitHeader
+                      ? "font-sans text-sm font-medium uppercase leading-4 tracking-[1.12px] text-[#4a4a4a]"
+                      : compactHeader
+                        ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
+                        : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
                 )}
               >
                 {content.eyebrow}
@@ -270,7 +282,11 @@ export function AiAssistantPlans({
               <p
                 className={cn(
                   "m-0",
-                  splitHeader ? "max-w-[430px]" : "max-w-[592px]",
+                  compareBelow
+                    ? "max-w-[491px]"
+                    : splitHeader
+                      ? "max-w-[430px]"
+                      : "max-w-[592px]",
                   AI_ASSISTANT_SECTION_BODY,
                 )}
               >
@@ -278,7 +294,7 @@ export function AiAssistantPlans({
               </p>
             ) : null}
           </header>
-          {splitHeader ? (
+          {compareInHeader ? (
             <MarketingButton
               asChild
               variant="secondary"
@@ -317,8 +333,12 @@ export function AiAssistantPlans({
           </p>
         ) : null}
 
-        {splitHeader ? null : (
-          <MarketingButton asChild variant="secondary">
+        {compareInHeader ? null : (
+          <MarketingButton
+            asChild
+            variant="secondary"
+            className={cn(compareBelow && "w-fit sm:w-[164px]")}
+          >
             <Link to={content.compareTo}>{content.compareLabel}</Link>
           </MarketingButton>
         )}

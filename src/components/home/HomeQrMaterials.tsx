@@ -15,12 +15,27 @@ const HOME_QR_MATERIAL_IMAGES: Readonly<Record<string, CaptureMaterialImage>> = 
   },
 }
 
+type HomeQrMaterialsProps = {
+  /** Intro copy; the format list stays Home's. Defaults to the Home copy. */
+  content?: {
+    /** Omit to hide the eyebrow (QR materials page `5661:19364`). */
+    eyebrow?: string
+    title: string
+    body: string
+  }
+  /** Merged onto the padded wrapper, e.g. `lg:pb-0` when the next section supplies the gap. */
+  className?: string
+}
+
 /**
  * Home QR materials — Figma `4902:19649` / mobile `6241:18095`.
  * Same Capture materials panel as Product, with the format list and
- * intro copy above it. Also rendered on How it works.
+ * intro copy above it. Also rendered on How it works and QR materials.
  */
-export function HomeQrMaterials() {
+export function HomeQrMaterials({
+  content = HOME_QR_MATERIALS,
+  className,
+}: HomeQrMaterialsProps) {
   return (
     <section
       className="w-full bg-white"
@@ -33,13 +48,14 @@ export function HomeQrMaterials() {
            * That pad is the gap before Built for restaurants (`6241:19397`).
            * Desktop: 60px content inset. */
           "px-0 py-5 lg:px-[60px] lg:py-[70px]",
+          className,
         )}
       >
         <ProductCaptureMaterialsPanel
           intro={{
-            eyebrow: HOME_QR_MATERIALS.eyebrow,
-            title: HOME_QR_MATERIALS.title,
-            body: HOME_QR_MATERIALS.body,
+            eyebrow: content.eyebrow,
+            title: content.title,
+            body: content.body,
             titleId: "home-qr-materials-heading",
             eyebrowClassName: "text-[#4a4a4a]",
             bodyClassName: "lg:max-w-[659px]",

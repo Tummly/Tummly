@@ -350,7 +350,8 @@ function MediaPane({
 }
 
 export type CaptureMaterialsIntro = {
-  eyebrow: string
+  /** Omit for intros without an eyebrow (QR materials page `5661:19364`). */
+  eyebrow?: string
   title: string
   body: string
   titleId?: string
@@ -364,14 +365,16 @@ function MaterialsIntro({ intro }: { intro: CaptureMaterialsIntro }) {
   return (
     <div className="flex w-full shrink-0 flex-col gap-[18px] text-[#141414]">
       <div className="flex flex-col gap-3.5">
-        <p
-          className={cn(
-            "m-0 font-jakarta text-sm font-medium leading-4",
-            intro.eyebrowClassName,
-          )}
-        >
-          {intro.eyebrow}
-        </p>
+        {intro.eyebrow != null ? (
+          <p
+            className={cn(
+              "m-0 font-jakarta text-sm font-medium leading-4",
+              intro.eyebrowClassName,
+            )}
+          >
+            {intro.eyebrow}
+          </p>
+        ) : null}
         <h2
           id={intro.titleId}
           className="m-0 max-w-[565px] font-jakarta text-[28px] font-medium leading-[38px] lg:text-[36px] lg:leading-[48px]"
