@@ -220,6 +220,21 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(row => row.IdempotencyKey == key, cancellationToken);
             if (replay != null)
             {
+                // A key belongs to the admin who made the publication. Another admin's replay is refused.
+                if (replay.PublishedByAdminUserId != actorAdminUserId)
+                {
+                    return await RefuseAsync<TrustIndicatorPublicationDto>(
+                        actorAdminUserId,
+                        "publish",
+                        "idempotency_key_reused",
+                        "This Idempotency-Key was used for a publish by another admin.",
+                        null,
+                        AdminAuditTargetTypes.TrustIndicatorPublication,
+                        replay.Version.ToString(),
+                        cancellationToken
+                    );
+                }
+
                 return new(ToPublicationDto(replay));
             }
 
@@ -290,11 +305,23 @@ namespace TummlyBackend.Services
                 );
             }
 
-            // Four-eyes (ADM-15-03): the publisher must not be the submitter or the last draft editor.
-            if (
-                actorAdminUserId == submittedBy
-                || actorAdminUserId == state.LastEditedByAdminUserId
-            )
+            // Four-eyes (ADM-15-03, CONTRACT §6): the publisher must not be the submitter, and must not have
+            // edited any item since the latest publication (all time when nothing is published yet).
+            var latestPublishedAtUtc = await _context.TrustIndicatorPublications
+                .AsNoTracking()
+                .OrderByDescending(row => row.Version)
+                .Select(row => (DateTime?)row.PublishedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            var editedSinceLastPublish = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .AnyAsync(
+                    row => row.Action == AdminAuditActions.TrustIndicatorDraftEdit
+                        && row.ActorAdminUserId == actorAdminUserId
+                        && row.Succeeded
+                        && (latestPublishedAtUtc == null || row.OccurredAtUtc > latestPublishedAtUtc),
+                    cancellationToken
+                );
+            if (actorAdminUserId == submittedBy || editedSinceLastPublish)
             {
                 return await RefuseAsync<TrustIndicatorPublicationDto>(
                     actorAdminUserId,

@@ -374,6 +374,25 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task ReplayOfAnotherAdminsKey_Returns409IdempotencyKeyReused()
+        {
+            var admins = await SeedAdminsAsync();
+            await PublishItemOneAsync(admins, "http-replay-other", enabled: true);
+
+            using var replay = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.EditorJwt,
+                new { reason = "Evidence checked" },
+                key: "http-replay-other"
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
+            var body = await replay.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("idempotency_key_reused", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
         public async Task Public_HasNoStoreHeader()
         {
             using var response = await _client.GetAsync("/api/public/trust-indicators");

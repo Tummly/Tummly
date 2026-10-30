@@ -748,6 +748,71 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_ApproverWhoEditedAnotherItemSinceLastPublishRefused()
+        {
+            // The approver edited item 01; a different admin edited item 09 and submitted. Still four-eyes.
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof"), PublisherId));
+            Succeeded(await EditAsync(9, Seeded(9) with { Tooltip = "Reviewed" }, NonApproverId));
+            Succeeded(await _sut.SubmitDraftAsync(NonApproverId));
+
+            var outcome = await PublishAsync(PublisherId, "key-p-edited-other-item");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoEditedBeforeLastPublishMayPublish()
+        {
+            // The publisher's edit is older than version 1, so it does not block version 2.
+            Succeeded(await EditAsync(9, Seeded(9) with { Tooltip = "Publisher note" }, PublisherId));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof"), EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await PublishAsync(ThirdAdminId, "key-v1-third"));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Reviewed" }, EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var second = Succeeded(await PublishAsync(PublisherId, "key-v2-publisher"));
+
+            Assert.Equal(2, second.Version);
+            Assert.Equal(2, await _context.TrustIndicatorPublications.CountAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoEditedSinceLastPublishRefused()
+        {
+            await PublishValidAsync();
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "After v1" }, PublisherId));
+            Succeeded(await EditAsync(3, Seeded(3) with { Tooltip = "Editor note" }, EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-p-after-v1");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ReplayByOtherAdminRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, "key-replay-other"));
+
+            var replay = await PublishAsync(ThirdAdminId, "key-replay-other");
+
+            Assert.Equal("idempotency_key_reused", replay.Code);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Equal(ThirdAdminId, refused.ActorAdminUserId);
+            Assert.Contains("idempotency_key_reused", refused.DetailJson);
+        }
+
+        [Fact]
         public async Task Publish_SeparateApproverPublishes()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
@@ -765,8 +830,12 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
             Succeeded(await PublishAsync(PublisherId, "key-replay-rbac"));
+            // The publisher loses the flag. The same admin replaying the key still gets the version it made.
+            var publisher = await _context.Admins.SingleAsync(row => row.Id == PublisherId);
+            publisher.CanApproveTrustIndicators = false;
+            await _context.SaveChangesAsync();
 
-            var replay = Succeeded(await PublishAsync(NonApproverId, "key-replay-rbac"));
+            var replay = Succeeded(await PublishAsync(PublisherId, "key-replay-rbac"));
 
             Assert.Equal(1, replay.Version);
             Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
