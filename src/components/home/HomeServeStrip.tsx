@@ -59,6 +59,15 @@ function ServeStripChips({ duplicate = false }: { duplicate?: boolean }) {
   )
 }
 
+type HomeServeStripProps = {
+  /** Strip title. Default is the Home copy; How it works `6863:12786` passes its own. */
+  eyebrow?: string
+  /** Merged onto the title (How it works uses Medium 500 / #676767). */
+  eyebrowClassName?: string
+  /** `id` of the title and `aria-labelledby` of the section. Unique per page section. */
+  headingId?: string
+}
+
 /**
  * Home "Built for the way you serve" strip — Figma `6757:45771`.
  * CSS-only endless marquee: the chip list is rendered twice and shifted by one copy.
@@ -66,20 +75,27 @@ function ServeStripChips({ duplicate = false }: { duplicate?: boolean }) {
  * WCAG 2.2.2: pauses on hover and keyboard focus, a tap on touch toggles it, and a
  * pause/play button is revealed on focus (hidden visually otherwise).
  */
-export function HomeServeStrip() {
+export function HomeServeStrip({
+  eyebrow = HOME_SERVE_STRIP.eyebrow,
+  eyebrowClassName,
+  headingId = "home-serve-strip-heading",
+}: HomeServeStripProps = {}) {
   const [paused, setPaused] = useState(false)
 
   return (
     <section
-      aria-labelledby="home-serve-strip-heading"
+      aria-labelledby={headingId}
       className="w-full overflow-hidden rounded-tl-[12px] rounded-tr-[12px] bg-white px-6 pt-5 pb-[70px] lg:px-[60px]"
     >
       <div className="flex w-full flex-col items-center gap-10">
         <h2
-          id="home-serve-strip-heading"
-          className="m-0 text-center font-sans text-sm leading-4 font-semibold tracking-[2px] text-[#4a4a4a] uppercase"
+          id={headingId}
+          className={cn(
+            "m-0 text-center font-sans text-sm leading-4 font-semibold tracking-[2px] text-[#4a4a4a] uppercase",
+            eyebrowClassName,
+          )}
         >
-          {HOME_SERVE_STRIP.eyebrow}
+          {eyebrow}
         </h2>
 
         <div

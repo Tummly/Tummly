@@ -28,6 +28,8 @@ export type HeroSignupFormProps = {
    * "Read our Terms of Service and Privacy Notice…".
    */
   legalNote?: "agree" | "read"
+  /** Merged onto the primary button. Default keeps the 176px Figma width. */
+  primaryButtonClassName?: string
   className?: string
 }
 
@@ -43,6 +45,7 @@ export function HeroSignupForm({
   planIntent = HOME_HERO.planIntent,
   align = "center",
   legalNote = "agree",
+  primaryButtonClassName = "sm:w-[176px]",
   className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
@@ -112,7 +115,10 @@ export function HeroSignupForm({
           <MarketingButton
             type="submit"
             variant="primary"
-            className="h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px] sm:w-[176px]"
+            className={cn(
+              "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
+              primaryButtonClassName,
+            )}
           >
             {primaryLabel}
           </MarketingButton>
@@ -139,7 +145,8 @@ export function HeroSignupForm({
         <MarketingSignupLegalNote
           className={cn(
             "w-full leading-[18px] text-[#141414]",
-            align === "center" ? "max-w-[353px] text-center" : "text-left",
+            // Start-aligned (How it works `5661:19524`): breaks after "accept".
+            align === "center" ? "max-w-[353px] text-center" : "max-w-[400px] text-left",
           )}
         />
       ) : (

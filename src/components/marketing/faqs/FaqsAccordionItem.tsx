@@ -64,6 +64,8 @@ type FaqsAccordionItemProps = {
   }
   variant?: FaqsAccordionItemVariant
   toggle?: FaqsAccordionItemToggle
+  /** Merged onto the row (How it works `6874:12917` uses a #c9c9c9 divider). */
+  className?: string
 }
 
 function FaqAnswerBody({
@@ -108,6 +110,7 @@ export function FaqsAccordionItem({
   cta,
   variant = "default",
   toggle = "chip",
+  className,
 }: FaqsAccordionItemProps) {
   const compact = variant === "compact"
   const plusToggle = toggle === "plus"
@@ -118,6 +121,7 @@ export function FaqsAccordionItem({
       className={cn(
         "border-0 border-b border-[#e0e0e0]",
         compact ? "pb-7.5" : "pb-3.5",
+        className,
       )}
     >
       <AccordionTrigger

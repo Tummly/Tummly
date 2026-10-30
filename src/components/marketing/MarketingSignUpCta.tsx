@@ -98,6 +98,8 @@ type MarketingSignUpCtaProps = {
   titleClassName?: string
   /** Merged onto the body. QR materials `6942:25257` wraps at 403px. */
   bodyClassName?: string
+  /** Merged onto the outer frame (How it works `6955:37020` has a 12px radius). */
+  frameClassName?: string
 }
 
 /**
@@ -121,6 +123,7 @@ export function MarketingSignUpCta({
   legalNoteClassName,
   titleClassName,
   bodyClassName,
+  frameClassName,
 }: MarketingSignUpCtaProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
@@ -224,6 +227,7 @@ export function MarketingSignUpCta({
                 // Home Figma `6788:42946` is a FIXED 625px frame (other pages: 1668×615).
                 isReadLegalNote ? "lg:h-[625px]" : "lg:aspect-[1668/615]",
               ),
+          frameClassName,
         )}
       >
         {isEditorial ? (
@@ -399,18 +403,17 @@ export function MarketingSignUpCta({
                   tone={isEditorial ? "light" : "dark"}
                   returnPath={signupReturnPath}
                   onBeforeStart={persistPlanIntent}
-                  className={
-                    isEditorial
-                      ? cn(
-                          "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] hover:text-[#141414]",
-                          // Figma `6788:42946`: solid white buttons.
-                          isReadLegalNote
-                            ? "bg-white hover:bg-white/90"
-                            : "bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)]",
-                          socialButtonsClassName,
-                        )
-                      : undefined
-                  }
+                  className={cn(
+                    isEditorial &&
+                      cn(
+                        "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] hover:text-[#141414]",
+                        // Figma `6788:42946`: solid white buttons.
+                        isReadLegalNote
+                          ? "bg-white hover:bg-white/90"
+                          : "bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)]",
+                      ),
+                    socialButtonsClassName,
+                  )}
                 />
               </div>
 

@@ -4,47 +4,49 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
+  type RefObject,
 } from "react"
-import {
-  AnimatePresence,
-  animate,
-  motion,
-  useReducedMotion,
-} from "framer-motion"
+import { animate, motion, useReducedMotion } from "framer-motion"
 
+import stepFeedbackImage from "@/assets/images/marketing/how-it-works/guest-form-step-01.webp"
+import stepDetailsImage from "@/assets/images/marketing/how-it-works/guest-form-step-02.webp"
+import stepUpdatesImage from "@/assets/images/marketing/how-it-works/guest-form-step-03.webp"
+import stepThankYouImage from "@/assets/images/marketing/how-it-works/guest-form-step-04.webp"
 import {
   HOW_IT_WORKS_GUEST_FORM,
   HOW_IT_WORKS_GUEST_FORM_STEPS,
   HOW_IT_WORKS_SECTION_BODY,
+  HOW_IT_WORKS_SECTION_EYEBROW,
   HOW_IT_WORKS_SECTION_HEADING,
   HOW_IT_WORKS_SECTION_INSET,
   type HowItWorksGuestFormStep,
+  type HowItWorksGuestFormStepId,
 } from "@/content/marketing/howItWorksPage"
-import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
 const STEP_COUNT = HOW_IT_WORKS_GUEST_FORM_STEPS.length
-/** Accordion copy expand only — phone has no fade/slide. */
-const COPY_MS = 0.28
 /** Phone paint wipe on each step change (not scroll-scrubbed). */
 const PAINT_MS = 0.45
-/** Figma active-step green progress under the divider (~200px). */
+/** Figma active-step green progress `5887:20608` (200px, design token green-600 = #14a946) over the #c9c9c9 divider. */
 const PROGRESS_WIDTH_PX = 200
-const PROGRESS_GREEN = "#248a44"
+/** Operator `--op-color-green-600`; op tokens are scoped to `html.op`. */
+const PROGRESS_GREEN = "#14a946"
 /** Minimum clearance under sticky marketing header chrome. */
 const HEADER_CLEARANCE_PX = 86
 /** Fallback sticky row height until measured (tabs + phone). */
 const FALLBACK_PANEL_HEIGHT_PX = 820
 
-const STEP_IMAGES = Object.fromEntries(
-  HOW_IT_WORKS_GUEST_FORM_STEPS.map((step) => [
-    step.id,
-    remoteSimpleImg(step.mediaId),
-  ]),
-) as Record<
-  (typeof HOW_IT_WORKS_GUEST_FORM_STEPS)[number]["id"],
-  ReturnType<typeof remoteSimpleImg>
->
+/** Guest Form phone per step — Figma `5887:20625`, `5880:19483`, `5880:19597`, `5880:19826` (392×782 at 2×). */
+const STEP_IMAGES: Record<HowItWorksGuestFormStepId, string> = {
+  feedback: stepFeedbackImage,
+  details: stepDetailsImage,
+  updates: stepUpdatesImage,
+  "thank-you": stepThankYouImage,
+}
+
+const PHONE_IMAGE_WIDTH = 784
+const PHONE_IMAGE_HEIGHT = 1564
 
 function clampIndex(index: number) {
   return Math.max(0, Math.min(STEP_COUNT - 1, index))
@@ -90,7 +92,7 @@ function StepRow({
   onSelect: () => void
 }) {
   return (
-    <div className="relative flex w-full flex-col gap-3 lg:gap-[26px]">
+    <div className="relative flex w-full flex-col gap-4 lg:gap-[26px]">
       <div className="flex w-full flex-col">
         <button
           type="button"
@@ -101,60 +103,64 @@ function StepRow({
           tabIndex={active ? 0 : -1}
           onClick={onSelect}
           className={cn(
-            "m-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left font-sans text-sm font-medium leading-[normal] sm:text-base lg:text-lg",
+            "m-0 flex w-full cursor-pointer flex-col items-start gap-2.5 border-0 bg-transparent p-0 text-left lg:gap-[18px]",
             "transition-colors duration-200 ease-out motion-reduce:transition-none",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f0f0f0]",
             active ? "text-black" : "text-[#7c7c7c]",
           )}
         >
-          {step.label}
+          <span className="flex items-center gap-2 font-sans text-base leading-[normal] font-medium whitespace-nowrap lg:text-lg">
+            <span>Step</span>
+            <span aria-hidden>/</span>
+            <span>{step.number}</span>
+          </span>
+          <span
+            className={cn(
+              "block w-full",
+              active
+                ? "font-jakarta text-[26px] leading-[normal] font-medium sm:text-[30px] lg:text-[36px]"
+                : "font-sans text-base leading-[normal] font-medium lg:text-lg",
+            )}
+          >
+            {step.title}
+          </span>
         </button>
 
-        <AnimatePresence initial={false}>
-          {active ? (
-            <motion.div
-              key={`${step.id}-copy`}
-              id={`how-it-works-guest-form-panel-${step.id}`}
-              role="tabpanel"
-              aria-labelledby={`how-it-works-guest-form-tab-${step.id}`}
-              initial={
-                reduceMotion ? false : { opacity: 0, height: 0, marginTop: 0 }
-              }
-              animate={{ opacity: 1, height: "auto", marginTop: 14 }}
-              exit={
-                reduceMotion
-                  ? undefined
-                  : { opacity: 0, height: 0, marginTop: 0 }
-              }
-              transition={{
-                duration: reduceMotion ? 0 : COPY_MS,
-                ease: "easeOut",
-              }}
-              className="w-full overflow-hidden"
+        {/*
+          CSS grid-rows expand, not framer `height: auto`: framer re-measures on every
+          height animation and restores the scroll position, which cancels the
+          smooth scroll that a step click starts.
+        */}
+        <div
+          id={`how-it-works-guest-form-panel-${step.id}`}
+          role="tabpanel"
+          aria-labelledby={`how-it-works-guest-form-tab-${step.id}`}
+          aria-hidden={!active}
+          inert={!active}
+          className={cn(
+            "grid w-full transition-[grid-template-rows,opacity] duration-[280ms] ease-out motion-reduce:transition-none",
+            active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <p
+              className={cn(
+                "m-0 max-w-[596px] pt-3.5",
+                HOW_IT_WORKS_SECTION_BODY,
+                "text-base leading-[22px] lg:text-base lg:leading-[22px]",
+              )}
             >
-              <div className="flex w-full flex-col gap-2.5 lg:gap-3.5">
-                <h3 className="m-0 max-w-[615px] font-jakarta text-[22px] font-medium leading-[normal] text-black sm:text-[28px] lg:text-[42px]">
-                  {step.title}
-                </h3>
-                <p
-                  className={cn(
-                    "m-0 max-w-[548px]",
-                    HOW_IT_WORKS_SECTION_BODY,
-                  )}
-                >
-                  {step.body}
-                </p>
-              </div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+              {step.body}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="relative h-px w-full bg-[#d0d0d0]" aria-hidden>
+      <div className="relative h-px w-full bg-[#c9c9c9]" aria-hidden>
         {active ? (
           <motion.span
             layoutId="how-it-works-guest-form-progress"
-            className="absolute inset-y-0 left-0 h-px"
+            className="absolute inset-y-0 left-0 h-px max-w-full"
             style={{
               width: PROGRESS_WIDTH_PX,
               backgroundColor: PROGRESS_GREEN,
@@ -181,7 +187,6 @@ function PhoneImage({
   clipPath?: string
   zIndex: number
 }) {
-  const image = STEP_IMAGES[step.id]
   const style: CSSProperties = {
     zIndex,
     ...(clipPath != null ? { clipPath, WebkitClipPath: clipPath } : null),
@@ -189,12 +194,10 @@ function PhoneImage({
 
   return (
     <img
-      src={image.src}
-      srcSet={image.srcSet}
-      sizes="(min-width: 1024px) 392px, min(100vw - 40px, 392px)"
+      src={STEP_IMAGES[step.id]}
       alt={step.imageAlt}
-      width={image.width}
-      height={image.height}
+      width={PHONE_IMAGE_WIDTH}
+      height={PHONE_IMAGE_HEIGHT}
       className="absolute inset-0 size-full object-contain object-center"
       decoding="async"
       draggable={false}
@@ -230,11 +233,9 @@ function PhoneVisual({
     }
 
     if (reduceMotion) {
+      // Reduced motion paints the active step directly (see render below).
       paintedIndexRef.current = to
       paintProgressRef.current = 1
-      setBaseIndex(to)
-      setIncomingIndex(null)
-      setPaintProgress(1)
       return
     }
 
@@ -271,8 +272,27 @@ function PhoneVisual({
     }
   }, [activeIndex, reduceMotion])
 
+  /*
+    Figma phone `5887:20625` is 392×782. At lg+ it keeps that size when the viewport
+    is tall enough (sticky panel = phone + 70px above + 40px below + 86px header);
+    short viewports shrink it down to 520px.
+  */
   const frameClass =
-    "relative mx-auto aspect-[392/782] h-[min(38vh,360px)] w-auto max-w-[280px] shrink-0 sm:h-[min(48vh,480px)] sm:max-w-[320px] lg:mx-0 lg:h-[min(70vh,782px)] lg:max-w-[392px]"
+    "relative mx-auto aspect-[392/782] h-[min(30svh,360px)] w-auto max-w-[280px] shrink-0 sm:h-[min(48vh,480px)] sm:max-w-[320px] lg:mx-0 lg:h-[clamp(520px,calc(100svh-86px-110px),782px)] lg:max-w-[392px]"
+
+  if (reduceMotion) {
+    return (
+      <div className={frameClass}>
+        <PhoneImage
+          step={
+            HOW_IT_WORKS_GUEST_FORM_STEPS[clampIndex(activeIndex)] ??
+            HOW_IT_WORKS_GUEST_FORM_STEPS[0]
+          }
+          zIndex={1}
+        />
+      </div>
+    )
+  }
 
   const settledIndex =
     incomingIndex != null && paintProgress >= 0.999
@@ -322,18 +342,20 @@ function SectionIntro() {
         "pt-12.5 lg:pt-[70px]",
       )}
     >
-      {/*
-        Figma intro is 615px / body 576px centred.
-        Keep inset on the outer shell so padding does not shrink the 615px box.
-      */}
-      <div className="flex w-full max-w-[615px] flex-col items-center gap-[18px] text-center">
-        <h2
-          id="how-it-works-guest-form-heading"
-          className={cn("m-0 w-full", HOW_IT_WORKS_SECTION_HEADING)}
-        >
-          {HOW_IT_WORKS_GUEST_FORM.title}
-        </h2>
-        <p className={cn("m-0 w-full max-w-[576px]", HOW_IT_WORKS_SECTION_BODY)}>
+      {/* Figma intro `5887:20595`: title box 550px, body 456px, centred. */}
+      <div className="flex w-full max-w-[550px] flex-col items-center gap-[22px] text-center">
+        <div className="flex w-full flex-col items-center gap-3.5">
+          <p className={cn(HOW_IT_WORKS_SECTION_EYEBROW, "font-medium")}>
+            {HOW_IT_WORKS_GUEST_FORM.eyebrow}
+          </p>
+          <h2
+            id="how-it-works-guest-form-heading"
+            className={cn("m-0 w-full", HOW_IT_WORKS_SECTION_HEADING)}
+          >
+            {HOW_IT_WORKS_GUEST_FORM.title}
+          </h2>
+        </div>
+        <p className={cn("m-0 w-full max-w-[456px]", HOW_IT_WORKS_SECTION_BODY)}>
           {HOW_IT_WORKS_GUEST_FORM.body}
         </p>
       </div>
@@ -345,20 +367,52 @@ function StickyStepsPanel({
   activeIndex,
   onSelect,
   reduceMotion,
-  onPanelNode,
+  panelRef,
 }: {
   activeIndex: number
   onSelect: (index: number) => void
   reduceMotion: boolean | null
-  onPanelNode?: (node: HTMLDivElement | null) => void
+  panelRef: RefObject<HTMLDivElement | null>
 }) {
+  /** WAI-ARIA tabs: arrows / Home / End move focus and select. */
+  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    let next: number
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        next = clampIndex(activeIndex + 1)
+        break
+      case "ArrowUp":
+      case "ArrowLeft":
+        next = clampIndex(activeIndex - 1)
+        break
+      case "Home":
+        next = 0
+        break
+      case "End":
+        next = STEP_COUNT - 1
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+    const target = HOW_IT_WORKS_GUEST_FORM_STEPS[next]
+    if (target == null) {
+      return
+    }
+    onSelect(next)
+    document
+      .getElementById(`how-it-works-guest-form-tab-${target.id}`)
+      ?.focus({ preventScroll: true })
+  }
+
   return (
     <div
-      ref={onPanelNode}
+      ref={panelRef}
       className={cn(
         "flex w-full flex-col items-center gap-5 bg-[#f0f0f0] sm:gap-8 lg:flex-row lg:items-center lg:justify-center lg:gap-[70px]",
         "px-5 lg:px-[60px]",
-        "py-5 lg:py-10",
+        "py-5 lg:pt-[70px] lg:pb-10",
       )}
     >
       {/*
@@ -372,7 +426,9 @@ function StickyStepsPanel({
       <div
         role="tablist"
         aria-label="Guest Form steps"
-        className="order-2 flex w-full max-w-[615px] flex-col gap-3 sm:gap-5 lg:order-1 lg:gap-[34px]"
+        aria-orientation="vertical"
+        onKeyDown={onTabKeyDown}
+        className="order-2 flex w-full max-w-[615px] flex-col gap-4 sm:gap-5 lg:order-1 lg:gap-[34px]"
       >
         {HOW_IT_WORKS_GUEST_FORM_STEPS.map((entry, index) => (
           <StepRow
@@ -391,16 +447,14 @@ function StickyStepsPanel({
 }
 
 /**
- * Figma How it works Guest Form —
- * `5887:20697` (+ variants).
+ * Figma How it works Guest Form `5887:20699` (+ variants `5887:20694`–`5887:20697`).
  * Sticky scroll-hijack when the panel is vertically centred (all viewports);
- * phone paints on each 01–05 step change (not scroll-scrubbed).
+ * phone paints on each 01–04 step change (not scroll-scrubbed).
  */
 export function HowItWorksGuestForm() {
   const reduceMotion = useReducedMotion()
   const trackRef = useRef<HTMLDivElement>(null)
-  const panelNodeRef = useRef<HTMLDivElement | null>(null)
-  const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   const [panelHeightPx, setPanelHeightPx] = useState(FALLBACK_PANEL_HEIGHT_PX)
   const [stickyTopPx, setStickyTopPx] = useState(() =>
@@ -412,110 +466,99 @@ export function HowItWorksGuestForm() {
 
   const trackHeightPx = panelHeightPx * STEP_COUNT
 
-  const applyPanelHeight = useEffectEvent((height: number) => {
-    if (height > 0) {
-      setPanelHeightPx((prev) => {
-        const next = Math.ceil(height)
-        return prev === next ? prev : next
-      })
-    }
-  })
-
-  const onPanelNode = useEffectEvent((node: HTMLDivElement | null) => {
-    resizeObserverRef.current?.disconnect()
-    resizeObserverRef.current = null
-    panelNodeRef.current = node
-    if (node == null || typeof ResizeObserver === "undefined") {
-      return
-    }
-    applyPanelHeight(node.getBoundingClientRect().height)
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry == null) {
-        return
-      }
-      const borderBox = entry.borderBoxSize?.[0]?.blockSize
-      const height =
-        borderBox != null && borderBox > 0
-          ? borderBox
-          : entry.target instanceof HTMLElement
-            ? entry.target.getBoundingClientRect().height
-            : entry.contentRect.height
-      applyPanelHeight(height)
-    })
-    ro.observe(node)
-    resizeObserverRef.current = ro
-  })
-
-  const syncFromScroll = useEffectEvent(() => {
+  /** Measured scroll geometry of the sticky track (live DOM, not state). */
+  const measureTrack = () => {
     const track = trackRef.current
     if (track == null) {
-      return
+      return null
     }
     const stickyEl = track.firstElementChild
-    const panelEl = panelNodeRef.current
-    const panelH =
-      panelEl?.getBoundingClientRect().height ||
-      stickyEl?.getBoundingClientRect().height ||
-      panelHeightPx
-    const trackH = track.offsetHeight || trackHeightPx
-    const scrollable = trackH - panelH
-    if (scrollable <= 0) {
-      return
-    }
+    const scrollable = track.offsetHeight - panelHeightPx
     const stickyTop =
       stickyEl instanceof HTMLElement
         ? Number.parseFloat(getComputedStyle(stickyEl).top) || stickyTopPx
         : stickyTopPx
-    const rect = track.getBoundingClientRect()
+    return { track, scrollable, stickyTop }
+  }
+
+  const syncFromScroll = useEffectEvent(() => {
+    const geometry = measureTrack()
+    if (geometry == null || geometry.scrollable <= 0) {
+      return
+    }
+    const rect = geometry.track.getBoundingClientRect()
     const scrolled = Math.max(
       0,
-      Math.min(scrollable, stickyTop - rect.top),
+      Math.min(geometry.scrollable, geometry.stickyTop - rect.top),
     )
     const next = clampIndex(
-      Math.floor((scrolled / scrollable) * STEP_COUNT),
+      Math.floor((scrolled / geometry.scrollable) * STEP_COUNT),
     )
     setActiveIndex((prev) => (prev === next ? prev : next))
   })
 
+  /**
+   * Panel height drives the track height. The panel grows and shrinks with the
+   * active step's copy, so the track uses the tallest height seen at the current
+   * width. A track that follows the active step would move the scroll position
+   * and re-select a step in a loop. The observer callback is the only setter.
+   */
   useEffect(() => {
+    const panel = panelRef.current
+    if (panel == null || typeof ResizeObserver === "undefined") {
+      return
+    }
+    let widthPx = 0
+    let tallestPx = 0
+    const ro = new ResizeObserver(() => {
+      const rect = panel.getBoundingClientRect()
+      const width = Math.round(rect.width)
+      const height = Math.ceil(rect.height)
+      if (height <= 0) {
+        return
+      }
+      tallestPx = width === widthPx ? Math.max(tallestPx, height) : height
+      widthPx = width
+      setPanelHeightPx((prev) => (prev === tallestPx ? prev : tallestPx))
+      setStickyTopPx((prev) => {
+        const next = stickyTopForViewport(window.innerHeight, tallestPx)
+        return prev === next ? prev : next
+      })
+    })
+    ro.observe(panel)
     return () => {
-      resizeObserverRef.current?.disconnect()
-      resizeObserverRef.current = null
+      ro.disconnect()
     }
   }, [])
 
   useEffect(() => {
     const onResize = () => {
-      const panelH =
-        panelNodeRef.current?.getBoundingClientRect().height || panelHeightPx
-      setStickyTopPx(stickyTopForViewport(window.innerHeight, panelH))
+      const next = stickyTopForViewport(window.innerHeight, panelHeightPx)
+      setStickyTopPx((prev) => (prev === next ? prev : next))
     }
     onResize()
-    syncFromScroll()
+    const frame = window.requestAnimationFrame(syncFromScroll)
     window.addEventListener("scroll", syncFromScroll, { passive: true })
     window.addEventListener("resize", onResize)
     return () => {
+      window.cancelAnimationFrame(frame)
       window.removeEventListener("scroll", syncFromScroll)
       window.removeEventListener("resize", onResize)
     }
   }, [panelHeightPx, stickyTopPx, trackHeightPx])
 
+  /** Scroll to the middle of the step's segment so the floor in `syncFromScroll` lands on it. */
   const scrollToIndex = (index: number) => {
     const next = clampIndex(index)
     setActiveIndex(next)
-    const track = trackRef.current
-    if (track == null) {
+    const geometry = measureTrack()
+    if (geometry == null || geometry.scrollable <= 0) {
       return
     }
-    const scrollable = trackHeightPx - panelHeightPx
-    if (scrollable <= 0) {
-      return
-    }
-    const step = scrollable / STEP_COUNT
-    const trackTop = window.scrollY + track.getBoundingClientRect().top
+    const segment = geometry.scrollable / STEP_COUNT
+    const trackTop = window.scrollY + geometry.track.getBoundingClientRect().top
     window.scrollTo({
-      top: trackTop - stickyTopPx + next * step,
+      top: trackTop - geometry.stickyTop + (next + 0.5) * segment,
       behavior: reduceMotion ? "auto" : "smooth",
     })
   }
@@ -533,7 +576,7 @@ export function HowItWorksGuestForm() {
       >
         <div className="sticky w-full" style={{ top: stickyTopPx }}>
           <StickyStepsPanel
-            onPanelNode={onPanelNode}
+            panelRef={panelRef}
             activeIndex={activeIndex}
             onSelect={scrollToIndex}
             reduceMotion={reduceMotion}

@@ -62,6 +62,18 @@ type AiAssistantPlansProps = {
    * Monthly amounts always come from the catalogue.
    */
   sublineSource?: "catalogue" | "card"
+  /** Merged onto the section title (How it works `5661:19772` wraps at 503px). */
+  titleClassName?: string
+  /** Merged onto the eyebrow (How it works `6874:12903`: *functional* 600 #4a4a4a). */
+  eyebrowClassName?: string
+  /** Merged onto the body (How it works `5661:19773` wraps at 422px). */
+  bodyClassName?: string
+  /**
+   * Figma Pricing component column widths (`7190:11240`, same as QR materials
+   * `7190:11029`): 388.5 / 346.5 / 388.5 / 346.5 of 1548px with 26px gaps, and a 275.4px
+   * Pilot description. Default keeps equal flex columns.
+   */
+  figmaColumns?: boolean
 }
 
 /** Pilot keeps its content copy; paid plans read the published catalogue. */
@@ -92,6 +104,7 @@ function PlanCard({
   prices,
   status,
   sublineSource,
+  figmaColumns,
 }: {
   card: AiAssistantPlanStripCard
   /** Right divider between adjacent non-highlighted cards on desktop (skip before Growth). */
@@ -100,6 +113,7 @@ function PlanCard({
   prices: PublicPlanPrices
   status: PublicPlanPricesStatus
   sublineSource: "catalogue" | "card"
+  figmaColumns: boolean
 }) {
   const price = planPriceLines(card, prices, sublineSource)
   /* Home Pricing (`sublineSource="card"`): Figma `7190:11030` type metrics. */
@@ -108,6 +122,10 @@ function PlanCard({
     <div
       className={cn(
         "flex w-full min-w-0 flex-col gap-10 overflow-hidden py-6 lg:flex-1",
+        figmaColumns &&
+          (card.id === "Pilot" || card.id === "Growth"
+            ? "lg:w-[calc((100%-78px)*0.264286)] lg:flex-none"
+            : "lg:w-[calc((100%-78px)*0.235714)] lg:flex-none"),
         card.isHighlighted
           ? cn(
               "rounded-[6px] border border-[#14a74a] bg-[rgba(20,167,74,0.05)] px-[26px]",
@@ -132,7 +150,14 @@ function PlanCard({
         >
           {card.name}
         </h3>
-        <p className="m-0 max-w-[346px] text-sm font-normal leading-[19px] text-[#141414]">
+        <p
+          className={cn(
+            "m-0 max-w-[346px] text-sm font-normal leading-[19px] text-[#141414]",
+            figmaColumns && card.id === "Pilot" && "max-w-[275.4px]",
+            // Figma wraps the Growth text after "that need"; Helvetica Neue needs 345px.
+            figmaColumns && card.id === "Growth" && "lg:-mr-3",
+          )}
+        >
           {card.description}
         </p>
       </div>
@@ -220,6 +245,10 @@ export function AiAssistantPlans({
   splitHeader = false,
   compareBelow = false,
   sublineSource = "catalogue",
+  titleClassName,
+  eyebrowClassName,
+  bodyClassName,
+  figmaColumns = false,
 }: AiAssistantPlansProps = {}) {
   const compareInHeader = splitHeader && !compareBelow
   const body = content.body?.trim() ?? ""
@@ -261,6 +290,7 @@ export function AiAssistantPlans({
                       : compactHeader
                         ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
                         : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
+                  eyebrowClassName,
                 )}
               >
                 {content.eyebrow}
@@ -273,6 +303,7 @@ export function AiAssistantPlans({
                     : compactHeader
                       ? "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[36px] lg:leading-[48px]"
                       : AI_ASSISTANT_SECTION_HEADING,
+                  titleClassName,
                 )}
               >
                 {content.title}
@@ -288,6 +319,7 @@ export function AiAssistantPlans({
                       ? "max-w-[430px]"
                       : "max-w-[592px]",
                   AI_ASSISTANT_SECTION_BODY,
+                  bodyClassName,
                 )}
               >
                 {body}
@@ -321,6 +353,7 @@ export function AiAssistantPlans({
                   prices={prices}
                   status={status}
                   sublineSource={sublineSource}
+                  figmaColumns={figmaColumns}
                 />
               )
             })}

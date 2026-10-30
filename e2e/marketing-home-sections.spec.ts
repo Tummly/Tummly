@@ -70,11 +70,3 @@ test("trust accordion toggles and the badge carousel stays gated (Figma 4942:192
   await expect(section.getByRole("link", { name: "Explore Trust & Privacy" })).toHaveAttribute("href", "/trust-privacy")
   await expect(section.getByRole("img", { name: "ISO/IEC 27001" })).toHaveCount(0)
 })
-
-test("How it works page uses the new Home QR copy", async ({ page }) => {
-  await page.goto("/how-it-works")
-  const qr = sectionOf(page, /Meet customers where the experience happens/)
-  await qr.scrollIntoViewIfNeeded()
-  await expect(qr.getByRole("button", { name: /QR Counter Display/ }).or(qr.getByRole("tab", { name: /QR Counter Display/ })).first()).toBeVisible()
-  await expect(page.getByText("QR materials made for real restaurant moments.")).toHaveCount(0)
-})
