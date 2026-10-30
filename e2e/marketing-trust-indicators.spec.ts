@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test"
 
 import { openFooter } from "./marketing-footer"
 import { openProductPage, section } from "./product-page"
@@ -87,6 +87,31 @@ async function openSettledFooter(page: Page, { awaitTrustResponse }: { awaitTrus
   await expect(footer.getByText("Proud to be a company of")).toBeVisible()
   if (trust !== null) await trust
   return footer
+}
+
+const BASE_URL = "http://localhost:5173"
+
+/** Lets two animation frames pass, so any deferred open or focus effect has run. */
+async function settleFrames(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }),
+  )
+}
+
+/**
+ * Loads `path`, then waits for the anchor before any absence check. With the gate open,
+ * also waits for the stubbed trust response, so an absence check cannot pass while the
+ * fetch is still pending.
+ */
+async function visitAnchored(page: Page, path: string, anchor: Locator, awaitTrust: boolean) {
+  const response = awaitTrust ? page.waitForResponse(TRUST_API) : null
+  await page.goto(path)
+  await rejectCookies(page)
+  await expect(anchor).toBeVisible()
+  if (response !== null) await response
 }
 
 async function openHome(page: Page) {
@@ -280,6 +305,10 @@ test.describe("footer trust list", () => {
     await page.keyboard.press("Escape")
     await expect(trigger).toBeFocused()
     await expect(bubbleOf(page, ICO)).toHaveCount(0)
+    // A deferred focus return must not reopen the bubble after the frames settle.
+    await settleFrames(page)
+    await expect(bubbleOf(page, ICO)).toHaveCount(0)
+    await expect(trigger).toHaveAttribute("aria-expanded", "false")
   })
 
   test("Escape on a focus-opened tile closes the tooltip and it stays closed", async ({
@@ -297,6 +326,8 @@ test.describe("footer trust list", () => {
     await page.keyboard.press("Escape")
     await expect(bubbleOf(page, ICO)).toHaveCount(0)
     await expect(trigger).toBeFocused()
+    await settleFrames(page)
+    await expect(bubbleOf(page, ICO)).toHaveCount(0)
   })
 
   test("ExternalProof CTAs carry the published URL, open in a new tab and say so", async ({
@@ -476,74 +507,158 @@ test.describe("trust surfaces share the published titles", () => {
   })
 })
 
-test.describe("no trust block: empty array, 500 and gate closed", () => {
-  test("Home shows no carousel for a closed gate, an empty array or a 500", async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    const api = published(TRUST_INDICATORS_FIXTURE)
-    await stubTrustApi(page, api)
+type AbsenceCase = { name: string; preview: boolean; status: number; body: unknown }
 
-    // Gate closed: no preview key, so no request and no trust block.
-    const plain = await page.context().newPage()
-    await plain.setViewportSize({ width: 1440, height: 900 })
-    await stubTrustApi(plain, api)
-    await openHome(plain)
-    await expect(
-      plain.getByRole("region", { name: "Trust and privacy credentials" }),
-    ).toHaveCount(0)
-    expect(api.calls).toBe(0)
-    await plain.close()
+const ABSENCE_CASES: AbsenceCase[] = [
+  { name: "gate closed", preview: false, status: 200, body: TRUST_INDICATORS_FIXTURE },
+  { name: "empty array", preview: true, status: 200, body: [] },
+  { name: "500", preview: true, status: 500, body: { success: false, message: "Unavailable." } },
+]
 
-    await previewOn(page)
-    const cases: { name: string; status: number; body: unknown }[] = [
-      { name: "empty array", status: 200, body: [] },
-      { name: "500", status: 500, body: { success: false, message: "Unavailable." } },
-    ]
-    for (const testCase of cases) {
-      api.status = testCase.status
-      api.body = testCase.body
-      const footer = await openHome(page)
-      await expect(footer.getByText("Built with trust in mind"), testCase.name).toHaveCount(0)
-      await expect(
-        page.getByRole("region", { name: "Trust and privacy credentials" }),
-        testCase.name,
-      ).toHaveCount(0)
-    }
-  })
+/**
+ * One fresh context per case: the preview key lives in localStorage, which every page of
+ * a context shares, so the gate-closed case needs its own context.
+ */
+async function openAbsenceCase(browser: Browser, width: number, testCase: AbsenceCase) {
+  const context = await browser.newContext({ baseURL: BASE_URL, viewport: { width, height: 900 } })
+  const page = await context.newPage()
+  if (testCase.preview) await previewOn(page)
+  const api: TrustApi = { status: testCase.status, body: testCase.body, calls: 0 }
+  await stubTrustApi(page, api)
+  return { context, page, api }
+}
+
+/** No trust block on the footer or on the Home, Product and For groups surfaces. */
+async function expectNoTrustBlockOnEverySurface(
+  page: Page,
+  api: TrustApi,
+  testCase: AbsenceCase,
+) {
+  const label = testCase.name
+  const expectCallsAfterVisit = (before: number) =>
+    expect(api.calls, `${label}: trust requests`).toBe(testCase.preview ? before + 1 : 0)
+
+  // Footer and Home: the Home trust heading anchors the page.
+  let before = api.calls
+  await visitAnchored(page, "/", page.locator("#home-trust-control-heading"), testCase.preview)
+  expectCallsAfterVisit(before)
+  let footer = page.locator("footer").last()
+  await expect(footer.getByText("Built with trust in mind"), `${label}: footer`).toHaveCount(0)
+  await expect(trustList(footer), `${label}: footer list`).toHaveCount(0)
+  await expect(
+    page.getByRole("region", { name: "Trust and privacy credentials" }),
+    `${label}: home carousel`,
+  ).toHaveCount(0)
+
+  // Product: the "Guest trust." section must still render.
+  before = api.calls
+  const productResponse = testCase.preview ? page.waitForResponse(TRUST_API) : null
+  await openProductPage(page)
+  await expect(section(page, /Guest trust\./), `${label}: product section`).toBeVisible()
+  if (productResponse !== null) await productResponse
+  expectCallsAfterVisit(before)
+  footer = page.locator("footer").last()
+  await expect(footer.getByText("Built with trust in mind"), `${label}: product footer`).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Previous certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  for (const tile of TILES) {
+    await expect(tileButton(page.locator("body"), tile), `${label}: product ${tile.title}`).toHaveCount(0)
+  }
+
+  // For groups: the hero heading must still render.
+  before = api.calls
+  await visitAnchored(page, "/for-groups", page.getByRole("heading", { level: 1 }), testCase.preview)
+  expectCallsAfterVisit(before)
+  footer = page.locator("footer").last()
+  await expect(footer.getByText("Built with trust in mind"), `${label}: for-groups footer`).toHaveCount(0)
+  await expect(
+    page.getByText("Built with trust at the heart of Tummly."),
+    `${label}: for-groups strip`,
+  ).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  for (const tile of TILES) {
+    await expect(tileButton(page.locator("body"), tile), `${label}: for-groups ${tile.title}`).toHaveCount(0)
+  }
+}
+
+test.describe("no trust block: gate closed, empty array and 500", () => {
+  // Each test visits every surface for three cases: about 12 full page loads.
+  test.describe.configure({ timeout: 180_000 })
+
+  for (const width of WIDTHS) {
+    test(`no trust block on the footer, Home, Product or For groups at ${width}px`, async ({
+      browser,
+    }) => {
+      for (const testCase of ABSENCE_CASES) {
+        const { context, page, api } = await openAbsenceCase(browser, width, testCase)
+        try {
+          await expectNoTrustBlockOnEverySurface(page, api, testCase)
+        } finally {
+          await context.close()
+        }
+      }
+    })
+  }
 
   for (const width of WIDTHS) {
     test(`footer keeps the brand and link positions with no trust block at ${width}px`, async ({
-      page,
+      browser,
     }) => {
-      await page.setViewportSize({ width, height: 900 })
-      const api = published(TRUST_INDICATORS_FIXTURE)
-      await stubTrustApi(page, api)
-
       // Baseline: gate closed, so the trust block is never rendered.
-      const plain = await page.context().newPage()
-      await plain.setViewportSize({ width, height: 900 })
-      await stubTrustApi(plain, api)
+      const { context: baseContext, page: plain, api: plainApi } = await openAbsenceCase(
+        browser,
+        width,
+        ABSENCE_CASES[0],
+      )
       const baselineFooter = await openSettledFooter(plain, { awaitTrustResponse: false })
+      await expect(baselineFooter.getByText("Built with trust in mind")).toHaveCount(0)
+      await expect(trustList(baselineFooter)).toHaveCount(0)
+      expect(plainApi.calls).toBe(0)
       const baseline = await footerLayout(baselineFooter)
-      await plain.close()
+      await baseContext.close()
 
-      const cases: { name: string; preview: boolean; status: number; body: unknown }[] = [
-        { name: "empty array", preview: true, status: 200, body: [] },
-        { name: "500", preview: true, status: 500, body: { success: false, message: "Unavailable." } },
-      ]
-      await previewOn(page)
-      for (const testCase of cases) {
-        api.status = testCase.status
-        api.body = testCase.body
-        const footer = await openSettledFooter(page, { awaitTrustResponse: true })
-        await expect(footer.getByText("Built with trust in mind"), testCase.name).toHaveCount(0)
-        await expect(trustList(footer), testCase.name).toHaveCount(0)
-        expect(await footerLayout(footer), testCase.name).toEqual(baseline)
+      for (const testCase of ABSENCE_CASES.slice(1)) {
+        const { context, page, api: caseApi } = await openAbsenceCase(browser, width, testCase)
+        try {
+          const footer = await openSettledFooter(page, { awaitTrustResponse: true })
+          await expect(footer.getByText("Built with trust in mind"), testCase.name).toHaveCount(0)
+          await expect(trustList(footer), testCase.name).toHaveCount(0)
+          expect(caseApi.calls, testCase.name).toBe(1)
+          expect(await footerLayout(footer), testCase.name).toEqual(baseline)
+        } finally {
+          await context.close()
+        }
       }
     })
   }
 })
 
 test.describe("cache", () => {
+  test("a 500 on reload after a published block removes the block everywhere on the footer", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await previewOn(page)
+    const api = published(TRUST_INDICATORS_FIXTURE)
+    await stubTrustApi(page, api)
+    const footer = await openFooter(page)
+    await expect(tileButton(trustList(footer), ICO)).toBeVisible()
+
+    api.status = 500
+    api.body = { success: false, message: "Unavailable." }
+    const response = page.waitForResponse(TRUST_API)
+    await page.reload()
+    await response
+    const reloaded = page.locator("footer").last()
+    await expect(reloaded.getByText("Proud to be a company of")).toBeVisible()
+    await expect(reloaded.getByText("Built with trust in mind")).toHaveCount(0)
+    await expect(trustList(reloaded)).toHaveCount(0)
+    for (const tile of TILES) {
+      await expect(tileButton(reloaded, tile), tile.title).toHaveCount(0)
+    }
+    expect(api.calls).toBe(2)
+  })
+
   test("SPA navigation keeps the list; a full reload shows the new published set", async ({
     page,
   }) => {
@@ -592,7 +707,10 @@ test.describe("footer corrections", () => {
     await pilot.click()
 
     await expect(page).toHaveURL(/\/signup\?plan=Pilot$/)
-    // The signup page keeps the chosen plan in sessionStorage and shows no plan label.
+    // On this page the signup form is what is on screen. The Pilot plan cards are on
+    // the onboarding step, after account and verification, so the selection is checked
+    // in sessionStorage (the value that step reads).
+    await expect(page.getByRole("heading", { name: "Create your Tummly account" })).toBeVisible()
     await expect
       .poll(() => page.evaluate(() => sessionStorage.getItem("tummly.signupPlanIntent")))
       .toContain('"plan":"Pilot"')
@@ -600,6 +718,8 @@ test.describe("footer corrections", () => {
   })
 
   test("disclosure sits above the copyright line", async ({ page }) => {
+    await previewOn(page)
+    await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     const footer = await openFooter(page)
     const operator = footer.getByText(
       "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
@@ -621,6 +741,8 @@ test.describe("footer corrections", () => {
   test("Manage marketing preferences sits directly below Privacy for Guests and opens /preferences", async ({
     page,
   }) => {
+    await previewOn(page)
+    await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     const footer = await openFooter(page)
     const legal = footer.getByRole("navigation", { name: "Company & Legal", exact: true })
     const names = await legal.getByRole("link").allTextContents()
@@ -640,6 +762,8 @@ test.describe("footer corrections", () => {
   })
 
   test("the header and the footer both show For groups", async ({ page }) => {
+    await previewOn(page)
+    await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     await page.setViewportSize({ width: 1440, height: 900 })
     const footer = await openHome(page)
 
@@ -657,6 +781,8 @@ test.describe("footer corrections", () => {
   })
 
   test("the footer shows no VAT", async ({ page }) => {
+    await previewOn(page)
+    await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     const footer = await openFooter(page)
     await expect(footer.getByText("Proud to be a company of")).toBeVisible()
     await expect(footer).not.toContainText(/\bVAT\b/)
