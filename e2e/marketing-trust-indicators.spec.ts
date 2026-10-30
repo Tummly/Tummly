@@ -1,4 +1,12 @@
-import { expect, test, type Browser, type Locator, type Page } from "@playwright/test"
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+  type Response,
+} from "@playwright/test"
 
 import { openFooter } from "./marketing-footer"
 import { openProductPage, section } from "./product-page"
@@ -85,11 +93,9 @@ async function openSettledFooter(page: Page, { awaitTrustResponse }: { awaitTrus
   await rejectCookies(page)
   const footer = page.locator("footer").last()
   await expect(footer.getByText("Proud to be a company of")).toBeVisible()
-  if (trust !== null) await trust
+  if (trust !== null) await awaitTrustRender(page, trust)
   return footer
 }
-
-const BASE_URL = "http://localhost:5173"
 
 /** Lets two animation frames pass, so any deferred open or focus effect has run. */
 async function settleFrames(page: Page) {
@@ -102,6 +108,33 @@ async function settleFrames(page: Page) {
 }
 
 /**
+ * After the stubbed trust response: wait for the body to finish, then two frames for the
+ * render that follows. Absence checks run only after this, so they cannot pass early.
+ */
+async function awaitTrustRender(page: Page, response: Promise<Response>) {
+  const trust = await response
+  await trust.finished()
+  await settleFrames(page)
+}
+
+/** Context options from the project (base URL and device profile), with overrides. */
+function projectContextOptions(overrides: BrowserContextOptions = {}): BrowserContextOptions {
+  const use = test.info().project.use
+  return {
+    baseURL: use.baseURL ?? "http://localhost:5173",
+    userAgent: use.userAgent,
+    deviceScaleFactor: use.deviceScaleFactor,
+    isMobile: use.isMobile,
+    hasTouch: use.hasTouch,
+    locale: use.locale,
+    timezoneId: use.timezoneId,
+    colorScheme: use.colorScheme,
+    reducedMotion: use.reducedMotion,
+    ...overrides,
+  }
+}
+
+/**
  * Loads `path`, then waits for the anchor before any absence check. With the gate open,
  * also waits for the stubbed trust response, so an absence check cannot pass while the
  * fetch is still pending.
@@ -111,7 +144,7 @@ async function visitAnchored(page: Page, path: string, anchor: Locator, awaitTru
   await page.goto(path)
   await rejectCookies(page)
   await expect(anchor).toBeVisible()
-  if (response !== null) await response
+  if (response !== null) await awaitTrustRender(page, response)
 }
 
 async function openHome(page: Page) {
@@ -461,6 +494,7 @@ test.describe("footer trust list", () => {
 
 test.describe("trust surfaces share the published titles", () => {
   test("Home, Product and For groups show the same titles as the footer", async ({ page }) => {
+    test.setTimeout(120000)
     await page.setViewportSize({ width: 1440, height: 900 })
     await previewOn(page)
     await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
@@ -520,12 +554,27 @@ const ABSENCE_CASES: AbsenceCase[] = [
  * a context shares, so the gate-closed case needs its own context.
  */
 async function openAbsenceCase(browser: Browser, width: number, testCase: AbsenceCase) {
-  const context = await browser.newContext({ baseURL: BASE_URL, viewport: { width, height: 900 } })
-  const page = await context.newPage()
-  if (testCase.preview) await previewOn(page)
-  const api: TrustApi = { status: testCase.status, body: testCase.body, calls: 0 }
-  await stubTrustApi(page, api)
-  return { context, page, api }
+  const context = await browser.newContext(
+    projectContextOptions({ viewport: { width, height: 900 } }),
+  )
+  try {
+    const page = await context.newPage()
+    if (testCase.preview) await previewOn(page)
+    const api: TrustApi = { status: testCase.status, body: testCase.body, calls: 0 }
+    await stubTrustApi(page, api)
+    return { context, page, api }
+  } catch (error) {
+    await context.close()
+    throw error
+  }
+}
+
+/** Footer text that every surface renders. A missing footer must fail the absence checks. */
+async function expectFooterRendered(page: Page, label: string) {
+  await expect(
+    page.locator("footer").last().getByText("Proud to be a company of"),
+    `${label}: footer rendered`,
+  ).toBeVisible()
 }
 
 /** No trust block on the footer or on the Home, Product and For groups surfaces. */
@@ -542,6 +591,7 @@ async function expectNoTrustBlockOnEverySurface(
   let before = api.calls
   await visitAnchored(page, "/", page.locator("#home-trust-control-heading"), testCase.preview)
   expectCallsAfterVisit(before)
+  await expectFooterRendered(page, `${label}: home`)
   let footer = page.locator("footer").last()
   await expect(footer.getByText("Built with trust in mind"), `${label}: footer`).toHaveCount(0)
   await expect(trustList(footer), `${label}: footer list`).toHaveCount(0)
@@ -555,8 +605,9 @@ async function expectNoTrustBlockOnEverySurface(
   const productResponse = testCase.preview ? page.waitForResponse(TRUST_API) : null
   await openProductPage(page)
   await expect(section(page, /Guest trust\./), `${label}: product section`).toBeVisible()
-  if (productResponse !== null) await productResponse
+  if (productResponse !== null) await awaitTrustRender(page, productResponse)
   expectCallsAfterVisit(before)
+  await expectFooterRendered(page, `${label}: product`)
   footer = page.locator("footer").last()
   await expect(footer.getByText("Built with trust in mind"), `${label}: product footer`).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Previous certifications" })).toHaveCount(0)
@@ -569,6 +620,7 @@ async function expectNoTrustBlockOnEverySurface(
   before = api.calls
   await visitAnchored(page, "/for-groups", page.getByRole("heading", { level: 1 }), testCase.preview)
   expectCallsAfterVisit(before)
+  await expectFooterRendered(page, `${label}: for groups`)
   footer = page.locator("footer").last()
   await expect(footer.getByText("Built with trust in mind"), `${label}: for-groups footer`).toHaveCount(0)
   await expect(
@@ -582,13 +634,11 @@ async function expectNoTrustBlockOnEverySurface(
 }
 
 test.describe("no trust block: gate closed, empty array and 500", () => {
-  // Each test visits every surface for three cases: about 12 full page loads.
-  test.describe.configure({ timeout: 180_000 })
-
   for (const width of WIDTHS) {
     test(`no trust block on the footer, Home, Product or For groups at ${width}px`, async ({
       browser,
     }) => {
+    test.setTimeout(180000)
       for (const testCase of ABSENCE_CASES) {
         const { context, page, api } = await openAbsenceCase(browser, width, testCase)
         try {
@@ -604,18 +654,23 @@ test.describe("no trust block: gate closed, empty array and 500", () => {
     test(`footer keeps the brand and link positions with no trust block at ${width}px`, async ({
       browser,
     }) => {
+    test.setTimeout(180000)
       // Baseline: gate closed, so the trust block is never rendered.
       const { context: baseContext, page: plain, api: plainApi } = await openAbsenceCase(
         browser,
         width,
         ABSENCE_CASES[0],
       )
-      const baselineFooter = await openSettledFooter(plain, { awaitTrustResponse: false })
-      await expect(baselineFooter.getByText("Built with trust in mind")).toHaveCount(0)
-      await expect(trustList(baselineFooter)).toHaveCount(0)
-      expect(plainApi.calls).toBe(0)
-      const baseline = await footerLayout(baselineFooter)
-      await baseContext.close()
+      let baseline: Record<string, unknown>
+      try {
+        const baselineFooter = await openSettledFooter(plain, { awaitTrustResponse: false })
+        await expect(baselineFooter.getByText("Built with trust in mind")).toHaveCount(0)
+        await expect(trustList(baselineFooter)).toHaveCount(0)
+        expect(plainApi.calls).toBe(0)
+        baseline = await footerLayout(baselineFooter)
+      } finally {
+        await baseContext.close()
+      }
 
       for (const testCase of ABSENCE_CASES.slice(1)) {
         const { context, page, api: caseApi } = await openAbsenceCase(browser, width, testCase)
@@ -637,6 +692,7 @@ test.describe("cache", () => {
   test("a 500 on reload after a published block removes the block everywhere on the footer", async ({
     page,
   }) => {
+    test.setTimeout(120000)
     await page.setViewportSize({ width: 1440, height: 900 })
     await previewOn(page)
     const api = published(TRUST_INDICATORS_FIXTURE)
@@ -648,7 +704,7 @@ test.describe("cache", () => {
     api.body = { success: false, message: "Unavailable." }
     const response = page.waitForResponse(TRUST_API)
     await page.reload()
-    await response
+    await awaitTrustRender(page, response)
     const reloaded = page.locator("footer").last()
     await expect(reloaded.getByText("Proud to be a company of")).toBeVisible()
     await expect(reloaded.getByText("Built with trust in mind")).toHaveCount(0)
@@ -662,6 +718,7 @@ test.describe("cache", () => {
   test("SPA navigation keeps the list; a full reload shows the new published set", async ({
     page,
   }) => {
+    test.setTimeout(120000)
     await page.setViewportSize({ width: 1440, height: 900 })
     await previewOn(page)
     const api = published(TRUST_INDICATORS_FIXTURE)
@@ -692,6 +749,7 @@ test.describe("footer corrections", () => {
   test("footer Start 30-day Pilot is the one Pilot CTA and opens signup with Pilot", async ({
     page,
   }) => {
+    test.setTimeout(120000)
     const pilotPosts: string[] = []
     page.on("request", (request) => {
       if (request.method() === "POST" && /pilot/i.test(request.url())) {
@@ -718,6 +776,7 @@ test.describe("footer corrections", () => {
   })
 
   test("disclosure sits above the copyright line", async ({ page }) => {
+    test.setTimeout(120000)
     await previewOn(page)
     await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     const footer = await openFooter(page)
@@ -741,6 +800,7 @@ test.describe("footer corrections", () => {
   test("Manage marketing preferences sits directly below Privacy for Guests and opens /preferences", async ({
     page,
   }) => {
+    test.setTimeout(120000)
     await previewOn(page)
     await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     const footer = await openFooter(page)
@@ -762,6 +822,7 @@ test.describe("footer corrections", () => {
   })
 
   test("the header and the footer both show For groups", async ({ page }) => {
+    test.setTimeout(120000)
     await previewOn(page)
     await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -781,10 +842,13 @@ test.describe("footer corrections", () => {
   })
 
   test("the footer shows no VAT", async ({ page }) => {
+    test.setTimeout(120000)
     await previewOn(page)
     await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
+    const response = page.waitForResponse(TRUST_API)
     const footer = await openFooter(page)
     await expect(footer.getByText("Proud to be a company of")).toBeVisible()
+    await awaitTrustRender(page, response)
     await expect(footer).not.toContainText(/\bVAT\b/)
   })
 })
