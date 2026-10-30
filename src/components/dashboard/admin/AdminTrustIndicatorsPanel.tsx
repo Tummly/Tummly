@@ -53,6 +53,7 @@ import {
   TRUST_EVIDENCE_CLASS_LABELS,
   TRUST_STATUS_LABELS,
   trustDraftChanges,
+  trustDraftMatchesLive,
   trustItemPublishState,
   trustPublishErrorMessage,
   trustSaveErrorMessage,
@@ -373,6 +374,7 @@ export function AdminTrustIndicatorsPanel() {
   const published = view.published
   const publishedItems = published?.items ?? null
   const changedCount = trustDraftChanges(view.draft, publishedItems).length
+  const nothingToPublish = trustDraftMatchesLive(view.draft, publishedItems)
   const submitted = view.review.submittedByAdminUserId !== null
   const draftRevision = view.review.draftRevision
   const enabledDraftCount = view.draft.filter((row) => row.values.enabled).length
@@ -725,9 +727,9 @@ export function AdminTrustIndicatorsPanel() {
                     ))}
                 </ul>
               )
-            ) : changedCount === 0 ? (
+            ) : nothingToPublish ? (
               <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-                The draft matches the live version. Publishing creates a new version with the same content.
+                Nothing to publish: the draft matches the live version.
               </p>
             ) : (
               <ul className="flex flex-col gap-3 text-sm">
@@ -779,7 +781,7 @@ export function AdminTrustIndicatorsPanel() {
             </Button>
             <Button
               type="button"
-              disabled={publishing || draftRevision === null}
+              disabled={publishing || draftRevision === null || nothingToPublish}
               onClick={() => void publishDraft()}
             >
               {publishing ? "Publishing…" : "Publish"}

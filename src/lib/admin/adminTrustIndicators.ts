@@ -280,6 +280,17 @@ export function trustDraftChanges(
   })
 }
 
+/**
+ * True when a live version exists and the draft matches it, so a publish would change nothing.
+ * The server refuses that publish (`no_changes`), so the dialog disables Publish.
+ */
+export function trustDraftMatchesLive(
+  draft: AdminTrustIndicatorItem[],
+  published: AdminTrustIndicatorItem[] | null
+): boolean {
+  return published !== null && trustDraftChanges(draft, published).length === 0
+}
+
 /** Turns blank form strings into null before save. Alt text and tooltip stay strings. */
 export function toTrustSaveValues(form: TrustIndicatorValues): TrustIndicatorValues {
   return {

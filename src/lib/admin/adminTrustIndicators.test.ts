@@ -20,6 +20,7 @@ import {
   TRUST_STATUS_LABELS,
   toTrustSaveValues,
   trustDraftChanges,
+  trustDraftMatchesLive,
   trustItemPublishState,
   trustPublishErrorMessage,
   trustSaveErrorMessage,
@@ -300,6 +301,22 @@ describe("trustDraftChanges", () => {
 
   it("returns nothing when no version is live", () => {
     expect(trustDraftChanges([item(1, { enabled: true })], null)).toEqual([])
+  })
+})
+
+describe("trustDraftMatchesLive", () => {
+  it("is true when the draft equals the live version", () => {
+    expect(trustDraftMatchesLive([item(1), item(2)], [item(1), item(2)])).toBe(true)
+  })
+
+  it("is false as soon as one item differs", () => {
+    expect(
+      trustDraftMatchesLive([item(1, { enabled: true }), item(2)], [item(1), item(2)])
+    ).toBe(false)
+  })
+
+  it("is false when no version is live, so the first publish stays allowed", () => {
+    expect(trustDraftMatchesLive([item(1)], null)).toBe(false)
   })
 })
 
