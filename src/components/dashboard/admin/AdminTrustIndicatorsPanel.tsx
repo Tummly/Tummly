@@ -6,11 +6,11 @@ import {
   publishTrustIndicators,
   saveTrustIndicatorItem,
   submitTrustIndicatorDraft,
-  TRUST_CTA_TYPES,
   TrustIndicatorApiError,
   type AdminTrustIndicatorItem,
   type AdminTrustIndicatorsView,
   type TrustCtaType,
+  type TrustIndicatorStatus,
   type TrustIndicatorValues,
 } from "@/api/adminTrustIndicatorsApi"
 import { Badge } from "@/components/ui/badge"
@@ -45,10 +45,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  allowedTrustCtaTypes,
+  allowedTrustStatuses,
   TRUST_CTA_TYPE_LABELS,
   TRUST_EVIDENCE_CLASS_LABELS,
+  TRUST_STATUS_LABELS,
   trustDraftChanges,
   trustItemPublishState,
+  trustPublishErrorMessage,
   toTrustSaveValues,
   type TrustItemPublishState,
 } from "@/lib/admin/adminTrustIndicators"
@@ -76,10 +80,8 @@ const PUBLISH_STATE_LABELS: Record<TrustItemPublishState, string> = {
   changed: "Unpublished changes",
 }
 
-const CTA_OPTIONS = TRUST_CTA_TYPES.map((value) => ({
-  value,
-  label: TRUST_CTA_TYPE_LABELS[value],
-}))
+const ONLY_APPROVER_MESSAGE = "Only a Director or compliance approver can publish."
+const SUBMIT_FIRST_MESSAGE = "Submit the draft for review first."
 
 type PublishError = {
   message: string
@@ -105,28 +107,11 @@ function messageFor(error: unknown, fallback: string): string {
   return fallback
 }
 
-function publishErrorFrom(error: unknown): PublishError {
-  const message = messageFor(error, "Could not publish the trust indicators.")
-  if (!(error instanceof TrustIndicatorApiError)) {
-    return { message, details: [] }
-  }
-  if (error.code === "self_approval_denied") {
-    return {
-      message:
-        "You cannot publish a draft you submitted or last edited. A second admin must publish it.",
-      details: [],
-    }
-  }
-  if (error.code === "not_submitted") {
-    return { message: "Submit the draft for review before publishing.", details: [] }
-  }
-  if (error.code === "publish_gate_failed") {
-    return {
-      message: "Some items cannot be published yet. Fix them, submit again, then publish.",
-      details: error.details,
-    }
-  }
-  return { message, details: error.details }
+/** The reload message when the server reports a stale draft; null for other errors. */
+function draftConflictMessage(error: unknown): string | null {
+  if (!(error instanceof TrustIndicatorApiError)) return null
+  const mapped = trustPublishErrorMessage(error.code ?? "", error.message)
+  return mapped.reload ? mapped.message : null
 }
 
 export function AdminTrustIndicatorsPanel() {
@@ -150,6 +135,14 @@ export function AdminTrustIndicatorsPanel() {
   const refreshView = useCallback(async () => {
     setView(await fetchAdminTrustIndicators())
   }, [])
+
+  const reloadAfterConflict = useCallback(async () => {
+    try {
+      await refreshView()
+    } catch {
+      // The shown message still applies. The server refuses a stale publish, so a later reload is safe.
+    }
+  }, [refreshView])
 
   const loadView = useCallback(async () => {
     setLoading(true)
@@ -201,6 +194,34 @@ export function AdminTrustIndicatorsPanel() {
     setForm((current) => (current ? { ...current, [key]: value } : current))
   }
 
+  /** Picking None or CookieSettings drops any stored target; None also drops the label. */
+  function changeCtaType(ctaType: TrustCtaType) {
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            ctaType,
+            ctaTarget:
+              ctaType === "None" || ctaType === "CookieSettings"
+                ? null
+                : current.ctaTarget,
+            ctaLabel: ctaType === "None" ? null : current.ctaLabel,
+          }
+        : current
+    )
+  }
+
+  /** A status that does not allow the current CTA type resets the CTA to None. */
+  function changeStatus(status: TrustIndicatorStatus) {
+    if (!editing) return
+    const allowed = allowedTrustCtaTypes(editing.evidenceClass, status)
+    setForm((current) => {
+      if (!current) return current
+      if (allowed.includes(current.ctaType)) return { ...current, status }
+      return { ...current, status, ctaType: "None", ctaLabel: null, ctaTarget: null }
+    })
+  }
+
   async function saveDraftItem() {
     if (!editing || !form) return
     setSaving(true)
@@ -212,9 +233,15 @@ export function AdminTrustIndicatorsPanel() {
       toast.success("Draft saved. The live website is unchanged.")
       closeEditor()
     } catch (error) {
-      setFormError(messageFor(error, "Could not save the draft item."))
-      if (error instanceof TrustIndicatorApiError) {
-        setFormDetails(error.details)
+      const conflict = draftConflictMessage(error)
+      if (conflict !== null) {
+        setFormError(conflict)
+        await reloadAfterConflict()
+      } else {
+        setFormError(messageFor(error, "Could not save the draft item."))
+        if (error instanceof TrustIndicatorApiError) {
+          setFormDetails(error.details)
+        }
       }
     } finally {
       setSaving(false)
@@ -228,7 +255,13 @@ export function AdminTrustIndicatorsPanel() {
       await refreshView()
       toast.success("Draft submitted for review.")
     } catch (error) {
-      toast.error(messageFor(error, "Could not submit the draft for review."))
+      const conflict = draftConflictMessage(error)
+      if (conflict !== null) {
+        toast.error(conflict)
+        await reloadAfterConflict()
+      } else {
+        toast.error(messageFor(error, "Could not submit the draft for review."))
+      }
     } finally {
       setSubmitting(false)
     }
@@ -241,10 +274,30 @@ export function AdminTrustIndicatorsPanel() {
     setPublishOpen(true)
   }
 
+  /** Maps a refused publish. Reloads the view on a stale draft; a reused key gets a new one. */
+  async function publishFailure(error: unknown): Promise<PublishError> {
+    if (!(error instanceof TrustIndicatorApiError)) {
+      return { message: "Could not publish the trust indicators.", details: [] }
+    }
+    const mapped = trustPublishErrorMessage(error.code ?? "", error.message)
+    if (error.code === "idempotency_key_reused") {
+      setIdempotencyKey(crypto.randomUUID())
+    }
+    if (mapped.reload) {
+      await reloadAfterConflict()
+    }
+    return { message: mapped.message, details: error.details }
+  }
+
   async function publishDraft() {
     const trimmed = reason.trim()
     if (trimmed === "") {
       setPublishError({ message: "Enter a reason for publishing.", details: [] })
+      return
+    }
+    const revision = view?.review.draftRevision ?? null
+    if (revision === null) {
+      setPublishError({ message: SUBMIT_FIRST_MESSAGE, details: [] })
       return
     }
     setPublishing(true)
@@ -252,13 +305,14 @@ export function AdminTrustIndicatorsPanel() {
     try {
       const published = await publishTrustIndicators({
         reason: trimmed,
+        draftRevision: revision,
         idempotencyKey,
       })
       await refreshView()
       toast.success(`Published trust indicators version ${published.version}.`)
       setPublishOpen(false)
     } catch (error) {
-      setPublishError(publishErrorFrom(error))
+      setPublishError(await publishFailure(error))
     } finally {
       setPublishing(false)
     }
@@ -291,7 +345,22 @@ export function AdminTrustIndicatorsPanel() {
   const publishedItems = published?.items ?? null
   const changedCount = trustDraftChanges(view.draft, publishedItems).length
   const submitted = view.review.submittedByAdminUserId !== null
+  const draftRevision = view.review.draftRevision
   const enabledDraftCount = view.draft.filter((row) => row.values.enabled).length
+  const editorStatusOptions =
+    editing === null
+      ? []
+      : allowedTrustStatuses(editing.evidenceClass).map((value) => ({
+          value,
+          label: TRUST_STATUS_LABELS[value],
+        }))
+  const editorCtaOptions =
+    editing === null || form === null
+      ? []
+      : allowedTrustCtaTypes(editing.evidenceClass, form.status).map((value) => ({
+          value,
+          label: TRUST_CTA_TYPE_LABELS[value],
+        }))
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -334,13 +403,22 @@ export function AdminTrustIndicatorsPanel() {
             >
               {submitting ? "Submitting…" : "Submit for review"}
             </Button>
-            <Button
-              type="button"
-              disabled={!submitted || publishing}
-              onClick={openPublish}
-            >
-              Publish…
-            </Button>
+            {view.viewer.canApprove ? (
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  type="button"
+                  disabled={draftRevision === null}
+                  onClick={openPublish}
+                >
+                  Publish…
+                </Button>
+                {draftRevision === null ? (
+                  <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{SUBMIT_FIRST_MESSAGE}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{ONLY_APPROVER_MESSAGE}</p>
+            )}
           </div>
         </div>
       </section>
@@ -353,6 +431,7 @@ export function AdminTrustIndicatorsPanel() {
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>#</TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>Indicator</TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>Evidence class</TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>Status</TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>Website</TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>Versus live</TableHead>
                 <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
@@ -363,7 +442,7 @@ export function AdminTrustIndicatorsPanel() {
             <TableBody>
               {view.draft.length === 0 ? (
                 <TableRow className={GUESTS_TABLE_BODY_ROW_CLASS}>
-                  <TableCell colSpan={6} className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                  <TableCell colSpan={7} className={GUESTS_TABLE_BODY_CELL_CLASS}>
                     No trust indicators are set up yet.
                   </TableCell>
                 </TableRow>
@@ -387,6 +466,9 @@ export function AdminTrustIndicatorsPanel() {
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         {TRUST_EVIDENCE_CLASS_LABELS[row.evidenceClass]}
+                      </TableCell>
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        {TRUST_STATUS_LABELS[row.values.status]}
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Badge variant={row.values.enabled ? "secondary" : "outline"}>
@@ -453,17 +535,47 @@ export function AdminTrustIndicatorsPanel() {
                   <Label htmlFor="trust-enabled">Show on website</Label>
                 </div>
                 <FloatingLabelSelect
-                  label="CTA type"
-                  value={form.ctaType}
-                  options={CTA_OPTIONS}
+                  label="Status"
+                  value={form.status}
+                  options={editorStatusOptions}
                   contentClassName={DRAWER_SELECT_CONTENT_CLASS}
-                  onValueChange={(value) => setField("ctaType", value as TrustCtaType)}
+                  onValueChange={(value) => changeStatus(value as TrustIndicatorStatus)}
                 />
                 <FloatingLabelInput
-                  label="CTA target (https link, or a path starting with /)"
-                  value={form.ctaTarget ?? ""}
-                  onChange={(event) => setField("ctaTarget", event.target.value)}
+                  label="Status label (max 60)"
+                  maxLength={60}
+                  value={form.statusLabel}
+                  onChange={(event) => setField("statusLabel", event.target.value)}
                 />
+                <FloatingLabelSelect
+                  label="CTA type"
+                  value={form.ctaType}
+                  options={editorCtaOptions}
+                  contentClassName={DRAWER_SELECT_CONTENT_CLASS}
+                  onValueChange={(value) => changeCtaType(value as TrustCtaType)}
+                />
+                {form.ctaType !== "None" ? (
+                  <FloatingLabelInput
+                    label="CTA label (max 60)"
+                    maxLength={60}
+                    value={form.ctaLabel ?? ""}
+                    onChange={(event) => setField("ctaLabel", event.target.value)}
+                  />
+                ) : null}
+                {form.ctaType === "ExternalProof" ? (
+                  <FloatingLabelInput
+                    label="CTA target (the evidence URL, https)"
+                    value={form.ctaTarget ?? ""}
+                    onChange={(event) => setField("ctaTarget", event.target.value)}
+                  />
+                ) : null}
+                {form.ctaType === "InternalPage" ? (
+                  <FloatingLabelInput
+                    label="CTA target (a path starting with /)"
+                    value={form.ctaTarget ?? ""}
+                    onChange={(event) => setField("ctaTarget", event.target.value)}
+                  />
+                ) : null}
                 <FloatingLabelInput
                   label="Evidence URL (https)"
                   value={form.evidenceUrl ?? ""}
@@ -478,6 +590,12 @@ export function AdminTrustIndicatorsPanel() {
                   label="Icon key"
                   value={form.iconKey ?? ""}
                   onChange={(event) => setField("iconKey", event.target.value)}
+                />
+                <FloatingLabelTextarea
+                  label="Image usage rights (required with an image, max 300)"
+                  maxLength={300}
+                  value={form.imageRightsNote ?? ""}
+                  onChange={(event) => setField("imageRightsNote", event.target.value)}
                 />
                 <FloatingLabelInput
                   label="Alt text (required with an image)"
@@ -618,6 +736,10 @@ export function AdminTrustIndicatorsPanel() {
             </div>
           ) : null}
 
+          {draftRevision === null ? (
+            <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{SUBMIT_FIRST_MESSAGE}</p>
+          ) : null}
+
           <DialogFooter>
             <Button
               type="button"
@@ -628,7 +750,7 @@ export function AdminTrustIndicatorsPanel() {
             </Button>
             <Button
               type="button"
-              disabled={publishing}
+              disabled={publishing || draftRevision === null}
               onClick={() => void publishDraft()}
             >
               {publishing ? "Publishing…" : "Publish"}

@@ -11,17 +11,38 @@ export const TRUST_EVIDENCE_CLASSES = [
 
 export type TrustEvidenceClass = (typeof TRUST_EVIDENCE_CLASSES)[number]
 
-export const TRUST_CTA_TYPES = ["None", "ExternalProof", "InternalPage"] as const
+/** Internal status (CONTRACT §1). Stored as text; the public status is derived. */
+export const TRUST_STATUSES = [
+  "VerifiedPublicRecord",
+  "VerifiedCredential",
+  "Roadmap",
+  "QaPending",
+  "QaPassed",
+  "UnderReview",
+] as const
+
+export type TrustIndicatorStatus = (typeof TRUST_STATUSES)[number]
+
+export const TRUST_CTA_TYPES = [
+  "None",
+  "ExternalProof",
+  "InternalPage",
+  "CookieSettings",
+] as const
 
 export type TrustCtaType = (typeof TRUST_CTA_TYPES)[number]
 
 /** Editable draft fields. Dates are yyyy-MM-dd. Also the PUT body. */
 export type TrustIndicatorValues = {
   enabled: boolean
+  status: TrustIndicatorStatus
+  statusLabel: string
   ctaType: TrustCtaType
+  ctaLabel: string | null
   ctaTarget: string | null
   evidenceUrl: string | null
   imageUrl: string | null
+  imageRightsNote: string | null
   iconKey: string | null
   altText: string
   tooltip: string
@@ -46,6 +67,14 @@ export type AdminTrustIndicatorReview = {
   lastEditedAtUtc: string | null
   submittedByAdminUserId: number | null
   submittedAtUtc: string | null
+  /** Set only while a submission stands. Publish must send this value back. */
+  draftRevision: string | null
+}
+
+/** The viewing admin. `canApprove` is the publish permission. */
+export type AdminTrustIndicatorViewer = {
+  adminUserId: number
+  canApprove: boolean
 }
 
 export type AdminTrustIndicatorPublication = {
@@ -63,23 +92,7 @@ export type AdminTrustIndicatorsView = {
   draft: AdminTrustIndicatorItem[]
   review: AdminTrustIndicatorReview
   published: AdminTrustIndicatorPublication | null
-}
-
-export type PublicTrustIndicator = {
-  itemNumber: number
-  title: string
-  evidenceClass: TrustEvidenceClass
-  iconKey: string | null
-  imageUrl: string | null
-  altText: string
-  tooltip: string
-  ctaType: TrustCtaType
-  ctaTarget: string | null
-  evidenceUrl: string | null
-  issuer: string | null
-  issuedOn: string | null
-  expiresOn: string | null
-  scope: string | null
+  viewer: AdminTrustIndicatorViewer
 }
 
 /** Carries the server code (for example self_approval_denied) and detail lines. */
@@ -164,11 +177,13 @@ export async function submitTrustIndicatorDraft(): Promise<AdminTrustIndicatorRe
 }
 
 /**
- * Approve and publish. Pass one idempotency key per publish attempt;
- * repeating the same key returns the version it already created.
+ * Approve and publish. `draftRevision` is the review.draftRevision the approver
+ * read. Pass one idempotency key per publish attempt; repeating the same key
+ * returns the version it already created.
  */
 export async function publishTrustIndicators(input: {
   reason: string
+  draftRevision: string
   idempotencyKey: string
 }): Promise<AdminTrustIndicatorPublication> {
   try {
@@ -177,19 +192,11 @@ export async function publishTrustIndicators(input: {
       item: AdminTrustIndicatorPublication
     }>(
       "/admin/trust-indicators/publish",
-      { reason: input.reason },
+      { reason: input.reason, draftRevision: input.draftRevision },
       { headers: { "Idempotency-Key": input.idempotencyKey } }
     )
     return data.item
   } catch (error) {
     throw toApiError(error, "Could not publish the trust indicators.")
   }
-}
-
-/** Public read for the website. Not wired into any component yet. */
-export async function fetchPublicTrustIndicators(): Promise<PublicTrustIndicator[]> {
-  const { data } = await axiosInstance.get<PublicTrustIndicator[]>(
-    "/public/trust-indicators"
-  )
-  return data
 }

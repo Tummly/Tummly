@@ -6,20 +6,30 @@ import type {
 } from "@/api/adminTrustIndicatorsApi"
 
 import {
+  allowedTrustCtaTypes,
+  allowedTrustStatuses,
   describeTrustValue,
   diffTrustIndicatorValues,
+  TRUST_CTA_TYPE_LABELS,
+  TRUST_EVIDENCE_CLASS_LABELS,
+  TRUST_STATUS_LABELS,
   toTrustSaveValues,
   trustDraftChanges,
   trustItemPublishState,
+  trustPublishErrorMessage,
 } from "./adminTrustIndicators"
 
 function values(overrides: Partial<TrustIndicatorValues> = {}): TrustIndicatorValues {
   return {
     enabled: false,
+    status: "Roadmap",
+    statusLabel: "Roadmap (not awarded)",
     ctaType: "None",
+    ctaLabel: null,
     ctaTarget: null,
     evidenceUrl: null,
     imageUrl: null,
+    imageRightsNote: null,
     iconKey: null,
     altText: "",
     tooltip: "",
@@ -45,6 +55,135 @@ function item(
     lastEditedAtUtc: null,
   }
 }
+
+describe("TRUST_STATUS_LABELS", () => {
+  it("labels each internal status with the CONTRACT wording", () => {
+    expect(TRUST_STATUS_LABELS).toEqual({
+      VerifiedPublicRecord: "Verified public record",
+      VerifiedCredential: "Verified credential",
+      Roadmap: "Roadmap (not awarded)",
+      QaPending: "QA pending",
+      QaPassed: "QA passed",
+      UnderReview: "Under review",
+    })
+  })
+})
+
+describe("TRUST_EVIDENCE_CLASS_LABELS", () => {
+  it("labels own-control items as Own control", () => {
+    expect(TRUST_EVIDENCE_CLASS_LABELS.OwnControlQaPending).toBe("Own control")
+  })
+})
+
+describe("TRUST_CTA_TYPE_LABELS", () => {
+  it("labels the cookie settings CTA", () => {
+    expect(TRUST_CTA_TYPE_LABELS.CookieSettings).toBe("Open cookie settings")
+  })
+})
+
+describe("allowedTrustStatuses", () => {
+  it("offers the Verified-mapped and neutral statuses for public-record items", () => {
+    expect(allowedTrustStatuses("VerifiedPublicRecord")).toEqual([
+      "VerifiedPublicRecord",
+      "UnderReview",
+    ])
+  })
+
+  it("offers credential and neutral statuses for self-assessment items", () => {
+    expect(allowedTrustStatuses("VerifiedSelfAssessment")).toEqual([
+      "VerifiedCredential",
+      "UnderReview",
+    ])
+  })
+
+  it("offers only Roadmap for roadmap items", () => {
+    expect(allowedTrustStatuses("Roadmap")).toEqual(["Roadmap"])
+  })
+
+  it("offers QA pending and QA passed for own-control items", () => {
+    expect(allowedTrustStatuses("OwnControlQaPending")).toEqual(["QaPending", "QaPassed"])
+  })
+})
+
+describe("allowedTrustCtaTypes", () => {
+  it("always includes None", () => {
+    expect(allowedTrustCtaTypes("Roadmap", "Roadmap")).toEqual(["None"])
+    expect(allowedTrustCtaTypes("OwnControlQaPending", "QaPending")).toEqual(["None"])
+  })
+
+  it("adds ExternalProof for verified public-record and credential statuses", () => {
+    expect(allowedTrustCtaTypes("VerifiedPublicRecord", "VerifiedPublicRecord")).toEqual([
+      "None",
+      "ExternalProof",
+    ])
+    expect(allowedTrustCtaTypes("VerifiedSelfAssessment", "VerifiedCredential")).toEqual([
+      "None",
+      "ExternalProof",
+    ])
+  })
+
+  it("never offers ExternalProof for neutral statuses", () => {
+    expect(allowedTrustCtaTypes("VerifiedPublicRecord", "UnderReview")).toEqual(["None"])
+  })
+
+  it("adds InternalPage and CookieSettings for own-control QA passed", () => {
+    expect(allowedTrustCtaTypes("OwnControlQaPending", "QaPassed")).toEqual([
+      "None",
+      "InternalPage",
+      "CookieSettings",
+    ])
+  })
+
+  it("offers no internal CTA while own-control QA is pending", () => {
+    expect(allowedTrustCtaTypes("OwnControlQaPending", "QaPending")).toEqual(["None"])
+  })
+})
+
+describe("trustPublishErrorMessage", () => {
+  it("explains that only an approver may publish, without reloading", () => {
+    expect(trustPublishErrorMessage("approver_required", "Forbidden.")).toEqual({
+      message: "Only a Director or compliance approver can publish.",
+      reload: false,
+    })
+  })
+
+  it("shows the server message for a self-approval refusal", () => {
+    expect(
+      trustPublishErrorMessage("self_approval_denied", "A second admin must publish.")
+    ).toEqual({ message: "A second admin must publish.", reload: false })
+  })
+
+  it.each(["draft_changed", "draft_conflict", "publish_conflict"])(
+    "reloads the view after %s",
+    (code) => {
+      expect(trustPublishErrorMessage(code, "Server text.")).toEqual({
+        message: "The draft changed. It has been reloaded — review it again.",
+        reload: true,
+      })
+    }
+  )
+
+  it("shows the server message and does not reload after a reused idempotency key", () => {
+    expect(trustPublishErrorMessage("idempotency_key_reused", "Key reused.")).toEqual({
+      message: "Key reused.",
+      reload: false,
+    })
+  })
+
+  it("keeps the server message for an unknown code", () => {
+    expect(trustPublishErrorMessage("something_new", "Server text.")).toEqual({
+      message: "Server text.",
+      reload: false,
+    })
+  })
+
+  it("falls back to a generic message when the server sends no text", () => {
+    expect(trustPublishErrorMessage("something_new", "  ")).toEqual({
+      message: "Could not publish the trust indicators.",
+      reload: false,
+    })
+  })
+})
 
 describe("diffTrustIndicatorValues", () => {
   it("returns nothing when draft and published values match", () => {
@@ -72,6 +211,31 @@ describe("diffTrustIndicatorValues", () => {
         draft: "https://a.example",
       },
     ])
+  })
+
+  it("reports status, statusLabel, ctaLabel and imageRightsNote changes", () => {
+    const diff = diffTrustIndicatorValues(
+      values({
+        status: "QaPassed",
+        statusLabel: "QA passed",
+        ctaLabel: "Open settings",
+        imageRightsNote: "Licensed",
+      }),
+      values()
+    )
+
+    expect(diff.map((row) => row.field)).toEqual([
+      "status",
+      "statusLabel",
+      "ctaLabel",
+      "imageRightsNote",
+    ])
+    expect(diff[0]).toEqual({
+      field: "status",
+      label: "Status",
+      published: "Roadmap (not awarded)",
+      draft: "QA passed",
+    })
   })
 })
 
@@ -125,6 +289,24 @@ describe("toTrustSaveValues", () => {
     expect(saved.altText).toBe("Badge")
     expect(saved.tooltip).toBe("")
   })
+
+  it("blanks ctaLabel and imageRightsNote to null", () => {
+    const saved = toTrustSaveValues(
+      values({ ctaLabel: "   ", imageRightsNote: "" })
+    )
+
+    expect(saved.ctaLabel).toBeNull()
+    expect(saved.imageRightsNote).toBeNull()
+  })
+
+  it("keeps a filled ctaLabel and imageRightsNote, trimmed", () => {
+    const saved = toTrustSaveValues(
+      values({ ctaLabel: " Open settings ", imageRightsNote: " Licensed " })
+    )
+
+    expect(saved.ctaLabel).toBe("Open settings")
+    expect(saved.imageRightsNote).toBe("Licensed")
+  })
 })
 
 describe("describeTrustValue", () => {
@@ -133,5 +315,10 @@ describe("describeTrustValue", () => {
     expect(describeTrustValue("enabled", false)).toBe("Off")
     expect(describeTrustValue("scope", "")).toBe("—")
     expect(describeTrustValue("ctaType", "InternalPage")).toBe("Internal page")
+    expect(describeTrustValue("ctaType", "CookieSettings")).toBe("Open cookie settings")
+  })
+
+  it("shows the status label text for the status field", () => {
+    expect(describeTrustValue("status", "QaPassed")).toBe("QA passed")
   })
 })
