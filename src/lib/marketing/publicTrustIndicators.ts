@@ -99,6 +99,14 @@ function normalizeCta(raw: unknown, status: PublicTrustStatus): PublicTrustCta |
   return href === null ? { type: ctaType, label, href: null } : null
 }
 
+/** Keeps an https URL or a single-slash path; anything else (and every Roadmap item) gets null. */
+function normalizeImageUrl(raw: unknown, status: PublicTrustStatus): string | null {
+  if (status === "Roadmap") return null
+  const href = optionalString(raw)
+  if (href === null) return null
+  return isHttps(href) || isInternalPath(href) ? href : null
+}
+
 /** Returns the public item, or `null` when the row must be omitted. */
 function normalizeItem(raw: unknown): PublicTrustIndicator | null {
   if (!isRecord(raw)) return null
@@ -131,7 +139,7 @@ function normalizeItem(raw: unknown): PublicTrustIndicator | null {
     status,
     statusLabel,
     iconKey: optionalString(raw.iconKey),
-    imageUrl: status === "Roadmap" ? null : optionalString(raw.imageUrl),
+    imageUrl: normalizeImageUrl(raw.imageUrl, status),
     altText: trimmedString(raw.altText),
     tooltip: trimmedString(raw.tooltip),
     cta: normalizeCta(raw.cta, status),

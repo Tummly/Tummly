@@ -129,6 +129,17 @@ describe("normalizePublicTrustIndicators", () => {
     expect(item.cta).toBeNull()
   })
 
+  it("keeps an https image URL or a single-slash path only", () => {
+    const image = (imageUrl: string) => one({ imageUrl })[0].imageUrl
+    expect(image("https://cdn.example/logo.svg")).toBe("https://cdn.example/logo.svg")
+    expect(image("/a.svg")).toBe("/a.svg")
+    expect(image("http://cdn.example/logo.svg")).toBeNull()
+    expect(image("data:image/svg+xml,<svg/>")).toBeNull()
+    expect(image("//cdn.example/logo.svg")).toBeNull()
+    expect(image("/a\\b.svg")).toBeNull()
+    expect(image("/a b.svg")).toBeNull()
+  })
+
   it("sorts by itemNumber", () => {
     const items = normalizePublicTrustIndicators([
       row({ itemNumber: 9, title: "Nine" }),

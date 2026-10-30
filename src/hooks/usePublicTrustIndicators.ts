@@ -1,29 +1,38 @@
 import { useEffect, useState } from "react"
 
 import { fetchPublicTrustIndicators } from "@/api/publicTrustIndicatorsApi"
+import { trustClaimsVisible } from "@/content/marketing/publicTrustClaims"
 import {
   normalizePublicTrustIndicators,
   type PublicTrustIndicator,
 } from "@/lib/marketing/publicTrustIndicators"
 
-export type PublicTrustIndicatorsResult = {
+export type PublicTrustIndicatorsState = {
   state: "loading" | "ready" | "error"
   items: PublicTrustIndicator[]
 }
 
 const CACHE_TTL_MS = 60_000
 
-const LOADING: PublicTrustIndicatorsResult = { state: "loading", items: [] }
-const ERROR: PublicTrustIndicatorsResult = { state: "error", items: [] }
+const LOADING: PublicTrustIndicatorsState = { state: "loading", items: [] }
+const ERROR: PublicTrustIndicatorsState = { state: "error", items: [] }
+/** Shown while the release gate is closed: no request, nothing to render. */
+const GATED: PublicTrustIndicatorsState = { state: "ready", items: [] }
 
-type CacheEntry = { at: number; request: Promise<PublicTrustIndicatorsResult> }
+type CacheEntry = { at: number; request: Promise<PublicTrustIndicatorsState> }
 
 /** Per-tab module state: one shared request, kept for 60 s. Errors are never kept. */
 let cache: CacheEntry | null = null
 
-function requestPublicTrustIndicators(): Promise<PublicTrustIndicatorsResult> {
+function requestPublicTrustIndicators(): Promise<PublicTrustIndicatorsState> {
   return fetchPublicTrustIndicators().then(
-    (raw) => ({ state: "ready", items: normalizePublicTrustIndicators(raw) }),
+    (raw) => {
+      try {
+        return { state: "ready", items: normalizePublicTrustIndicators(raw) }
+      } catch {
+        return ERROR
+      }
+    },
     () => ERROR,
   )
 }
@@ -35,7 +44,7 @@ function requestPublicTrustIndicators(): Promise<PublicTrustIndicatorsResult> {
  */
 export function loadPublicTrustIndicators(
   now: number = Date.now(),
-): Promise<PublicTrustIndicatorsResult> {
+): Promise<PublicTrustIndicatorsState> {
   if (cache !== null && now - cache.at < CACHE_TTL_MS) {
     return cache.request
   }
@@ -56,18 +65,33 @@ export function resetPublicTrustIndicatorsCache(): void {
   cache = null
 }
 
-export function usePublicTrustIndicators(): PublicTrustIndicatorsResult {
-  const [result, setResult] = useState<PublicTrustIndicatorsResult>(LOADING)
+/**
+ * Emits the state to `onState`: `loading` first, then `ready` or `error`.
+ * While the release gate is closed it emits `ready` with no items and makes no
+ * request. After unsubscribe, nothing more is emitted. Returns the unsubscribe.
+ */
+export function subscribePublicTrustIndicators(
+  onState: (state: PublicTrustIndicatorsState) => void,
+): () => void {
+  if (!trustClaimsVisible()) {
+    onState(GATED)
+    return () => undefined
+  }
 
-  useEffect(() => {
-    let active = true
-    void loadPublicTrustIndicators().then((next) => {
-      if (active) setResult(next)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+  let active = true
+  onState(LOADING)
+  void loadPublicTrustIndicators().then((next) => {
+    if (active) onState(next)
+  })
+  return () => {
+    active = false
+  }
+}
 
-  return result
+export function usePublicTrustIndicators(): PublicTrustIndicatorsState {
+  const [state, setState] = useState<PublicTrustIndicatorsState>(LOADING)
+
+  useEffect(() => subscribePublicTrustIndicators(setState), [])
+
+  return state
 }

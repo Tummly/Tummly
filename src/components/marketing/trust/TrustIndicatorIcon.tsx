@@ -32,29 +32,56 @@ const ARTWORK = new Map<string, string>([
   ["ai-human", aiHuman],
 ])
 
+/** `sm` is the footer tile box (about 43px); `lg` is the carousel box (about 74px). */
+const BOX_PX = { sm: 43, lg: 74 } as const
+const BOX_CLASS = { sm: "size-[43px]", lg: "size-[74px]" } as const
+
 type TrustIndicatorIconProps = {
   iconKey: string | null
-  className?: string
+  /** When set, wins over `iconKey` and renders as an image. */
+  imageUrl: string | null
+  /**
+   * Part of the tile contract. Not rendered: the wrapper is aria-hidden and the
+   * tile text is the accessible name, so the image uses `alt=""`.
+   */
+  altText: string
+  size: keyof typeof BOX_PX
 }
 
 /**
  * Decorative only: the tile carries the status text, so this is always hidden
  * from assistive technology. Unknown or missing keys show Lucide `Shield`.
  */
-export function TrustIndicatorIcon({ iconKey, className }: TrustIndicatorIconProps) {
-  const frame = cn("inline-flex size-10 shrink-0 items-center justify-center", className)
-  const artwork = iconKey === null ? undefined : ARTWORK.get(iconKey)
+export function TrustIndicatorIcon({ iconKey, imageUrl, size }: TrustIndicatorIconProps) {
+  const box = cn("inline-flex shrink-0 items-center justify-center", BOX_CLASS[size])
 
+  if (imageUrl !== null) {
+    return (
+      <span aria-hidden="true" className={box}>
+        <img
+          src={imageUrl}
+          alt=""
+          width={BOX_PX[size]}
+          height={BOX_PX[size]}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-contain"
+        />
+      </span>
+    )
+  }
+
+  const artwork = iconKey === null ? undefined : ARTWORK.get(iconKey)
   if (artwork !== undefined) {
     return (
-      <span aria-hidden="true" className={frame}>
-        <img src={artwork} alt="" className="h-full w-full object-contain" />
+      <span aria-hidden="true" className={box}>
+        <img src={artwork} alt="" className="max-h-full max-w-full object-contain" />
       </span>
     )
   }
 
   return (
-    <span aria-hidden="true" className={frame}>
+    <span aria-hidden="true" className={box}>
       {roadmapGlyph(iconKey)}
     </span>
   )
@@ -62,7 +89,7 @@ export function TrustIndicatorIcon({ iconKey, className }: TrustIndicatorIconPro
 
 /** Neutral Lucide stand-ins for roadmap items (CONTRACT §9). Unknown keys get `Shield`. */
 function roadmapGlyph(iconKey: string | null): ReactNode {
-  const className = "h-full w-full"
+  const className = "size-full"
   switch (iconKey) {
     case "roadmap-cyber-essentials-plus":
       return <ShieldPlus aria-hidden="true" className={className} />
