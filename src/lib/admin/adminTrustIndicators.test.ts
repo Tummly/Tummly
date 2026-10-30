@@ -5,18 +5,24 @@ import type {
   TrustIndicatorValues,
 } from "@/api/adminTrustIndicatorsApi"
 
+import { TRUST_STATUSES } from "@/api/adminTrustIndicatorsApi"
+
 import {
   allowedTrustCtaTypes,
   allowedTrustStatuses,
   describeTrustValue,
   diffTrustIndicatorValues,
+  nextCtaTargetOnTypeChange,
   TRUST_CTA_TYPE_LABELS,
+  TRUST_EDITOR_RELOAD_FAILED_MESSAGE,
+  TRUST_EDITOR_RELOADED_MESSAGE,
   TRUST_EVIDENCE_CLASS_LABELS,
   TRUST_STATUS_LABELS,
   toTrustSaveValues,
   trustDraftChanges,
   trustItemPublishState,
   trustPublishErrorMessage,
+  trustSaveErrorMessage,
 } from "./adminTrustIndicators"
 
 function values(overrides: Partial<TrustIndicatorValues> = {}): TrustIndicatorValues {
@@ -55,6 +61,19 @@ function item(
     lastEditedAtUtc: null,
   }
 }
+
+describe("TRUST_STATUSES", () => {
+  it("pins the six canonical internal statuses in order", () => {
+    expect([...TRUST_STATUSES]).toEqual([
+      "VerifiedPublicRecord",
+      "VerifiedCredential",
+      "Roadmap",
+      "QaPending",
+      "QaPassed",
+      "UnderReview",
+    ])
+  })
+})
 
 describe("TRUST_STATUS_LABELS", () => {
   it("labels each internal status with the CONTRACT wording", () => {
@@ -170,6 +189,21 @@ describe("trustPublishErrorMessage", () => {
     })
   })
 
+  it("tells the approver to submit first when nothing is submitted", () => {
+    expect(trustPublishErrorMessage("not_submitted", "Server text.")).toEqual({
+      message: "Submit the draft for review before publishing.",
+      reload: false,
+    })
+  })
+
+  it("explains the gate failure and leaves the details to the panel", () => {
+    expect(trustPublishErrorMessage("publish_gate_failed", "Server text.")).toEqual({
+      message:
+        "Some items cannot be published yet. Fix them, submit again, then publish.",
+      reload: false,
+    })
+  })
+
   it("keeps the server message for an unknown code", () => {
     expect(trustPublishErrorMessage("something_new", "Server text.")).toEqual({
       message: "Server text.",
@@ -267,6 +301,68 @@ describe("trustDraftChanges", () => {
   it("returns nothing when no version is live", () => {
     expect(trustDraftChanges([item(1, { enabled: true })], null)).toEqual([])
   })
+})
+
+describe("trustSaveErrorMessage", () => {
+  it.each(["draft_changed", "draft_conflict", "publish_conflict"])(
+    "tells the editor user the form was reset after %s",
+    (code) => {
+      expect(trustSaveErrorMessage(code, "Server text.")).toEqual({
+        message: TRUST_EDITOR_RELOADED_MESSAGE,
+        reload: true,
+      })
+    }
+  )
+
+  it("states that the editor now shows the latest values", () => {
+    expect(TRUST_EDITOR_RELOADED_MESSAGE).toBe(
+      "Another admin changed the draft. Your editor now shows the latest values — make your change again."
+    )
+  })
+
+  it("keeps the server message for other save refusals", () => {
+    expect(trustSaveErrorMessage("validation_failed", "Alt text is required.")).toEqual({
+      message: "Alt text is required.",
+      reload: false,
+    })
+  })
+
+  it("falls back to a generic save message when the server sends no text", () => {
+    expect(trustSaveErrorMessage("", " ")).toEqual({
+      message: "Could not save the draft item.",
+      reload: false,
+    })
+  })
+
+  it("has a truthful message for a failed reload", () => {
+    expect(TRUST_EDITOR_RELOAD_FAILED_MESSAGE).toBe(
+      "Another admin changed the draft. The latest values could not be loaded. Close the editor and open the item again."
+    )
+  })
+})
+
+describe("nextCtaTargetOnTypeChange", () => {
+  it("clears the target when switching between ExternalProof and InternalPage", () => {
+    expect(nextCtaTargetOnTypeChange("ExternalProof", "InternalPage", "https://a.example")).toBeNull()
+    expect(nextCtaTargetOnTypeChange("InternalPage", "ExternalProof", "/settings")).toBeNull()
+  })
+
+  it("keeps the target when the type does not change", () => {
+    expect(nextCtaTargetOnTypeChange("InternalPage", "InternalPage", "/settings")).toBe("/settings")
+  })
+
+  it("clears the target for None and CookieSettings", () => {
+    expect(nextCtaTargetOnTypeChange("ExternalProof", "None", "https://a.example")).toBeNull()
+    expect(nextCtaTargetOnTypeChange("InternalPage", "CookieSettings", "/x")).toBeNull()
+  })
+
+  it("keeps the target when a type that takes a target is picked", () => {
+    expect(nextCtaTargetOnTypeChange("None", "ExternalProof", "https://a.example")).toBe(
+      "https://a.example"
+    )
+    expect(nextCtaTargetOnTypeChange("None", "InternalPage", "/settings")).toBe("/settings")
+  })
+
 })
 
 describe("toTrustSaveValues", () => {

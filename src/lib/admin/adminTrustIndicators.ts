@@ -76,12 +76,30 @@ export type TrustPublishErrorMessage = {
 const DRAFT_CHANGED_MESSAGE =
   "The draft changed. It has been reloaded — review it again."
 
+/** Shown in the editor after a save hits a stale draft; the form was reset to the latest values. */
+export const TRUST_EDITOR_RELOADED_MESSAGE =
+  "Another admin changed the draft. Your editor now shows the latest values — make your change again."
+
+/** Shown in the editor when the stale draft was detected but the latest values could not be loaded. */
+export const TRUST_EDITOR_RELOAD_FAILED_MESSAGE =
+  "Another admin changed the draft. The latest values could not be loaded. Close the editor and open the item again."
+
+/** Refusals that mean the draft moved under the user. The view must be reloaded. */
+const DRAFT_CONFLICT_CODES = new Set([
+  "draft_changed",
+  "draft_conflict",
+  "publish_conflict",
+])
+
 /** Maps a publish or edit refusal to the admin-facing text (CONTRACT §6, §7). */
 export function trustPublishErrorMessage(
   code: string,
   message: string
 ): TrustPublishErrorMessage {
   const serverMessage = message.trim()
+  if (DRAFT_CONFLICT_CODES.has(code)) {
+    return { message: DRAFT_CHANGED_MESSAGE, reload: true }
+  }
   switch (code) {
     case "approver_required":
       return {
@@ -96,10 +114,6 @@ export function trustPublishErrorMessage(
         ),
         reload: false,
       }
-    case "draft_changed":
-    case "draft_conflict":
-    case "publish_conflict":
-      return { message: DRAFT_CHANGED_MESSAGE, reload: true }
     case "idempotency_key_reused":
       return {
         message: orFallback(
@@ -125,6 +139,39 @@ export function trustPublishErrorMessage(
         reload: false,
       }
   }
+}
+
+/** Maps a failed draft save. A stale draft resets the editor to the latest values. */
+export function trustSaveErrorMessage(
+  code: string,
+  message: string
+): TrustPublishErrorMessage {
+  if (DRAFT_CONFLICT_CODES.has(code)) {
+    return { message: TRUST_EDITOR_RELOADED_MESSAGE, reload: true }
+  }
+  return {
+    message: orFallback(message.trim(), "Could not save the draft item."),
+    reload: false,
+  }
+}
+
+/**
+ * The CTA target after the CTA type changes. Moving between the two link types
+ * clears it, because an external proof URL is not an internal path (and the reverse).
+ */
+export function nextCtaTargetOnTypeChange(
+  previous: TrustCtaType,
+  next: TrustCtaType,
+  target: string | null
+): string | null {
+  if (next === "None" || next === "CookieSettings") {
+    return null
+  }
+  const linkTypes: TrustCtaType[] = ["ExternalProof", "InternalPage"]
+  if (previous !== next && linkTypes.includes(previous) && linkTypes.includes(next)) {
+    return null
+  }
+  return target
 }
 
 function orFallback(value: string, fallback: string): string {

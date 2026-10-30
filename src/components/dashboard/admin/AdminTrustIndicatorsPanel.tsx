@@ -47,12 +47,15 @@ import {
 import {
   allowedTrustCtaTypes,
   allowedTrustStatuses,
+  nextCtaTargetOnTypeChange,
   TRUST_CTA_TYPE_LABELS,
+  TRUST_EDITOR_RELOAD_FAILED_MESSAGE,
   TRUST_EVIDENCE_CLASS_LABELS,
   TRUST_STATUS_LABELS,
   trustDraftChanges,
   trustItemPublishState,
   trustPublishErrorMessage,
+  trustSaveErrorMessage,
   toTrustSaveValues,
   type TrustItemPublishState,
 } from "@/lib/admin/adminTrustIndicators"
@@ -133,7 +136,9 @@ export function AdminTrustIndicatorsPanel() {
   const [publishError, setPublishError] = useState<PublishError | null>(null)
 
   const refreshView = useCallback(async () => {
-    setView(await fetchAdminTrustIndicators())
+    const next = await fetchAdminTrustIndicators()
+    setView(next)
+    return next
   }, [])
 
   const reloadAfterConflict = useCallback(async () => {
@@ -194,17 +199,18 @@ export function AdminTrustIndicatorsPanel() {
     setForm((current) => (current ? { ...current, [key]: value } : current))
   }
 
-  /** Picking None or CookieSettings drops any stored target; None also drops the label. */
+  /** The target rule lives in nextCtaTargetOnTypeChange; None also drops the label. */
   function changeCtaType(ctaType: TrustCtaType) {
     setForm((current) =>
       current
         ? {
             ...current,
             ctaType,
-            ctaTarget:
-              ctaType === "None" || ctaType === "CookieSettings"
-                ? null
-                : current.ctaTarget,
+            ctaTarget: nextCtaTargetOnTypeChange(
+              current.ctaType,
+              ctaType,
+              current.ctaTarget
+            ),
             ctaLabel: ctaType === "None" ? null : current.ctaLabel,
           }
         : current
@@ -222,23 +228,46 @@ export function AdminTrustIndicatorsPanel() {
     })
   }
 
+  /** Reloads the view and resets the open editor to the item's latest values. */
+  async function resetEditorToLatest(itemNumber: number, message: string) {
+    try {
+      const latest = await refreshView()
+      const row = latest.draft.find((item) => item.itemNumber === itemNumber)
+      if (row !== undefined) {
+        setEditing(row)
+        setForm({ ...row.values })
+        setFormError(message)
+        setFormDetails([])
+        return
+      }
+    } catch {
+      // Fall through: the user's values stay, with the failure message.
+    }
+    setFormError(TRUST_EDITOR_RELOAD_FAILED_MESSAGE)
+    setFormDetails([])
+  }
+
   async function saveDraftItem() {
     if (!editing || !form) return
+    const { itemNumber } = editing
     setSaving(true)
     setFormError(null)
     setFormDetails([])
     try {
-      await saveTrustIndicatorItem(editing.itemNumber, toTrustSaveValues(form))
+      await saveTrustIndicatorItem(itemNumber, toTrustSaveValues(form))
       await refreshView()
       toast.success("Draft saved. The live website is unchanged.")
       closeEditor()
     } catch (error) {
-      const conflict = draftConflictMessage(error)
-      if (conflict !== null) {
-        setFormError(conflict)
-        await reloadAfterConflict()
+      const code = error instanceof TrustIndicatorApiError ? (error.code ?? "") : ""
+      const mapped = trustSaveErrorMessage(
+        code,
+        messageFor(error, "Could not save the draft item.")
+      )
+      if (mapped.reload) {
+        await resetEditorToLatest(itemNumber, mapped.message)
       } else {
-        setFormError(messageFor(error, "Could not save the draft item."))
+        setFormError(mapped.message)
         if (error instanceof TrustIndicatorApiError) {
           setFormDetails(error.details)
         }
