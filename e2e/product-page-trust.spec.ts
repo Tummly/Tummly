@@ -16,17 +16,23 @@ test("Trust accordion opens and closes each row", async ({ page }) => {
   await expect(row).toHaveAttribute("aria-expanded", "true")
 })
 
-test("Certification carousel scrolls with the arrow buttons", async ({ page }) => {
+// ENG01 / E3: certification badges stay hidden until the Director approves each
+// claim (`publicTrustClaims.ts`). The carousel itself is covered by
+// `MarketingCertificationCarousel.test.tsx`.
+test("Trust section withholds the certification badges and arrows", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openProductPage(page)
-  const prev = page.getByRole("button", { name: "Previous certifications" })
-  const next = page.getByRole("button", { name: "Next certifications" })
-  await next.scrollIntoViewIfNeeded()
+  const trust = section(page, /Guest trust\./)
 
-  await expect(prev).toBeDisabled()
-  await expect(next).toBeEnabled()
-  await next.click()
-  await expect(prev).toBeEnabled()
-  await prev.click()
-  await expect(prev).toBeDisabled()
+  await expect(trust.getByRole("button", { name: "A private way to be heard" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Previous certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  await expect(page.getByText("ISO/IEC 27001")).toHaveCount(0)
+})
+
+test("For Groups hero withholds the trust strip", async ({ page }) => {
+  await page.goto("/for-groups")
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  await expect(page.getByText("Built with trust at the heart of Tummly.")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
 })

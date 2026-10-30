@@ -25,17 +25,24 @@ function FeaturePoint({
   point,
   Icon,
   iconImg,
+  bodyClassName,
 }: {
   point: ProductFeaturePoint
   Icon?: LucideIcon
   iconImg?: FeaturePointIconImg
+  bodyClassName?: string
 }) {
   const copy = (
     <>
       <h3 className="m-0 font-jakarta text-base font-bold leading-[normal]">
         {point.title}
       </h3>
-      <p className="m-0 max-w-[641px] font-sans text-sm font-normal leading-5">
+      <p
+        className={cn(
+          "m-0 max-w-[641px] font-sans text-sm font-normal leading-5",
+          bodyClassName,
+        )}
+      >
         {point.body}
       </p>
     </>
@@ -43,7 +50,7 @@ function FeaturePoint({
 
   if (iconImg != null) {
     return (
-      <div className="flex items-start gap-3 text-[#141414]">
+      <div className="flex items-baseline gap-3 text-[#141414]">
         <img
           src={iconImg.src}
           alt=""
@@ -109,7 +116,7 @@ export type ProductSplitFeatureSectionProps = {
   eyebrowClassName?: string
   /** Opt-in: extra classes on the h2 (merged after the defaults). */
   titleClassName?: string
-  /** Opt-in: extra classes on the body paragraph (merged after the defaults). */
+  /** Opt-in: extra classes on the body paragraph (merged after the defaults), e.g. a narrower max width. */
   bodyClassName?: string
   /** Opt-in: extra classes on the row dividers (merged after the defaults). */
   dividerClassName?: string
@@ -121,6 +128,18 @@ export type ProductSplitFeatureSectionProps = {
    * pinned to the bottom of the media height (heading top, list bottom).
    */
   fluidBalance?: boolean
+  /** Merged onto each point body (e.g. For Groups 14/18 leading). */
+  pointBodyClassName?: string
+  /**
+   * For Groups only: at `xl` the copy column is a fixed 560px high and spaces
+   * intro, list and button with `justify-between` (Figma bands 04, 06, 07, 08).
+   * Without it the column keeps its natural height with a 116px intro gap (band 05).
+   */
+  fixedCopyHeight?: boolean
+  /** For Groups only: gap between the list and the CTA button. Default 54px. */
+  ctaGapClassName?: string
+  /** Merged onto the padded inner row (e.g. a different vertical pad). */
+  contentClassName?: string
 } & ProductSplitFeatureMedia
 
 /** Either an image (default) or custom `media` content — never neither. */
@@ -174,6 +193,10 @@ export function ProductSplitFeatureSection({
   dividerClassName,
   footerClassName,
   fluidBalance = false,
+  pointBodyClassName,
+  fixedCopyHeight = false,
+  ctaGapClassName,
+  contentClassName,
 }: ProductSplitFeatureSectionProps) {
   const hasPoints = points.length > 0
   const hasFooter = hasPoints || cta != null || actions != null
@@ -183,10 +206,16 @@ export function ProductSplitFeatureSection({
       className={cn(
         "flex w-full flex-col gap-10",
         balanceToMedia
-          ? // For Groups: fixed 116px between intro and list (no justify-between stretch).
+          ? // For Groups: 640px copy at Figma width (49.5% below it). At xl either a fixed
+            // 560px column (space-between) or the natural height with a 116px intro gap.
             fluidBalance
             ? "max-w-[640px] lg:min-w-0 lg:flex-1 lg:justify-between lg:gap-10 lg:self-stretch lg:py-[30px]"
-            : "max-w-[640px] lg:w-[640px] lg:shrink-0 lg:gap-[116px]"
+            : cn(
+                "max-w-[640px] lg:w-[49.5%] lg:shrink-0 lg:gap-14",
+                fixedCopyHeight
+                  ? "xl:h-[560px] xl:justify-between xl:gap-0"
+                  : "xl:gap-[116px]",
+              )
           : "max-w-[712px] lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
@@ -264,7 +293,7 @@ export function ProductSplitFeatureSection({
             "flex w-full flex-col",
             balanceToMedia
               ? cta != null
-                ? "gap-[54px]"
+                ? (ctaGapClassName ?? "gap-[54px]")
                 : "gap-4"
               : "gap-[26px]",
             footerClassName,
@@ -278,6 +307,7 @@ export function ProductSplitFeatureSection({
                     point={point}
                     Icon={pointIcons?.[point.id]}
                     iconImg={pointIconImgs?.[point.id]}
+                    bodyClassName={pointBodyClassName}
                   />
                   {index < points.length - 1 ? (
                     <hr
@@ -312,7 +342,7 @@ export function ProductSplitFeatureSection({
         balanceToMedia
           ? fluidBalance
             ? "lg:aspect-[720/650] lg:w-[48%] lg:max-w-[720px] lg:self-center"
-            : "lg:aspect-[720/650] lg:w-[min(100%,720px)] lg:max-w-[720px] lg:self-center"
+            : "lg:aspect-[720/650] lg:w-auto lg:min-w-0 lg:max-w-[720px] lg:flex-1 lg:shrink lg:self-center"
           : // Desktop: stretch to the copy column height so media matches text.
             "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
         mediaFirst ? "order-2 lg:order-1" : null,
@@ -354,17 +384,18 @@ export function ProductSplitFeatureSection({
         className={cn(
           "flex w-full flex-col items-start gap-10 lg:flex-row",
           balanceToMedia
-            ? // Figma For Groups: 720 media + 120 gap + 640 copy (fixed gap, no stretch).
-              // Copy-left bands pack to the right edge; media-left bands pack to the left.
+            ? // Figma For Groups: 720 media + 120 gap + 640 copy at 1668px; both columns
+              // and the gap scale down below that. Copy-left bands pack to the right edge.
               cn(
                 fluidBalance
                   ? "lg:items-center lg:gap-12 xl:gap-[120px]"
-                  : "lg:items-center lg:gap-[120px]",
+                  : "lg:items-center lg:gap-[clamp(32px,3.5vw,48px)] xl:gap-[clamp(48px,6.95vw,120px)]",
                 mediaFirst ? null : "lg:justify-end",
               )
             : "lg:items-stretch lg:justify-between lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
+          contentClassName,
         )}
       >
         {mediaFirst ? (

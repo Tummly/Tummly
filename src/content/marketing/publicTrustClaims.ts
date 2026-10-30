@@ -3,9 +3,9 @@ import {
   type FooterTrustBadge,
 } from "@/content/marketing/footerTrustBadges"
 import {
-  FOR_GROUPS_HERO_TRUST,
-  type ForGroupsHeroTrustBadge,
-} from "@/content/marketing/forGroupsPage"
+  PRODUCT_TRUST,
+  type ProductCertification,
+} from "@/content/marketing/productPage"
 
 /**
  * Public certification / scheme badges stay withheld until the Director
@@ -14,15 +14,35 @@ import {
  */
 const PUBLIC_TRUST_CLAIMS_APPROVED = false
 
-/** Home carousel shows the same 15 badges as the footer grid. */
-export function publicHomeTrustBadges(): readonly FooterTrustBadge[] {
-  return PUBLIC_TRUST_CLAIMS_APPROVED ? FOOTER_TRUST_BADGES : []
+/** The gate every public helper goes through; exported so tests can flip it. */
+export function gateTrustClaims<T>(
+  approved: boolean,
+  claims: readonly T[],
+): readonly T[] {
+  return approved ? claims : []
 }
 
-export function publicForGroupsTrustBadges(): readonly ForGroupsHeroTrustBadge[] {
-  return PUBLIC_TRUST_CLAIMS_APPROVED ? FOR_GROUPS_HERO_TRUST.badges : []
+/** Home carousel shows the same 15 badges as the footer grid. */
+export function publicHomeTrustBadges(): readonly FooterTrustBadge[] {
+  return gateTrustClaims(PUBLIC_TRUST_CLAIMS_APPROVED, FOOTER_TRUST_BADGES)
 }
 
 export function publicFooterTrustBadges(): readonly FooterTrustBadge[] {
-  return PUBLIC_TRUST_CLAIMS_APPROVED ? FOOTER_TRUST_BADGES : []
+  return gateTrustClaims(PUBLIC_TRUST_CLAIMS_APPROVED, FOOTER_TRUST_BADGES)
+}
+
+/** Product Trust & privacy section carousel (Figma `6937:13422`). */
+export function publicProductTrustCertifications(): readonly ProductCertification[] {
+  return gateTrustClaims(
+    PUBLIC_TRUST_CLAIMS_APPROVED,
+    PRODUCT_TRUST.certifications,
+  )
+}
+
+/** For Groups hero trust strip (Figma `6424:16986`) shows the Product badges. */
+export function publicForGroupsTrustBadges(): readonly ProductCertification[] {
+  return gateTrustClaims(
+    PUBLIC_TRUST_CLAIMS_APPROVED,
+    PRODUCT_TRUST.certifications,
+  )
 }

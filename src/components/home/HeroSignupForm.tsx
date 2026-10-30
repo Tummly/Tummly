@@ -30,6 +30,8 @@ export type HeroSignupFormProps = {
   legalNote?: "agree" | "read"
   /** Merged onto the primary button. Default keeps the 176px Figma width. */
   primaryButtonClassName?: string
+  /** Merged onto the legal note only (e.g. a wider max width). */
+  legalNoteClassName?: string
   className?: string
 }
 
@@ -46,6 +48,7 @@ export function HeroSignupForm({
   align = "center",
   legalNote = "agree",
   primaryButtonClassName = "sm:w-[176px]",
+  legalNoteClassName,
   className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
@@ -147,6 +150,7 @@ export function HeroSignupForm({
             "w-full leading-[18px] text-[#141414]",
             // Start-aligned (How it works `5661:19524`): breaks after "accept".
             align === "center" ? "max-w-[353px] text-center" : "max-w-[400px] text-left",
+            legalNoteClassName,
           )}
         />
       ) : (
@@ -155,6 +159,7 @@ export function HeroSignupForm({
           className={cn(
             "w-full leading-4 text-[#141414]",
             align === "center" ? "text-center leading-[18px]" : "text-left",
+            legalNoteClassName,
           )}
         />
       )}
