@@ -100,6 +100,28 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void Normalize_InternalPageRejectsBackslash()
+        {
+            // Browsers read "/\evil.example" as a protocol-relative URL, so a backslash is never a root path.
+            var backslash = new List<string>();
+            var control = new List<string>();
+
+            TrustIndicatorRules.Normalize(
+                TrustEvidenceClass.OwnControlQaPending,
+                Draft("QaPending") with { CtaType = "InternalPage", CtaTarget = "/\\evil.example" },
+                backslash
+            );
+            TrustIndicatorRules.Normalize(
+                TrustEvidenceClass.OwnControlQaPending,
+                Draft("QaPending") with { CtaType = "InternalPage", CtaTarget = "/privacy\u0001" },
+                control
+            );
+
+            Assert.Contains("Internal page CTA needs a path that starts with /.", backslash);
+            Assert.Contains("Internal page CTA needs a path that starts with /.", control);
+        }
+
+        [Fact]
         public void Normalize_ImageNeedsAltText()
         {
             var errors = new List<string>();
@@ -549,6 +571,72 @@ namespace TummlyBackend.Tests.Services
                 new[] { "Item 03: Roadmap items cannot use verified or certified wording." },
                 Gate(roadmap)
             );
+        }
+
+        [Fact]
+        public void PublishGate_Item02UnderReviewWithoutEvidenceUrlRefused()
+        {
+            // Item 02 needs a completion record link whatever its status (CONTRACT §5.2).
+            var underReview = SeedRow(2, enabled: true);
+            underReview.Status = TrustIndicatorStatus.UnderReview;
+            underReview.StatusLabel = "Under review";
+            underReview.EvidenceUrl = null;
+
+            Assert.Equal(
+                new[] { "Item 02: a verified item needs an https evidence URL." },
+                Gate(underReview)
+            );
+
+            underReview.EvidenceUrl = "https://ico.example/completion";
+            Assert.Empty(Gate(underReview));
+        }
+
+        [Fact]
+        public void PublishGate_QaPassedLabelCannotSayCertified()
+        {
+            var item = SeedRow(9, enabled: true);
+            item.Status = TrustIndicatorStatus.QaPassed;
+            item.StatusLabel = "UK GDPR certified";
+
+            Assert.Equal(
+                new[] { "Item 09: certified wording is not allowed." },
+                Gate(item)
+            );
+        }
+
+        [Fact]
+        public void PublishGate_CertificatesPluralRejected()
+        {
+            var completion = SeedRow(2, enabled: true);
+            completion.EvidenceUrl = "https://ico.example/completion";
+            completion.StatusLabel = "Certificates issued";
+
+            Assert.Equal(
+                new[] { "Item 02: a self-assessment cannot use certified or certification wording." },
+                Gate(completion)
+            );
+        }
+
+        [Fact]
+        public void PublishGate_RoadmapLabelCannotSayVerification()
+        {
+            var roadmap = SeedRow(3, enabled: true);
+            roadmap.StatusLabel = "Verification in progress";
+
+            Assert.Equal(
+                new[] { "Item 03: Roadmap items cannot use verified or certified wording." },
+                Gate(roadmap)
+            );
+        }
+
+        [Fact]
+        public void PublishGate_VerifiedPublicRecordLabelMaySayVerified()
+        {
+            // Item 13 is a verified class with the approved label "Verified public record".
+            var registry = SeedRow(13, enabled: true);
+
+            Assert.Equal("Verified public record", registry.StatusLabel);
+            Assert.Empty(Gate(registry));
         }
 
         [Fact]

@@ -16,13 +16,14 @@ namespace TummlyBackend.TrustIndicators
 
         public const int MaxReasonLength = 500;
 
+        // Any word that starts with the stem, so "Certificates" and "Verification" are caught too.
         private static readonly Regex CertifiedWording = new(
-            @"\bcertif(ied|icate|ication)\b",
+            @"\bcertif\w*",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         );
 
         private static readonly Regex VerifiedWording = new(
-            @"\b(verified|certified)\b",
+            @"\bverif\w*",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
         );
 
@@ -322,10 +323,12 @@ namespace TummlyBackend.TrustIndicators
                     errors.Add($"{label}: a status label is required.");
                 }
 
+                // Item 02 (self-assessment) needs its completion link and issuer whatever its status (CONTRACT §5.2).
                 if (
                     status
                         is TrustIndicatorStatus.VerifiedPublicRecord
                             or TrustIndicatorStatus.VerifiedCredential
+                    || item.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment
                 )
                 {
                     if (!IsHttpsUrl(item.EvidenceUrl))
@@ -359,38 +362,27 @@ namespace TummlyBackend.TrustIndicators
                     errors.Add($"{label}: the call to action does not meet the public rules.");
                 }
 
-                if (
-                    status
-                        is TrustIndicatorStatus.Roadmap
-                            or TrustIndicatorStatus.QaPending
-                            or TrustIndicatorStatus.UnderReview
-                    && VerifiedWording.IsMatch(
-                        Words(item.Title, item.AltText, item.StatusLabel, item.CtaLabel)
-                    )
-                )
+                // CONTRACT §5.5: no certified wording anywhere. Roadmap, QaPending and UnderReview items also
+                // may not say verified. The tooltip is not scanned; the approver reviews it.
+                var restricted = status
+                    is TrustIndicatorStatus.Roadmap
+                        or TrustIndicatorStatus.QaPending
+                        or TrustIndicatorStatus.UnderReview;
+                var selfAssessment = item.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment;
+                var copy = Words(item.Title, item.AltText, item.StatusLabel, item.CtaLabel);
+                if (restricted && (VerifiedWording.IsMatch(copy) || CertifiedWording.IsMatch(copy)))
                 {
-                    errors.Add(
-                        $"{label}: {status} items cannot use verified or certified wording."
-                    );
+                    errors.Add($"{label}: {status} items cannot use verified or certified wording.");
                 }
-
-                // A self-assessment completion is not a certification (spec §8, item 02).
-                if (
-                    item.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment
-                    && CertifiedWording.IsMatch(
-                        Words(
-                            item.Title,
-                            item.AltText,
-                            item.StatusLabel,
-                            item.CtaLabel,
-                            item.Issuer,
-                            item.Scope
-                        )
-                    )
+                else if (
+                    CertifiedWording.IsMatch(copy)
+                    || selfAssessment && CertifiedWording.IsMatch(Words(item.Issuer, item.Scope))
                 )
                 {
                     errors.Add(
-                        $"{label}: a self-assessment cannot use certified or certification wording."
+                        selfAssessment
+                            ? $"{label}: a self-assessment cannot use certified or certification wording."
+                            : $"{label}: certified wording is not allowed."
                     );
                 }
 
@@ -435,11 +427,12 @@ namespace TummlyBackend.TrustIndicators
             && uri.Scheme == Uri.UriSchemeHttps
             && !string.IsNullOrEmpty(uri.Host);
 
+        // A backslash is read as "/" by browsers, so "/\host" would leave the site. Controls are never in a path.
         private static bool IsRootPath(string? value) =>
             value != null
             && value.StartsWith('/')
             && !value.StartsWith("//", StringComparison.Ordinal)
-            && !value.Any(char.IsWhiteSpace);
+            && !value.Any(c => char.IsWhiteSpace(c) || char.IsControl(c) || c == '\\');
 
         private static void AddLengthError(
             List<string> errors,
