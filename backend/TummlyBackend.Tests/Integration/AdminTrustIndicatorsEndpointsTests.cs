@@ -94,9 +94,13 @@ namespace TummlyBackend.Tests.Integration
                 new
                 {
                     enabled = true,
+                    status = "VerifiedPublicRecord",
+                    statusLabel = "Registered",
                     ctaType = "ExternalProof",
                     ctaTarget = proof,
+                    ctaLabel = "View registration",
                     evidenceUrl = proof,
+                    issuer = "Information Commissioner’s Office",
                     altText = string.Empty,
                     tooltip = string.Empty,
                 }

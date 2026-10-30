@@ -36,6 +36,44 @@ namespace TummlyBackend.Tests.Services
             "Human-Controlled AI",
         ];
 
+        private static readonly string[] CanonicalStatuses =
+        [
+            "VerifiedPublicRecord",
+            "VerifiedCredential",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "QaPending",
+            "QaPending",
+            "QaPending",
+            "QaPending",
+            "VerifiedPublicRecord",
+            "QaPending",
+            "QaPending",
+        ];
+
+        private static readonly string[] CanonicalStatusLabels =
+        [
+            "Registered",
+            "Self-assessment completed",
+            "On our roadmap",
+            "On our roadmap",
+            "On our roadmap",
+            "On our roadmap",
+            "Application planned",
+            "On our roadmap",
+            "Under review",
+            "Under review",
+            "Under review",
+            "Under review",
+            "Verified public record",
+            "Under review",
+            "Under review",
+        ];
+
         private static readonly string[] CanonicalClasses =
         [
             "VerifiedPublicRecord",
@@ -75,28 +113,76 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task Seed_CreatesFifteenCanonicalItems_AllDisabledWithoutEvidence()
+        public async Task Seed_Creates15InOrderAllOff()
         {
             var view = await _sut.GetAdminViewAsync();
 
             Assert.Equal(Enumerable.Range(1, 15).ToList(), view.Draft.Select(i => i.ItemNumber).ToList());
             Assert.Equal(CanonicalTitles.ToList(), view.Draft.Select(i => i.Title).ToList());
             Assert.Equal(CanonicalClasses.ToList(), view.Draft.Select(i => i.EvidenceClass).ToList());
+            Assert.Equal(CanonicalStatuses.ToList(), view.Draft.Select(i => i.Values.Status).ToList());
+            Assert.Equal(CanonicalStatusLabels.ToList(), view.Draft.Select(i => i.Values.StatusLabel).ToList());
             Assert.All(view.Draft, item =>
             {
                 Assert.False(item.Values.Enabled);
                 Assert.Equal("None", item.Values.CtaType);
                 Assert.Null(item.Values.CtaTarget);
-                Assert.Null(item.Values.EvidenceUrl);
             });
             Assert.Null(view.Published);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
         }
 
         [Fact]
+        public async Task Seed_BackfillsOnlyBlankRows()
+        {
+            // A row nobody edited: blank copy, defaulted status, and switched on by an earlier admin.
+            var blank = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 3);
+            blank.Status = TrustIndicatorStatus.QaPending;
+            blank.StatusLabel = string.Empty;
+            blank.Tooltip = string.Empty;
+            blank.IconKey = null;
+            blank.AltText = string.Empty;
+            blank.Enabled = true;
+            // A row an admin wrote by hand: its copy must survive the seed.
+            var edited = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 4);
+            edited.Status = TrustIndicatorStatus.QaPending;
+            edited.StatusLabel = string.Empty;
+            edited.Tooltip = "Our own note";
+            await _context.SaveChangesAsync();
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            var view = await _sut.GetAdminViewAsync();
+            var backfilled = view.Draft[2];
+            Assert.Equal("Roadmap", backfilled.Values.Status);
+            Assert.Equal("On our roadmap", backfilled.Values.StatusLabel);
+            Assert.Equal("roadmap-cyber-essentials", backfilled.Values.IconKey);
+            Assert.Equal("Cyber Essentials", backfilled.Values.AltText);
+            Assert.True(backfilled.Values.Enabled);
+            Assert.Equal("None", backfilled.Values.CtaType);
+            var kept = view.Draft[3];
+            Assert.Equal("QaPending", kept.Values.Status);
+            Assert.Equal(string.Empty, kept.Values.StatusLabel);
+            Assert.Equal("Our own note", kept.Values.Tooltip);
+        }
+
+        [Fact]
+        public async Task Seed_IsIdempotent()
+        {
+            var before = (await _sut.GetAdminViewAsync()).Draft;
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.Equal(15, await _context.TrustIndicators.CountAsync());
+            Assert.Equal(1, await _context.TrustIndicatorDraftStates.CountAsync());
+            Assert.Equal(before, (await _sut.GetAdminViewAsync()).Draft);
+        }
+
+        [Fact]
         public async Task Seed_InsertsOnlyMissingItems_AndKeepsEdits()
         {
-            Succeeded(await EditAsync(3, Plain() with { Tooltip = "Working towards Cyber Essentials" }));
+            Succeeded(await EditAsync(3, Seeded(3) with { Tooltip = "Working towards Cyber Essentials" }));
             var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 7);
             _context.TrustIndicators.Remove(row);
             await _context.SaveChangesAsync();
@@ -131,7 +217,9 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task DraftEdit_WithNoChange_WritesNoAuditRow()
         {
-            var item = Succeeded(await EditAsync(1, Plain()));
+            var current = (await _sut.GetAdminViewAsync()).Draft[0].Values;
+
+            var item = Succeeded(await EditAsync(1, current));
 
             Assert.Null(item.LastEditedByAdminUserId);
             Assert.Empty(await AuditAsync(AdminAuditActions.TrustIndicatorDraftEdit));
@@ -156,7 +244,7 @@ namespace TummlyBackend.Tests.Services
         {
             await PublishValidAsync();
 
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
 
             var view = await _sut.GetAdminViewAsync();
             Assert.False(view.Draft[0].Values.Enabled);
@@ -176,7 +264,7 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(review.SubmittedAtUtc);
             Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorSubmit));
 
-            Succeeded(await EditAsync(2, Plain() with { Tooltip = "Reviewed" }, PublisherId));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Reviewed" }, PublisherId));
 
             var view = await _sut.GetAdminViewAsync();
             Assert.Null(view.Review.SubmittedByAdminUserId);
@@ -301,13 +389,12 @@ namespace TummlyBackend.Tests.Services
         public async Task Publish_EnabledExternalProofWithoutEvidenceUrl_IsRefused_AndPriorVersionStays()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(1, Seeded(1, enabled: true) with
             {
-                Enabled = true,
                 CtaType = "ExternalProof",
                 CtaTarget = "https://ico.example/proof",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                CtaLabel = "View registration",
+                EvidenceUrl = null,
             }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
@@ -327,23 +414,24 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Publish_RoadmapWithCta_OrVerifiedWording_IsRefused()
         {
-            Succeeded(await EditAsync(3, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(3, Seeded(3, enabled: true) with
             {
-                Enabled = false,
                 CtaType = "InternalPage",
                 CtaTarget = "/security",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                CtaLabel = "Read more",
             }));
-            Succeeded(await EditAsync(9, Plain() with { Tooltip = "Verified by our team" }));
+            Succeeded(await EditAsync(9, Seeded(9, enabled: true) with { AltText = "Verified by our team" }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
             var outcome = await PublishAsync(PublisherId, "key-roadmap");
 
             Assert.Equal("publish_gate_failed", outcome.Code);
-            Assert.Contains("Item 03: Roadmap items cannot have a CTA.", outcome.Details!);
             Assert.Contains(
-                "Item 09: OwnControlQaPending items cannot use verified or certified wording.",
+                outcome.Details!,
+                detail => detail.StartsWith("Item 03: the call to action", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                "Item 09: QaPending items cannot use verified or certified wording.",
                 outcome.Details!
             );
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -352,13 +440,9 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Publish_EnabledItemPastExpiry_IsRefused()
         {
-            Succeeded(await EditAsync(13, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
             {
-                Enabled = true,
-                CtaType = "None",
                 ExpiresOn = new DateOnly(2026, 10, 27),
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
@@ -375,7 +459,7 @@ namespace TummlyBackend.Tests.Services
         public async Task Publish_KeepsPriorVersionUntouched_WhenNewVersionIsCreated()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
             var second = Succeeded(await PublishAsync(PublisherId, "key-v2"));
@@ -404,14 +488,13 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Public_ShowsEnabledLiveItemsInOrder_AndDropsThemWhenTheyExpire()
         {
-            Succeeded(await EditAsync(2, Plain(enabled: true)));
-            Succeeded(await EditAsync(13, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(2, Seeded(2, enabled: true) with
             {
-                Enabled = true,
-                CtaType = "None",
+                EvidenceUrl = "https://ico.example/completion",
+            }));
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
                 ExpiresOn = new DateOnly(2026, 10, 28),
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             }));
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
@@ -429,7 +512,7 @@ namespace TummlyBackend.Tests.Services
         public async Task Public_IgnoresDraftEdits_UntilTheNextPublish()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
 
             var before = await _sut.GetPublicAsync();
 
@@ -469,12 +552,10 @@ namespace TummlyBackend.Tests.Services
             Succeeded(
                 await EditAsync(
                     2,
-                    new TrustIndicatorEditableValues
+                    Seeded(2, enabled: true) with
                     {
-                        Enabled = false,
-                        CtaType = "None",
-                        AltText = string.Empty,
-                        Tooltip = "ICO certified",
+                        EvidenceUrl = "https://ico.example/completion",
+                        Scope = "Certified organisational self-assessment",
                     }
                 )
             );
@@ -486,24 +567,33 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(outcome.Details!, detail => detail.StartsWith("Item 02"));
         }
 
-        private static TrustIndicatorEditableValues Plain(bool enabled = false) =>
-            new()
+        /// <summary>The approved seed copy as editable values, so a test edits from a valid draft.</summary>
+        private static TrustIndicatorEditableValues Seeded(int itemNumber, bool enabled = false)
+        {
+            var seed = TrustIndicatorCatalogSeed.Items.Single(item => item.ItemNumber == itemNumber);
+            return new TrustIndicatorEditableValues
             {
                 Enabled = enabled,
                 CtaType = "None",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                Status = seed.Status.ToString(),
+                StatusLabel = seed.StatusLabel,
+                IconKey = seed.IconKey,
+                AltText = seed.Title,
+                Tooltip = seed.Tooltip,
+                Issuer = seed.Issuer,
+                EvidenceUrl = seed.EvidenceUrl,
+                IssuedOn = seed.IssuedOn,
+                Scope = seed.Scope,
             };
+        }
 
         private static TrustIndicatorEditableValues ProofLink(string url) =>
-            new()
+            Seeded(1, enabled: true) with
             {
-                Enabled = true,
                 CtaType = "ExternalProof",
                 CtaTarget = url,
+                CtaLabel = "View registration",
                 EvidenceUrl = url,
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             };
 
         private static T Succeeded<T>(TrustIndicatorOutcome<T> outcome)

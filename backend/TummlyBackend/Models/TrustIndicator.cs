@@ -10,11 +10,23 @@ namespace TummlyBackend.Models
         OwnControlQaPending,
     }
 
+    /// <summary>Canonical per-item status (CONTRACT §1). Public status is derived, never stored.</summary>
+    public enum TrustIndicatorStatus
+    {
+        VerifiedPublicRecord,
+        VerifiedCredential,
+        Roadmap,
+        QaPending,
+        QaPassed,
+        UnderReview,
+    }
+
     public enum TrustCtaType
     {
         None,
         ExternalProof,
         InternalPage,
+        CookieSettings,
     }
 
     /// <summary>
@@ -36,16 +48,27 @@ namespace TummlyBackend.Models
         [MaxLength(64)]
         public string? IconKey { get; set; }
 
-        [MaxLength(500)]
-        public string? ImageUrl { get; set; }
-
         [MaxLength(300)]
         public string AltText { get; set; } = string.Empty;
 
         [MaxLength(300)]
         public string Tooltip { get; set; } = string.Empty;
 
+        public TrustIndicatorStatus Status { get; set; } = TrustIndicatorStatus.QaPending;
+
+        [MaxLength(60)]
+        public string StatusLabel { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
+        [MaxLength(300)]
+        public string? ImageRightsNote { get; set; }
+
         public TrustCtaType CtaType { get; set; }
+
+        [MaxLength(60)]
+        public string? CtaLabel { get; set; }
 
         [MaxLength(500)]
         public string? CtaTarget { get; set; }

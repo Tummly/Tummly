@@ -78,7 +78,7 @@ namespace TummlyBackend.Services
             }
 
             var errors = new List<string>();
-            var normalized = TrustIndicatorRules.Normalize(request, errors);
+            var normalized = TrustIndicatorRules.Normalize(row.EvidenceClass, request, errors);
             if (errors.Count > 0)
             {
                 return await RefuseAsync<TrustIndicatorItemDto>(

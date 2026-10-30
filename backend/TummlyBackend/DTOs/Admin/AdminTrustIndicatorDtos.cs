@@ -22,6 +22,14 @@ namespace TummlyBackend.DTOs.Admin
 
         public string? Tooltip { get; init; }
 
+        public string? Status { get; init; }
+
+        public string? StatusLabel { get; init; }
+
+        public string? CtaLabel { get; init; }
+
+        public string? ImageRightsNote { get; init; }
+
         public string? Issuer { get; init; }
 
         public string? Scope { get; init; }
