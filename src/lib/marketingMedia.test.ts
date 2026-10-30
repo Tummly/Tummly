@@ -8,8 +8,8 @@ describe("marketingMediaUrl", () => {
 
   it("uses the QA marketing container by default", async () => {
     const { marketingMediaUrl } = await import("./marketingMedia")
-    expect(marketingMediaUrl("cta/signup-cta.mp4")).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta.mp4",
+    expect(marketingMediaUrl("cta/signup-cta-feedback-form.mp4")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 
@@ -19,17 +19,17 @@ describe("marketingMediaUrl", () => {
       "https://cdn.example.com/marketing/",
     )
     const { marketingMediaUrl } = await import("./marketingMedia")
-    expect(marketingMediaUrl("/cta/signup-cta.mp4")).toBe(
-      "https://cdn.example.com/marketing/cta/signup-cta.mp4",
+    expect(marketingMediaUrl("/cta/signup-cta-feedback-form.mp4")).toBe(
+      "https://cdn.example.com/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 
   it("builds the Sign-up CTA video URL", async () => {
     const { signUpCtaVideoUrl, SIGN_UP_CTA_VIDEO_PATH } =
       await import("./marketingMedia")
-    expect(SIGN_UP_CTA_VIDEO_PATH).toBe("cta/signup-cta.mp4")
+    expect(SIGN_UP_CTA_VIDEO_PATH).toBe("cta/signup-cta-feedback-form.mp4")
     expect(signUpCtaVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta.mp4",
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 

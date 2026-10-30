@@ -25,8 +25,10 @@ const STEP_IMAGES: Record<HowItWorksStepId, string> = {
 }
 
 /**
- * Figma chevron chip `6865:35323`: 24×16 chip that covers the dashed border.
+ * Figma chevron `6865:35323` on the dashed loop rail.
+ * No fill — a grey chip would sit half on the white page and read as a box.
  * Top row points right, bottom row points left (the loop runs clockwise).
+ * Same approach as PilotWhyTummly `LoopHalfArrows`.
  */
 function LoopChevron({
   direction,
@@ -40,11 +42,11 @@ function LoopChevron({
     <span
       aria-hidden
       className={cn(
-        "absolute hidden h-4 w-6 -translate-x-1/2 items-center justify-center bg-[#ededed] lg:flex",
+        "absolute hidden h-4 w-6 -translate-x-1/2 items-center justify-center overflow-hidden lg:flex",
         className,
       )}
     >
-      <Icon className="size-3.5 text-[#727272]" strokeWidth={2} />
+      <Icon className="size-3.5 text-[#a2a2a2]" strokeWidth={1.87} />
     </span>
   )
 }

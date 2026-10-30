@@ -29,8 +29,8 @@ export function marketingMediaUrl(path: string): string {
   return `${marketingMediaBaseUrl()}/${clean}`
 }
 
-/** Looping Sign-up CTA background video (`marketing/cta/signup-cta.mp4`). */
-export const SIGN_UP_CTA_VIDEO_PATH = "cta/signup-cta.mp4"
+/** Looping Sign-up CTA background video (`marketing/cta/signup-cta-feedback-form.mp4`). */
+export const SIGN_UP_CTA_VIDEO_PATH = "cta/signup-cta-feedback-form.mp4"
 
 export function signUpCtaVideoUrl(): string {
   return marketingMediaUrl(SIGN_UP_CTA_VIDEO_PATH)
