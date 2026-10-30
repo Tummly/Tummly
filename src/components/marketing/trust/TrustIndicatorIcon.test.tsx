@@ -65,13 +65,20 @@ describe("TrustIndicatorIcon", () => {
     expect(render({ iconKey: "ico-data", size: "lg" })).not.toContain("size-[43px]")
   })
 
-  it("sets the imageUrl width and height from the size box", () => {
+  it("keeps the image at natural size inside the box, with no forced width or height", () => {
     const sm = render({ imageUrl: "/a.svg", size: "sm" })
-    expect(sm).toContain('width="43"')
-    expect(sm).toContain('height="43"')
+    expect(sm).toContain("size-[43px]")
+    const smImg = sm.match(/<img[^>]*>/)?.[0] ?? ""
+    expect(smImg).toContain("max-h-full max-w-full object-contain")
+    expect(smImg).not.toMatch(/\swidth=/)
+    expect(smImg).not.toMatch(/\sheight=/)
+
     const lg = render({ imageUrl: "/a.svg", size: "lg" })
-    expect(lg).toContain('width="74"')
-    expect(lg).toContain('height="74"')
+    expect(lg).toContain("size-[74px]")
+    const lgImg = lg.match(/<img[^>]*>/)?.[0] ?? ""
+    expect(lgImg).toContain("max-h-full max-w-full object-contain")
+    expect(lgImg).not.toMatch(/\swidth=/)
+    expect(lgImg).not.toMatch(/\sheight=/)
   })
 
   it("is always hidden from assistive technology", () => {

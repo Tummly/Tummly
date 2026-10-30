@@ -33,7 +33,6 @@ const ARTWORK = new Map<string, string>([
 ])
 
 /** `sm` is the footer tile box (about 43px); `lg` is the carousel box (about 74px). */
-const BOX_PX = { sm: 43, lg: 74 } as const
 const BOX_CLASS = { sm: "size-[43px]", lg: "size-[74px]" } as const
 
 type TrustIndicatorIconProps = {
@@ -45,7 +44,7 @@ type TrustIndicatorIconProps = {
    * tile text is the accessible name, so the image uses `alt=""`.
    */
   altText: string
-  size: keyof typeof BOX_PX
+  size: keyof typeof BOX_CLASS
 }
 
 /**
@@ -56,34 +55,34 @@ export function TrustIndicatorIcon({ iconKey, imageUrl, size }: TrustIndicatorIc
   const box = cn("inline-flex shrink-0 items-center justify-center", BOX_CLASS[size])
 
   if (imageUrl !== null) {
-    return (
-      <span aria-hidden="true" className={box}>
-        <img
-          src={imageUrl}
-          alt=""
-          width={BOX_PX[size]}
-          height={BOX_PX[size]}
-          loading="lazy"
-          decoding="async"
-          className="size-full object-contain"
-        />
-      </span>
-    )
+    return <span aria-hidden="true" className={box}>{tileImage(imageUrl)}</span>
   }
 
   const artwork = iconKey === null ? undefined : ARTWORK.get(iconKey)
   if (artwork !== undefined) {
-    return (
-      <span aria-hidden="true" className={box}>
-        <img src={artwork} alt="" className="max-h-full max-w-full object-contain" />
-      </span>
-    )
+    return <span aria-hidden="true" className={box}>{tileImage(artwork)}</span>
   }
 
   return (
     <span aria-hidden="true" className={box}>
       {roadmapGlyph(iconKey)}
     </span>
+  )
+}
+
+/**
+ * The one inner image used by both branches. No forced width or height: the
+ * image keeps its natural size and only shrinks to fit the box.
+ */
+function tileImage(src: string): ReactNode {
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      className="max-h-full max-w-full object-contain"
+    />
   )
 }
 

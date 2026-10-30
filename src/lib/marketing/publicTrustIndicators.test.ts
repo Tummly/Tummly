@@ -140,6 +140,13 @@ describe("normalizePublicTrustIndicators", () => {
     expect(image("/a b.svg")).toBeNull()
   })
 
+  it("drops an https image URL that contains a space, a tab or a control character", () => {
+    const image = (imageUrl: string) => one({ imageUrl })[0].imageUrl
+    expect(image("https://cdn.example/a b.svg")).toBeNull()
+    expect(image("https://cdn.example/\tlogo.svg")).toBeNull()
+    expect(image("/a\u0007.svg")).toBeNull()
+  })
+
   it("sorts by itemNumber", () => {
     const items = normalizePublicTrustIndicators([
       row({ itemNumber: 9, title: "Nine" }),
