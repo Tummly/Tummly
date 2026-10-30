@@ -53,12 +53,12 @@ test("Marketing footer shows the Figma link columns with working targets", async
 
   await expect(footer.getByText("Proud to be a company of")).toBeVisible()
   await expect(
-    footer.getByText("Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ.")
+    footer.getByText("Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ.")
   ).toBeVisible()
 })
 
-test("Marketing footer Start 30-day Pilot opens the Pilot page", async ({ page }) => {
+test("Marketing footer Start 30-day Pilot opens signup with the Pilot plan", async ({ page }) => {
   const footer = await openFooter(page)
   await footer.getByRole("link", { name: "Start 30-day Pilot" }).click()
-  await expect(page).toHaveURL(/\/30-day-pilot$/)
+  await expect(page).toHaveURL(/\/signup\?plan=Pilot$/)
 })

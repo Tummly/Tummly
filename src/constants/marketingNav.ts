@@ -259,7 +259,7 @@ export const MARKETING_FOOTER_LEGAL: MarketingNavItem[] = [
 /** Statutory website disclosure (Figma footer `5839:73487`), one entry per line. */
 export const MARKETING_FOOTER_COMPANY_DISCLOSURE = [
   "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
-  "Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
+  "Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
 ] as const;
 
 export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [

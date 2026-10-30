@@ -51,7 +51,7 @@ describe("marketing footer", () => {
   it("states the registered company details", () => {
     expect(MARKETING_FOOTER_COMPANY_DISCLOSURE).toEqual([
       "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
-      "Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
+      "Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
     ])
   })
 })
