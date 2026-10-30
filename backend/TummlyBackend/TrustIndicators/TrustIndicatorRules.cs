@@ -405,6 +405,10 @@ namespace TummlyBackend.TrustIndicators
             return errors;
         }
 
+        /// <summary>Exact name only. For reading the evidence class back from a stored snapshot.</summary>
+        public static bool TryParseEvidenceClass(string? raw, out TrustEvidenceClass evidenceClass) =>
+            TryParseExact(raw, out evidenceClass);
+
         /// <summary>Exact enum names only, so a loose parse never accepts a neighbour's value.</summary>
         private static bool TryParseExact<TEnum>(string? raw, out TEnum value)
             where TEnum : struct, Enum

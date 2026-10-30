@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -288,7 +289,7 @@ namespace TummlyBackend.Tests.Services
             var publicItems = await _sut.GetPublicAsync();
             var registration = Assert.Single(publicItems);
             Assert.Equal(1, registration.ItemNumber);
-            Assert.Equal("https://ico.example/proof", registration.CtaTarget);
+            Assert.Equal("https://ico.example/proof", registration.Cta!.Href);
         }
 
         [Fact]
@@ -443,7 +444,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
             var registration = Assert.Single(await _sut.GetPublicAsync());
-            Assert.Equal("https://ico.example/proof", registration.EvidenceUrl);
+            Assert.Equal("https://ico.example/proof", registration.Cta!.Href);
             Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
         }
 
@@ -746,6 +747,213 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(new TrustIndicatorViewerDto(999, false), unknown);
         }
 
+        [Fact]
+        public async Task Public_QaPendingShowsUnderReviewNoCta()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(10, Seeded(10, enabled: true) with
+                {
+                    StatusLabel = "Coming soon",
+                    CtaType = "CookieSettings",
+                    CtaLabel = "Cookie settings",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("UnderReview", item.Status);
+            Assert.Equal("Under review", item.StatusLabel);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_SnapshotWithoutStatusOmitsItem()
+        {
+            // An old snapshot: the item has no status, statusLabel or ctaLabel keys at all.
+            var legacy = JsonNode.Parse(
+                JsonSerializer.Serialize(new[] { Canonical(1, Seeded(1, enabled: true)) }, SnapshotWebOptions)
+            )!.AsArray();
+            var values = legacy[0]!["values"]!.AsObject();
+            values.Remove("status");
+            values.Remove("statusLabel");
+            values.Remove("ctaLabel");
+            await WriteRawPublicationAsync(legacy.ToJsonString());
+
+            var items = await _sut.GetPublicAsync();
+
+            Assert.Empty(items);
+        }
+
+        [Fact]
+        public async Task Public_UnknownStatusOmitsItem()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { Status = "Verified" })
+            );
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
+        [Fact]
+        public async Task Public_StatusWrongForClassOmitsItem()
+        {
+            // Roadmap is a real status, but item 01 is a VerifiedPublicRecord class.
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { Status = "Roadmap", StatusLabel = "On our roadmap" })
+            );
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
+        [Fact]
+        public async Task Public_RoadmapNeverHasImageOrCta()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(3, Seeded(3, enabled: true) with
+                {
+                    ImageUrl = "https://cdn.example/roadmap.png",
+                    ImageRightsNote = "Commissioned",
+                    AltText = "Roadmap artwork",
+                    CtaType = "InternalPage",
+                    CtaTarget = "/security",
+                    CtaLabel = "Read more",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Roadmap", item.Status);
+            Assert.Equal("On our roadmap", item.StatusLabel);
+            Assert.Null(item.ImageUrl);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_CtaDroppedWhenRulesFail()
+        {
+            // The proof link does not equal the evidence URL, so §3 drops the CTA but keeps the item.
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with
+                {
+                    CtaType = "ExternalProof",
+                    CtaTarget = "https://ico.example/elsewhere",
+                    CtaLabel = "View registration",
+                    EvidenceUrl = "https://ico.example/proof",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Verified", item.Status);
+            Assert.Equal("Registered", item.StatusLabel);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_CookieSettingsCtaHasNullHref()
+        {
+            await PublishEditsAsync(
+                "key-cookie-cta",
+                (10, Seeded(10, enabled: true) with
+                {
+                    Status = "QaPassed",
+                    StatusLabel = "Passed QA",
+                    CtaType = "CookieSettings",
+                    CtaLabel = "Cookie settings",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Verified", item.Status);
+            Assert.NotNull(item.Cta);
+            Assert.Equal("CookieSettings", item.Cta!.Type);
+            Assert.Equal("Cookie settings", item.Cta.Label);
+            Assert.Null(item.Cta.Href);
+        }
+
+        [Fact]
+        public async Task Public_ExpiredHiddenRecordKept()
+        {
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
+                ExpiresOn = new DateOnly(2026, 10, 28),
+            }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, "key-expired-hidden"));
+
+            _clock.Advance(TimeSpan.FromDays(1));
+
+            Assert.DoesNotContain(await _sut.GetPublicAsync(), item => item.ItemNumber == 13);
+            var view = await _sut.GetAdminViewAsync(EditorId);
+            Assert.True(view.Published!.Items.Single(item => item.ItemNumber == 13).Values.Enabled);
+            var stored = await _context.TrustIndicatorPublications.SingleAsync();
+            Assert.Contains("\"itemNumber\":13", stored.SnapshotJson);
+        }
+
+        [Fact]
+        public async Task Public_OrderByItemNumber()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(3, Seeded(3, enabled: true)),
+                Canonical(1, Seeded(1, enabled: true))
+            );
+
+            var items = await _sut.GetPublicAsync();
+
+            Assert.Equal(new[] { 1, 3 }, items.Select(item => item.ItemNumber).ToArray());
+        }
+
+        [Fact]
+        public async Task Public_NoEvidenceFieldsInJson()
+        {
+            await PublishValidAsync();
+
+            var json = JsonSerializer.Serialize(await _sut.GetPublicAsync(), SnapshotWebOptions);
+            var names = new List<string>();
+            CollectPropertyNames(JsonDocument.Parse(json).RootElement, names);
+
+            Assert.Contains("itemNumber", names);
+            Assert.Contains("cta", names);
+            foreach (var forbidden in new[]
+            {
+                "evidenceUrl", "issuer", "issuedOn", "expiresOn", "scope", "evidenceClass",
+                "enabled", "values", "ctaType", "ctaTarget", "reviewOn", "lastEditedByAdminUserId",
+                "lastEditedAtUtc", "version", "reason",
+            })
+            {
+                Assert.DoesNotContain(forbidden, names);
+            }
+            Assert.DoesNotContain("https://ico.org.uk", json);
+        }
+
+        [Fact]
+        public async Task Public_TrimsStatusLabelAndOmitsBlankOne()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { StatusLabel = "  Registered  " }),
+                Canonical(3, Seeded(3, enabled: true) with { StatusLabel = "   " })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal(1, item.ItemNumber);
+            Assert.Equal("Registered", item.StatusLabel);
+        }
+
+        [Fact]
+        public async Task Public_UnknownEvidenceClassOmitsItem()
+        {
+            var raw = JsonNode.Parse(
+                JsonSerializer.Serialize(new[] { Canonical(3, Seeded(3, enabled: true)) }, SnapshotWebOptions)
+            )!.AsArray();
+            raw[0]!["evidenceClass"] = "Roadmap, Verified";
+            await WriteRawPublicationAsync(raw.ToJsonString());
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
         /// <summary>The approved seed copy as editable values, so a test edits from a valid draft.</summary>
         private static TrustIndicatorEditableValues Seeded(int itemNumber, bool enabled = false)
         {
@@ -800,6 +1008,80 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
             Succeeded(await PublishAsync(PublisherId, $"key-{Guid.NewGuid():N}"));
+        }
+
+        private static readonly JsonSerializerOptions SnapshotWebOptions = new(JsonSerializerDefaults.Web);
+
+        /// <summary>One snapshot item for item n, carrying the seed title and class as the service stores them.</summary>
+        private static TrustIndicatorItemDto Canonical(int itemNumber, TrustIndicatorEditableValues values)
+        {
+            var seed = TrustIndicatorCatalogSeed.Items.Single(item => item.ItemNumber == itemNumber);
+            return new TrustIndicatorItemDto(
+                itemNumber,
+                seed.Title,
+                seed.EvidenceClass.ToString(),
+                values,
+                null,
+                null
+            );
+        }
+
+        /// <summary>
+        /// Stores a publication row directly, bypassing the publish gate. Used for hand-edited snapshots.
+        /// </summary>
+        private async Task WriteRawPublicationAsync(params TrustIndicatorItemDto[] items) =>
+            await WriteRawPublicationAsync(JsonSerializer.Serialize(items, SnapshotWebOptions));
+
+        private async Task WriteRawPublicationAsync(string snapshotJson, int version = 1)
+        {
+            _context.TrustIndicatorPublications.Add(
+                new TrustIndicatorPublication
+                {
+                    Version = version,
+                    PublishedAtUtc = _clock.GetUtcNow().UtcDateTime,
+                    PublishedByAdminUserId = PublisherId,
+                    ApprovedByAdminUserId = PublisherId,
+                    Reason = "Raw snapshot",
+                    IdempotencyKey = $"raw-{version}-{Guid.NewGuid():N}",
+                    SnapshotJson = snapshotJson,
+                }
+            );
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>Edits each item, submits, and publishes as a second admin.</summary>
+        private async Task PublishEditsAsync(
+            string key,
+            params (int ItemNumber, TrustIndicatorEditableValues Values)[] edits
+        )
+        {
+            foreach (var (itemNumber, values) in edits)
+            {
+                Succeeded(await EditAsync(itemNumber, values));
+            }
+
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, key));
+        }
+
+        private static void CollectPropertyNames(JsonElement element, List<string> names)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var property in element.EnumerateObject())
+                    {
+                        names.Add(property.Name);
+                        CollectPropertyNames(property.Value, names);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var child in element.EnumerateArray())
+                    {
+                        CollectPropertyNames(child, names);
+                    }
+                    break;
+            }
         }
 
         private static Admin NewAdmin(

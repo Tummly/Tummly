@@ -83,21 +83,25 @@ namespace TummlyBackend.DTOs.Admin
         public string? Reason { get; set; }
     }
 
-    /// <summary>Public read model. Evidence fields are shown only when published and live.</summary>
+    /// <summary>
+    /// Public read model (CONTRACT §8). No evidence, issuer, date or internal status fields.
+    /// Status is the public status (Verified, Roadmap, UnderReview), never the stored one.
+    /// </summary>
     public sealed record PublicTrustIndicatorDto(
         int ItemNumber,
         string Title,
-        string EvidenceClass,
+        string Status,
+        string StatusLabel,
         string? IconKey,
         string? ImageUrl,
         string AltText,
         string Tooltip,
-        string CtaType,
-        string? CtaTarget,
-        string? EvidenceUrl,
-        string? Issuer,
-        DateOnly? IssuedOn,
-        DateOnly? ExpiresOn,
-        string? Scope
+        PublicTrustCtaDto? Cta
     );
+
+    /// <summary>
+    /// Public call to action. Type is the enum name. Href is null for CookieSettings, which opens the
+    /// site cookie preferences manager.
+    /// </summary>
+    public sealed record PublicTrustCtaDto(string Type, string Label, string? Href);
 }

@@ -353,7 +353,8 @@ namespace TummlyBackend.Tests.Integration
             var live = await publicRead.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal(1, live.GetArrayLength());
             Assert.Equal(1, live[0].GetProperty("itemNumber").GetInt32());
-            Assert.Equal(proof, live[0].GetProperty("ctaTarget").GetString());
+            Assert.Equal("Verified", live[0].GetProperty("status").GetString());
+            Assert.Equal(proof, live[0].GetProperty("cta").GetProperty("href").GetString());
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -371,6 +372,191 @@ namespace TummlyBackend.Tests.Integration
                 )
             );
         }
+
+        [Fact]
+        public async Task Public_HasNoStoreHeader()
+        {
+            using var response = await _client.GetAsync("/api/public/trust-indicators");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.TryGetValues("Cache-Control", out var values));
+            Assert.Equal("no-store", Assert.Single(values));
+        }
+
+        [Fact]
+        public async Task PublishedOffItemDisappears()
+        {
+            var admins = await SeedAdminsAsync();
+
+            await PublishItemOneAsync(admins, "http-item1-on", enabled: true);
+            var on = await _client.GetFromJsonAsync<JsonElement>("/api/public/trust-indicators");
+            Assert.Equal(1, on.GetArrayLength());
+            Assert.Equal(1, on[0].GetProperty("itemNumber").GetInt32());
+
+            await PublishItemOneAsync(admins, "http-item1-off", enabled: false);
+            var off = await _client.GetFromJsonAsync<JsonElement>("/api/public/trust-indicators");
+            Assert.Equal(0, off.GetArrayLength());
+        }
+
+        [Fact]
+        public async Task UnpublishAllGivesEmptyArray()
+        {
+            var admins = await SeedAdminsAsync();
+            await PublishItemOneAsync(admins, "http-unpublish-on", enabled: true);
+
+            await PublishItemOneAsync(admins, "http-unpublish-off", enabled: false);
+
+            using var response = await _client.GetAsync("/api/public/trust-indicators");
+            Assert.Equal("[]", await response.Content.ReadAsStringAsync());
+        }
+
+        [Fact]
+        public async Task FailedPublishKeepsPreviousPublicOutput()
+        {
+            var admins = await SeedAdminsAsync();
+            await PublishItemOneAsync(admins, "http-v1", enabled: true);
+            var before = await ReadPublicBodyAsync();
+
+            // Rule gate: item 03 is a roadmap item and may not carry a call to action.
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/3",
+                admins.EditorJwt,
+                new
+                {
+                    enabled = true,
+                    status = "Roadmap",
+                    statusLabel = "On our roadmap",
+                    ctaType = "InternalPage",
+                    ctaTarget = "/security",
+                    ctaLabel = "Read more",
+                    altText = string.Empty,
+                    tooltip = string.Empty,
+                }
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
+            {
+                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            }
+            using (var gate = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.PublisherJwt,
+                new { reason = "Evidence checked" },
+                key: "http-gate-fail"
+            ))
+            {
+                Assert.Equal(HttpStatusCode.BadRequest, gate.StatusCode);
+                var body = await gate.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.Equal("publish_gate_failed", body.GetProperty("code").GetString());
+            }
+            Assert.Equal(before, await ReadPublicBodyAsync());
+
+            // Put item 03 back to disabled so the next refusal can only come from the link check.
+            using (var revert = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/3",
+                admins.EditorJwt,
+                new { enabled = false, status = "Roadmap", statusLabel = "On our roadmap", ctaType = "None" }
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, revert.StatusCode);
+            }
+
+            // Link check: item 01 now points at a link that answers 404.
+            const string deadLink = "https://ico.example/item1-dead";
+            _factory.EvidenceLinks.Results[deadLink] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                admins.EditorJwt,
+                ItemOneBody(enabled: true, link: deadLink)
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
+            {
+                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            }
+            using (var linkFail = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.PublisherJwt,
+                new { reason = "Evidence checked" },
+                key: "http-link-fail"
+            ))
+            {
+                Assert.Equal(HttpStatusCode.BadRequest, linkFail.StatusCode);
+                var body = await linkFail.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.Equal("publish_gate_failed", body.GetProperty("code").GetString());
+                Assert.Contains(
+                    "Item 01: evidence link failed (HTTP 404).",
+                    body.GetProperty("details").EnumerateArray().Select(d => d.GetString())
+                );
+            }
+            Assert.Equal(before, await ReadPublicBodyAsync());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(1, await context.TrustIndicatorPublications.CountAsync());
+            Assert.Null(await context.TrustIndicatorPublications.FirstOrDefaultAsync(p => p.Version == 2));
+        }
+
+        private async Task<string> ReadPublicBodyAsync()
+        {
+            using var response = await _client.GetAsync("/api/public/trust-indicators");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        /// <summary>Edits item 01, submits as the editor and publishes as the publisher, all over HTTP.</summary>
+        private async Task PublishItemOneAsync(
+            (string EditorJwt, string PublisherJwt, string SupportJwt, string NonApproverJwt) admins,
+            string key,
+            bool enabled
+        )
+        {
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                admins.EditorJwt,
+                ItemOneBody(enabled, "https://ico.example/proof")
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
+            {
+                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            }
+            using var publish = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.PublisherJwt,
+                new { reason = "Evidence checked" },
+                key: key
+            );
+            Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
+        }
+
+        private static object ItemOneBody(bool enabled, string link) =>
+            new
+            {
+                enabled,
+                status = "VerifiedPublicRecord",
+                statusLabel = "Registered",
+                ctaType = enabled ? "ExternalProof" : "None",
+                ctaTarget = enabled ? link : null,
+                ctaLabel = enabled ? "View registration" : null,
+                evidenceUrl = link,
+                issuer = "Information Commissioner’s Office",
+                altText = string.Empty,
+                tooltip = string.Empty,
+            };
 
         private async Task<JsonElement> GetViewerAsync(string jwt)
         {

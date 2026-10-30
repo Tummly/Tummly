@@ -137,6 +137,8 @@ namespace TummlyBackend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Get(CancellationToken cancellationToken)
         {
+            // A cached copy would keep showing an indicator after it was unpublished.
+            Response.Headers.CacheControl = "no-store";
             var items = await _trust.GetPublicAsync(cancellationToken);
             return Ok(items);
         }

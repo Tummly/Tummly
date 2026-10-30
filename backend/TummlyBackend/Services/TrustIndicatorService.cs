@@ -12,6 +12,10 @@ namespace TummlyBackend.Services
     public sealed class TrustIndicatorService : ITrustIndicatorService
     {
         private const int MaxIdempotencyKeyLength = 128;
+        private const string PublicStatusVerified = "Verified";
+        private const string PublicStatusRoadmap = "Roadmap";
+        private const string PublicStatusUnderReview = "UnderReview";
+        private const string PublicStatusUnderReviewLabel = "Under review";
 
         private static readonly JsonSerializerOptions SnapshotOptions = new(
             JsonSerializerDefaults.Web
@@ -418,6 +422,10 @@ namespace TummlyBackend.Services
             return new(ToPublicationDto(publication));
         }
 
+        /// <summary>
+        /// Public read (CONTRACT §8). Reads the latest snapshot only and applies §2 and §3 to each item.
+        /// A bad item is omitted; a bad CTA is dropped. An unreadable snapshot publishes nothing.
+        /// </summary>
         public async Task<IReadOnlyList<PublicTrustIndicatorDto>> GetPublicAsync(
             CancellationToken cancellationToken = default
         )
@@ -432,20 +440,26 @@ namespace TummlyBackend.Services
                 return [];
             }
 
-            var today = TrustIndicatorRules.LondonToday(_clock.GetUtcNow().UtcDateTime);
-            var items = JsonSerializer.Deserialize<List<TrustIndicatorItemDto>>(
-                snapshot,
-                SnapshotOptions
-            ) ?? [];
+            List<TrustIndicatorItemDto>? items;
+            try
+            {
+                items = JsonSerializer.Deserialize<List<TrustIndicatorItemDto>>(
+                    snapshot,
+                    SnapshotOptions
+                );
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
 
-            return items
-                .Where(item => TrustIndicatorRules.IsLive(
-                    item.Values.Enabled,
-                    item.Values.ExpiresOn,
-                    today
-                ))
+            var today = TrustIndicatorRules.LondonToday(_clock.GetUtcNow().UtcDateTime);
+            return (items ?? [])
+                .Where(item => item?.Values != null
+                    && TrustIndicatorRules.IsLive(item.Values.Enabled, item.Values.ExpiresOn, today))
                 .OrderBy(item => item.ItemNumber)
                 .Select(ToPublicDto)
+                .OfType<PublicTrustIndicatorDto>()
                 .ToList();
         }
 
@@ -620,22 +634,62 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static PublicTrustIndicatorDto ToPublicDto(TrustIndicatorItemDto item) =>
-            new(
+        /// <summary>
+        /// CONTRACT §2 and §3 for one live item. Null when the item must be omitted: an unknown class,
+        /// a status that is missing or not allowed for the class, or a blank status label.
+        /// </summary>
+        private static PublicTrustIndicatorDto? ToPublicDto(TrustIndicatorItemDto item)
+        {
+            var values = item.Values;
+            if (
+                string.IsNullOrWhiteSpace(item.Title)
+                || !TrustIndicatorRules.TryParseEvidenceClass(item.EvidenceClass, out var evidenceClass)
+            )
+            {
+                return null;
+            }
+
+            var status = TrustIndicatorRules.PublicStatus(evidenceClass, values.Status);
+            if (status == null)
+            {
+                return null;
+            }
+
+            var statusLabel = status == PublicStatusUnderReview
+                ? PublicStatusUnderReviewLabel
+                : values.StatusLabel?.Trim();
+            if (string.IsNullOrEmpty(statusLabel))
+            {
+                return null;
+            }
+
+            var cta = status == PublicStatusVerified
+                && TrustIndicatorRules.PublicCtaAllowed(evidenceClass, values)
+                    ? ToPublicCta(values)
+                    : null;
+
+            return new PublicTrustIndicatorDto(
                 item.ItemNumber,
                 item.Title,
-                item.EvidenceClass,
-                item.Values.IconKey,
-                item.Values.ImageUrl,
-                item.Values.AltText ?? string.Empty,
-                item.Values.Tooltip ?? string.Empty,
-                item.Values.CtaType ?? nameof(TrustCtaType.None),
-                item.Values.CtaTarget,
-                item.Values.EvidenceUrl,
-                item.Values.Issuer,
-                item.Values.IssuedOn,
-                item.Values.ExpiresOn,
-                item.Values.Scope
+                status,
+                statusLabel,
+                values.IconKey,
+                status == PublicStatusRoadmap ? null : values.ImageUrl,
+                values.AltText ?? string.Empty,
+                values.Tooltip ?? string.Empty,
+                cta
             );
+        }
+
+        /// <summary>Only called after PublicCtaAllowed, so the type and label are present and exact.</summary>
+        private static PublicTrustCtaDto ToPublicCta(TrustIndicatorEditableValues values)
+        {
+            var type = values.CtaType!.Trim();
+            return new PublicTrustCtaDto(
+                type,
+                values.CtaLabel!.Trim(),
+                type == nameof(TrustCtaType.CookieSettings) ? null : values.CtaTarget
+            );
+        }
     }
 }
