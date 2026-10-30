@@ -1290,5 +1290,156 @@
     "primary": "getting-started-steps-1506.webp",
     "kind": "simple",
     "primaryFormat": "webp"
+  },
+  "about/industry-cafes-v2": {
+    "w": 1672,
+    "h": 1327,
+    "blobDir": "images/about",
+    "baseName": "industry-cafes-v2",
+    "widths": [
+      640,
+      1280,
+      1672
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-cafes-v2-1672.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-takeaway-v2": {
+    "w": 1448,
+    "h": 1467,
+    "blobDir": "images/about",
+    "baseName": "industry-takeaway-v2",
+    "widths": [
+      640,
+      1280,
+      1448
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-takeaway-v2-1448.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-casual-v2": {
+    "w": 1535,
+    "h": 1460,
+    "blobDir": "images/about",
+    "baseName": "industry-casual-v2",
+    "widths": [
+      640,
+      1280,
+      1535
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-casual-v2-1535.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/industry-groups-v2": {
+    "w": 1209,
+    "h": 933,
+    "blobDir": "images/about",
+    "baseName": "industry-groups-v2",
+    "widths": [
+      640,
+      1209
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "industry-groups-v2-1209.webp",
+    "kind": "simple",
+    "primaryFormat": "webp"
+  },
+  "about/reality-v2-visit": {
+    "w": 552,
+    "h": 663,
+    "blobDir": "images/about",
+    "baseName": "reality-v2-visit",
+    "widths": [
+      273,
+      546,
+      552
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-v2-visit-552.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-v2-attention": {
+    "w": 1092,
+    "h": 551,
+    "blobDir": "images/about",
+    "baseName": "reality-v2-attention",
+    "widths": [
+      273,
+      546,
+      1092
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-v2-attention-1092.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-v2-invitation": {
+    "w": 972,
+    "h": 601,
+    "blobDir": "images/about",
+    "baseName": "reality-v2-invitation",
+    "widths": [
+      273,
+      546,
+      972
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-v2-invitation-972.png",
+    "kind": "simple",
+    "primaryFormat": "png"
+  },
+  "about/reality-v2-review": {
+    "w": 670,
+    "h": 702,
+    "blobDir": "images/about",
+    "baseName": "reality-v2-review",
+    "widths": [
+      273,
+      546,
+      670
+    ],
+    "formats": [
+      "avif",
+      "webp",
+      "png"
+    ],
+    "primary": "reality-v2-review-670.png",
+    "kind": "simple",
+    "primaryFormat": "png"
   }
 }

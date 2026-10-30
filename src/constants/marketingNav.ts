@@ -1,55 +1,55 @@
-import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support";
+import { LEGAL_ROUTES } from "@/constants/legalRoutes";
 
 /** Marketing Pricing page. */
-export const MARKETING_PRICING_PATH = "/pricing"
+export const MARKETING_PRICING_PATH = "/pricing";
 
 /** Marketing Build your own (custom) plan page. */
-export const MARKETING_CUSTOM_PLAN_PATH = "/custom-plan"
+export const MARKETING_CUSTOM_PLAN_PATH = "/custom-plan";
 
 /** Marketing Product page — Guest Loop product overview. */
-export const MARKETING_PRODUCT_PATH = "/product"
+export const MARKETING_PRODUCT_PATH = "/product";
 
 /** Marketing How it works page. */
-export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
+export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works";
 
 /** Marketing QR materials page. */
-export const MARKETING_QR_MATERIALS_PATH = "/qr-materials"
+export const MARKETING_QR_MATERIALS_PATH = "/qr-materials";
 
 /** Marketing For Groups page — multi-location restaurant groups. */
-export const MARKETING_FOR_GROUPS_PATH = "/for-groups"
+export const MARKETING_FOR_GROUPS_PATH = "/for-groups";
 
 /** Marketing 30-day Pilot page. */
-export const MARKETING_PILOT_PATH = "/30-day-pilot"
+export const MARKETING_PILOT_PATH = "/30-day-pilot";
 
 /** Marketing About page. */
-export const MARKETING_ABOUT_PATH = "/about"
+export const MARKETING_ABOUT_PATH = "/about";
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }
   | { kind: "hash"; hash: string }
   | { kind: "placeholder" }
   | { kind: "cookie-settings" }
-  | { kind: "external"; href: string }
+  | { kind: "external"; href: string };
 
 export type MarketingNavItem = {
-  id: string
-  label: string
-  href: MarketingNavHref
-}
+  id: string;
+  label: string;
+  href: MarketingNavHref;
+};
 
-export const MARKETING_FAQS_HASH = "#faqs"
-export const MARKETING_FAQS_PATH = "/faqs"
-export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy"
-export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant"
+export const MARKETING_FAQS_HASH = "#faqs";
+export const MARKETING_FAQS_PATH = "/faqs";
+export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy";
+export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant";
 
 /** Public product walkthrough — fixture UI + Figma tour chrome. */
-export const MARKETING_DEMO_PATH = "/product-demo"
+export const MARKETING_DEMO_PATH = "/product-demo";
 
 export const MARKETING_DEMO_HREF: MarketingNavHref = {
   kind: "route",
   to: MARKETING_DEMO_PATH,
-}
+};
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
   {
@@ -68,16 +68,16 @@ export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
     href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
   {
-    id: "qr-materials",
-    label: "QR materials",
-    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+    id: "30-day-pilot",
+    label: "30-day Pilot",
+    href: { kind: "route", to: MARKETING_PILOT_PATH },
   },
   {
     id: "for-groups",
     label: "For groups",
     href: { kind: "route", to: MARKETING_FOR_GROUPS_PATH },
   },
-]
+];
 
 export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
   {
@@ -105,7 +105,7 @@ export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
     label: "Contact",
     href: { kind: "route", to: HELP_CENTRE_CONTACT_URL },
   },
-]
+];
 
 export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
   {
@@ -129,7 +129,7 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
     href: { kind: "route", to: MARKETING_AI_ASSISTANT_PATH },
   },
   { id: "try-demo", label: "Try demo", href: MARKETING_DEMO_HREF },
-]
+];
 
 export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
   {
@@ -157,7 +157,7 @@ export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
     label: "FAQs",
     href: { kind: "route", to: MARKETING_FAQS_PATH },
   },
-]
+];
 
 export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
   {
@@ -178,11 +178,11 @@ export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
     label: "Facebook",
     href: { kind: "external", href: "https://www.facebook.com/Tummlycom" },
   },
-]
+];
 
 /** Companies House public record for TUMMLY.COM LIMITED (16236040). */
 export const MARKETING_COMPANY_RECORD_URL =
-  "https://find-and-update.company-information.service.gov.uk/company/16236040"
+  "https://find-and-update.company-information.service.gov.uk/company/16236040";
 
 export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
   {
@@ -200,13 +200,13 @@ export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
     label: "View company record",
     href: { kind: "external", href: MARKETING_COMPANY_RECORD_URL },
   },
-]
+];
 
 /** Privacy Notice section for guests who use Smart Guest Links. */
-export const MARKETING_GUEST_PRIVACY_PATH = `${LEGAL_ROUTES.privacy}#smart-guest-links-guest-feedback-and-restaurant-follow-up`
+export const MARKETING_GUEST_PRIVACY_PATH = `${LEGAL_ROUTES.privacy}#smart-guest-links-guest-feedback-and-restaurant-follow-up`;
 
 /** Guest preference centre — guests ask for a manage link by email. */
-export const MARKETING_GUEST_PREFERENCES_PATH = "/preferences"
+export const MARKETING_GUEST_PREFERENCES_PATH = "/preferences";
 
 export const MARKETING_FOOTER_LEGAL: MarketingNavItem[] = [
   {
@@ -254,13 +254,13 @@ export const MARKETING_FOOTER_LEGAL: MarketingNavItem[] = [
     label: "Cookie settings",
     href: { kind: "cookie-settings" },
   },
-]
+];
 
 /** Statutory website disclosure (Figma footer `5839:73487`), one entry per line. */
 export const MARKETING_FOOTER_COMPANY_DISCLOSURE = [
   "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
   "Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
-] as const
+] as const;
 
 export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
   {
@@ -278,6 +278,6 @@ export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
     label: "Terms",
     href: { kind: "route", to: LEGAL_ROUTES.terms },
   },
-]
+];
 
-export const MARKETING_FOOTER_FHH_URL = "https://fhh.group"
+export const MARKETING_FOOTER_FHH_URL = "https://fhh.group";

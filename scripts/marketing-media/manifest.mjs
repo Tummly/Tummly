@@ -238,6 +238,30 @@ export const SIMPLE_ASSETS = [
     quality: 100,
     primaryFormat: /** @type {"png"} */ ("png"),
   })),
+  // About Industries cards v2 (Figma `7183:10663`) — taller photo crops for the
+  // 374×476 cards; photo frame ~1.5–1.9× card width. Never overwrite the v1 baseNames.
+  ...["cafes", "takeaway", "casual", "groups"].map((name) => ({
+    id: `about/industry-${name}-v2`,
+    source: `.scratch/marketing-media-sources/about/industry-${name}-v2.png`,
+    blobDir: "images/about",
+    baseName: `industry-${name}-v2`,
+    widths: [640, 1280, 1672],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 95,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // About Reality illustrations v2 (Figma `7183:10733` … `7183:10918`) —
+  // transparent PNG @4×, displayed at 1× (138–273 CSS px wide).
+  ...["visit", "attention", "invitation", "review"].map((name) => ({
+    id: `about/reality-v2-${name}`,
+    source: `.scratch/marketing-media-sources/about/reality-v2-${name}.png`,
+    blobDir: "images/about",
+    baseName: `reality-v2-${name}`,
+    widths: [273, 546, 1092],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"png"} */ ("png"),
+  })),
   // How it works Guest Form phone mockups (Figma `5887:20625` … `5880:19826`)
   // Display ~392 CSS px → 784 master for 2×. quality 90 for UI chrome.
   ...[

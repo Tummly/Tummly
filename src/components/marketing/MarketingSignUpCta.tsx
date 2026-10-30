@@ -86,6 +86,14 @@ type MarketingSignUpCtaProps = {
   editorialAspectClass?: string
   /** Merged onto the editorial background `<img>` (e.g. crop focus on mobile). */
   editorialBackgroundClassName?: string
+  /** Editorial primary button. Defaults to `dark`; About Sign up `5661:24423` is green. */
+  editorialButtonVariant?: "dark" | "primary"
+  /** Editorial primary rest fill (About `5661:24423` = #14a946, not the #14a74a variant). */
+  editorialButtonColor?: string
+  /** Merged onto the Google / Microsoft buttons (About `5661:24423` is #fafafa, not white). */
+  socialButtonsClassName?: string
+  /** Merged onto the legal note (About `5661:24423` wraps at 348px, not 382px). */
+  legalNoteClassName?: string
   /** Merged onto the title. QR materials `6942:25257` wraps at 536px. */
   titleClassName?: string
   /** Merged onto the body. QR materials `6942:25257` wraps at 403px. */
@@ -107,6 +115,10 @@ export function MarketingSignUpCta({
   editorialBackgroundHeight = 800,
   editorialAspectClass = "lg:aspect-[1668/525]",
   editorialBackgroundClassName,
+  editorialButtonVariant = "dark",
+  editorialButtonColor,
+  socialButtonsClassName,
+  legalNoteClassName,
   titleClassName,
   bodyClassName,
 }: MarketingSignUpCtaProps) {
@@ -359,7 +371,10 @@ export function MarketingSignUpCta({
                   />
                   <MarketingButton
                     type="submit"
-                    variant={isEditorial ? "dark" : "primary"}
+                    variant={isEditorial ? editorialButtonVariant : "primary"}
+                    restBackgroundColor={
+                      isEditorial ? editorialButtonColor : undefined
+                    }
                     className={cn(
                       "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
                       isEditorial || isReadLegalNote
@@ -392,6 +407,7 @@ export function MarketingSignUpCta({
                           isReadLegalNote
                             ? "bg-white hover:bg-white/90"
                             : "bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)]",
+                          socialButtonsClassName,
                         )
                       : undefined
                   }
@@ -403,6 +419,7 @@ export function MarketingSignUpCta({
                   className={cn(
                     "max-w-[382px] leading-4",
                     isEditorial ? "text-[#141414]" : "text-[#7c7c7c]",
+                    legalNoteClassName,
                   )}
                 />
               ) : (
