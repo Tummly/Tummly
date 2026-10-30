@@ -118,6 +118,13 @@ namespace TummlyBackend.Models
         /// <summary>Hash of the 15 editable rows at submit time (CONTRACT §6 draft revision). Null when not submitted.</summary>
         [MaxLength(64)]
         public string? SubmittedRevision { get; set; }
+
+        /// <summary>
+        /// Changed on every draft edit, submit and publish. Two overlapping writes that read the same stamp
+        /// cannot both save: the second one fails with DbUpdateConcurrencyException.
+        /// </summary>
+        [ConcurrencyCheck]
+        public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     }
 
     /// <summary>

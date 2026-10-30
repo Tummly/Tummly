@@ -5530,6 +5530,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("int");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("LastEditedAtUtc")
                         .HasColumnType("datetime2");
 

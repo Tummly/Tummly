@@ -110,7 +110,7 @@ namespace TummlyBackend.Controllers
                 "approver_required" => StatusCode(StatusCodes.Status403Forbidden, body),
                 "not_found" => NotFound(body),
                 "not_submitted" or "already_submitted" or "self_approval_denied" or "no_changes" or "publish_conflict"
-                    or "idempotency_key_reused" or "draft_changed" => Conflict(body),
+                    or "idempotency_key_reused" or "draft_changed" or "draft_conflict" => Conflict(body),
                 _ => BadRequest(body),
             };
         }

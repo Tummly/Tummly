@@ -99,6 +99,7 @@ namespace TummlyBackend.Tests.Services
             "OwnControlQaPending",
         ];
 
+        private readonly string _databaseName = Guid.NewGuid().ToString();
         private readonly ApplicationDbContext _context;
         private readonly AdjustableTimeProvider _clock;
         private readonly FakeTrustEvidenceLinkChecker _evidenceLinks = new();
@@ -106,10 +107,7 @@ namespace TummlyBackend.Tests.Services
 
         public TrustIndicatorServiceTests()
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-            _context = new ApplicationDbContext(options);
+            _context = NewContext();
             _clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero));
             _sut = new TrustIndicatorService(
                 _context,
@@ -974,6 +972,124 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_ActorWhoIsLastDraftEditorRefused()
+        {
+            // The publisher is the last draft editor on the stored state. No edit audit row shows it (an
+            // out-of-band write), so only the LastEditedBy rule can refuse the publish.
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(ThirdAdminId));
+            var state = await _context.TrustIndicatorDraftStates.SingleAsync();
+            state.LastEditedByAdminUserId = PublisherId;
+            await _context.SaveChangesAsync();
+
+            var outcome = await PublishAsync(PublisherId, "key-last-editor-state");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_EditDuringAnotherPublishCausesConflict()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+
+            // Publish A runs on its own context. While its link check runs, another admin edits the draft
+            // through a second context and commits. A must not save over that edit.
+            var contextB = NewContext();
+            var serviceB = new TrustIndicatorService(
+                contextB,
+                new AdminAuditService(contextB, _clock),
+                _clock,
+                _evidenceLinks
+            );
+            var editedDuringCheck = false;
+            var checker = new EditDuringCheckChecker(async () =>
+            {
+                if (editedDuringCheck)
+                {
+                    return;
+                }
+
+                editedDuringCheck = true;
+                Succeeded(await serviceB.UpdateDraftItemAsync(
+                    ThirdAdminId,
+                    2,
+                    Seeded(2) with { Tooltip = "Edited during publish" }
+                ));
+            });
+            var contextA = NewContext();
+            var serviceA = new TrustIndicatorService(
+                contextA,
+                new AdminAuditService(contextA, _clock),
+                _clock,
+                checker
+            );
+
+            var outcome = await serviceA.PublishAsync(PublisherId, "key-conflict", "Evidence checked", revision);
+
+            Assert.True(editedDuringCheck);
+            Assert.Equal("publish_conflict", outcome.Code);
+            using var verify = NewContext();
+            Assert.Empty(await verify.TrustIndicatorPublications.ToListAsync());
+            var item2 = await verify.TrustIndicators.SingleAsync(row => row.ItemNumber == 2);
+            Assert.Equal("Edited during publish", item2.Tooltip);
+            Assert.Single(await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorRefused)
+                .ToListAsync());
+        }
+
+        [Fact]
+        public async Task Edit_OverlappingEditRefusedAsDraftConflict()
+        {
+            // The first context loads the draft state, then another admin's edit commits. The stale context's
+            // edit must be refused, and nothing from it may be saved.
+            using var stale = NewContext();
+            var staleService = new TrustIndicatorService(
+                stale,
+                new AdminAuditService(stale, _clock),
+                _clock,
+                _evidenceLinks
+            );
+            Succeeded(await staleService.SubmitDraftAsync(EditorId));
+            // A fresh context: the fixture context tracks the seeded state row, so it would not see this write.
+            using (var elsewhere = NewContext())
+            {
+                var elsewhereService = new TrustIndicatorService(
+                    elsewhere,
+                    new AdminAuditService(elsewhere, _clock),
+                    _clock,
+                    _evidenceLinks
+                );
+                Succeeded(await elsewhereService.UpdateDraftItemAsync(
+                    ThirdAdminId,
+                    2,
+                    Seeded(2) with { Tooltip = "Edited elsewhere" }
+                ));
+            }
+
+            var outcome = await staleService.UpdateDraftItemAsync(
+                EditorId,
+                3,
+                Seeded(3) with { Tooltip = "Stale write" }
+            );
+
+            Assert.Equal("draft_conflict", outcome.Code);
+            using var verify = NewContext();
+            var item3 = await verify.TrustIndicators.SingleAsync(row => row.ItemNumber == 3);
+            Assert.Equal(Seeded(3).Tooltip, item3.Tooltip);
+            var edits = await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorDraftEdit)
+                .ToListAsync();
+            Assert.Single(edits);
+            Assert.Equal(ThirdAdminId, edits[0].ActorAdminUserId);
+            Assert.Single(await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorRefused)
+                .ToListAsync());
+        }
+
+        [Fact]
         public async Task Publish_SeparateApproverPublishes()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
@@ -1394,6 +1510,23 @@ namespace TummlyBackend.Tests.Services
                 }
             );
             _context.SaveChanges();
+        }
+
+        private ApplicationDbContext NewContext() =>
+            new(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options
+            );
+
+        /// <summary>Runs a hook once, during the link check, to simulate a concurrent edit by another admin.</summary>
+        private sealed class EditDuringCheckChecker(Func<Task> duringCheck) : ITrustEvidenceLinkChecker
+        {
+            public async Task<TrustEvidenceLinkResult> CheckAsync(Uri uri, CancellationToken cancellationToken)
+            {
+                await duringCheck();
+                return new TrustEvidenceLinkResult(true, "HTTP 200");
+            }
         }
 
         private async Task<List<AdminAuditEvent>> AuditAsync(string action) =>

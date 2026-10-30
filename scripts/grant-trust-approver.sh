@@ -17,10 +17,14 @@
 #   needs a host sqlcmd on PATH.
 #
 # The environment is not trusted from the flag. The script reads @@SERVERNAME and DB_NAME()
-# from the target and maps them to an environment (CONTRACT §6). Only the local container is
-# mapped. The QA server and database names are not in the repo scripts, so no QA target is
-# mapped, and every target that is not mapped is refused. --environment must equal the
-# derived value. The write checks the same server and database again inside its transaction.
+# from the target and maps them to an environment (CONTRACT §6). Mapped pairs:
+#   local: the local container's hostname and TummlyDB
+#   qa:    sql-tummly-qa-uksouth and sqldb-tummly-qa (infra/qa/main.bicep and
+#          scripts/sync-qa-db-to-local.sh; the server name is compared case-insensitively)
+# Any other pair is refused. --environment must equal the derived value. The write checks the
+# same server and database again inside its transaction.
+#
+# Dry check, no connection: ./scripts/grant-trust-approver.sh --print-map SERVER DATABASE
 #
 # Production is refused unless TRUST_APPROVER_PRODUCTION_CONFIRMED=yes is set. Production is
 # not mapped either, so the flag cannot make the script write to production.
@@ -33,17 +37,24 @@ LOCAL_DB="${TUMMLY_LOCAL_DB_NAME:-TummlyDB}"
 # The fixed map (CONTRACT §6): the local container's TummlyDB is the only mapped database. It is a constant,
 # not LOCAL_DB, so an overridden TUMMLY_LOCAL_DB_NAME cannot make another database count as local.
 MAPPED_LOCAL_DB="TummlyDB"
+# The QA pair from infra/qa/main.bicep (sql-tummly-${environment}-${sqlLocation}, environment qa, uksouth) and
+# scripts/sync-qa-db-to-local.sh (sqldb-tummly-qa). Azure SQL reports the short server name.
+MAPPED_QA_SERVER="sql-tummly-qa-uksouth"
+MAPPED_QA_DB="sqldb-tummly-qa"
 EMAIL_PATTERN='^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$'
 NAME_PATTERN='^[A-Za-z0-9._-]+$'
 
 usage() {
   cat <<'EOF'
 Usage: grant-trust-approver.sh --email EMAIL --environment local|qa|production [--revoke]
+       grant-trust-approver.sh --print-map SERVER DATABASE
 
 Options:
   --email EMAIL          Admin account email (required)
   --environment ENV      local | qa | production (required; must match the target)
   --revoke               Clear the flag (default grants it)
+  --print-map S D        Dry check: print the environment that server S and database D map to, and exit
+                         (0 mapped, 3 unmapped). No connection is made.
   -h, --help             Show this help
 
 Environment:
@@ -59,6 +70,9 @@ EOF
 EMAIL=""
 ENVIRONMENT=""
 ACTION="grant"
+PRINT_MAP=0
+PRINT_MAP_SERVER=""
+PRINT_MAP_DB=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -71,6 +85,13 @@ while [[ $# -gt 0 ]]; do
       ACTION="revoke"
       shift
       ;;
+    --print-map)
+      [[ $# -ge 3 ]] || { echo "Missing values: --print-map SERVER DATABASE" >&2; exit 2; }
+      PRINT_MAP=1
+      PRINT_MAP_SERVER="$2"
+      PRINT_MAP_DB="$3"
+      shift 3
+      ;;
     -h | --help)
       usage
       exit 0
@@ -82,6 +103,38 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# CONTRACT §6 derivation: the server name and database a target reports map to one environment, or "unmapped".
+# Pure except for one read-only docker inspect (the local container's hostname, which is its @@SERVERNAME).
+map_environment() {
+  local server="$1" database="$2" local_host server_lc database_lc
+  local_host="$(docker inspect -f '{{.Config.Hostname}}' "$CONTAINER" 2>/dev/null || true)"
+  if [[ -n "$local_host" && "$server" == "$local_host" && "$database" == "$MAPPED_LOCAL_DB" ]]; then
+    echo "local"
+    return
+  fi
+  server_lc="$(printf '%s' "$server" | tr '[:upper:]' '[:lower:]')"
+  database_lc="$(printf '%s' "$database" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$server_lc" == "$MAPPED_QA_SERVER" && "$database_lc" == "$MAPPED_QA_DB" ]]; then
+    echo "qa"
+    return
+  fi
+  echo "unmapped"
+}
+
+if [[ "$PRINT_MAP" == 1 ]]; then
+  if [[ ! "$PRINT_MAP_SERVER" =~ $NAME_PATTERN || ! "$PRINT_MAP_DB" =~ $NAME_PATTERN ]]; then
+    echo "Refused: the server or database name has characters this script does not allow." >&2
+    exit 3
+  fi
+  MAP_RESULT="$(map_environment "$PRINT_MAP_SERVER" "$PRINT_MAP_DB")"
+  if [[ "$MAP_RESULT" == "unmapped" ]]; then
+    echo "unmapped: server $PRINT_MAP_SERVER, database $PRINT_MAP_DB is not a mapped environment." >&2
+    exit 3
+  fi
+  echo "$MAP_RESULT"
+  exit 0
+fi
 
 case "$ENVIRONMENT" in
   local | qa | production) ;;
@@ -221,18 +274,6 @@ run_sql() {
   fi
 }
 
-# CONTRACT §6 derivation. The server name and database that the target reports map to an environment.
-# Only the local container's TummlyDB is mapped. Its @@SERVERNAME is the container hostname, read live from docker.
-derive_environment() {
-  local server="$1" database="$2" local_host
-  local_host="$(docker inspect -f '{{.Config.Hostname}}' "$CONTAINER" 2>/dev/null || true)"
-  if [[ -n "$local_host" && "$server" == "$local_host" && "$database" == "$MAPPED_LOCAL_DB" ]]; then
-    echo "local"
-  else
-    echo "unmapped"
-  fi
-}
-
 # Build the SQL. Every value is validated above or below; only fixed words and checked names are interpolated.
 build_sql() {
   cat <<SQL
@@ -288,7 +329,7 @@ if [[ ! "$PROBED_SERVER" =~ $NAME_PATTERN || ! "$PROBED_DB" =~ $NAME_PATTERN ]];
   exit 3
 fi
 
-DERIVED_ENVIRONMENT="$(derive_environment "$PROBED_SERVER" "$PROBED_DB")"
+DERIVED_ENVIRONMENT="$(map_environment "$PROBED_SERVER" "$PROBED_DB")"
 if [[ "$DERIVED_ENVIRONMENT" == "unmapped" ]]; then
   echo "Refused: the target (server $PROBED_SERVER, database $PROBED_DB) is not a mapped environment. No change made." >&2
   exit 3

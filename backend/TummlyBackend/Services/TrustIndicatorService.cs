@@ -113,39 +113,75 @@ namespace TummlyBackend.Services
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
-            TrustIndicatorRules.Apply(row, normalized);
-            row.LastEditedByAdminUserId = actorAdminUserId;
-            row.LastEditedAtUtc = now;
-            row.UpdatedAtUtc = now;
-
             var state = await LoadOrCreateStateAsync(cancellationToken);
             var submissionCleared = state.SubmittedByAdminUserId != null;
+            state.ConcurrencyStamp = Guid.NewGuid();
             state.LastEditedByAdminUserId = actorAdminUserId;
             state.LastEditedAtUtc = now;
             state.SubmittedByAdminUserId = null;
             state.SubmittedAtUtc = null;
             state.SubmittedRevision = null;
 
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorDraftEdit,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorItem,
-                    TargetId: itemNumber.ToString(),
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new
-                        {
-                            itemNumber,
-                            before,
-                            after = normalized,
-                            submissionCleared,
-                        }
-                    )
-                )
-            );
+            // The draft state is saved first, so a stamp conflict stages nothing else. The item and its audit row
+            // follow. On SQL Server both saves share one transaction.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
+            {
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    TrustIndicatorRules.Apply(row, normalized);
+                    row.LastEditedByAdminUserId = actorAdminUserId;
+                    row.LastEditedAtUtc = now;
+                    row.UpdatedAtUtc = now;
+                    _audit.Append(
+                        new AdminAuditAppendRequest(
+                            Action: AdminAuditActions.TrustIndicatorDraftEdit,
+                            ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                            TargetType: AdminAuditTargetTypes.TrustIndicatorItem,
+                            TargetId: itemNumber.ToString(),
+                            ActorAdminUserId: actorAdminUserId,
+                            DetailJson: JsonSerializer.Serialize(
+                                new
+                                {
+                                    itemNumber,
+                                    before,
+                                    after = normalized,
+                                    submissionCleared,
+                                }
+                            )
+                        )
+                    );
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+            }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            if (conflict)
+            {
+                // Another write changed the draft after this edit read it. Nothing from this edit was saved.
+                _context.ChangeTracker.Clear();
+                return await RefuseAsync<TrustIndicatorItemDto>(
+                    actorAdminUserId,
+                    "draft_edit",
+                    "draft_conflict",
+                    "The draft changed while you were saving. Reload and try again.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorItem,
+                    itemNumber.ToString(),
+                    cancellationToken
+                );
+            }
+
             return new(ToItemDto(row));
         }
 
@@ -173,28 +209,63 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
             var revision = DraftRevisionOf(rows);
             var now = _clock.GetUtcNow().UtcDateTime;
+            state.ConcurrencyStamp = Guid.NewGuid();
             state.SubmittedByAdminUserId = actorAdminUserId;
             state.SubmittedAtUtc = now;
             state.SubmittedRevision = revision;
-
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorSubmit,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorDraft,
-                    TargetId: "draft",
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new
-                        {
-                            lastEditedByAdminUserId = state.LastEditedByAdminUserId,
-                            draftRevision = revision,
-                        }
-                    )
+            var audit = new AdminAuditAppendRequest(
+                Action: AdminAuditActions.TrustIndicatorSubmit,
+                ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                TargetType: AdminAuditTargetTypes.TrustIndicatorDraft,
+                TargetId: "draft",
+                ActorAdminUserId: actorAdminUserId,
+                DetailJson: JsonSerializer.Serialize(
+                    new
+                    {
+                        lastEditedByAdminUserId = state.LastEditedByAdminUserId,
+                        draftRevision = revision,
+                    }
                 )
             );
 
-            await _context.SaveChangesAsync(cancellationToken);
+            // The draft state is saved first, so a stamp conflict stages no audit row. On SQL Server both saves
+            // share one transaction.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
+            {
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _audit.Append(audit);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+            }
+
+            if (conflict)
+            {
+                _context.ChangeTracker.Clear();
+                return await RefuseAsync<TrustIndicatorReviewDto>(
+                    actorAdminUserId,
+                    "submit",
+                    "draft_conflict",
+                    "The draft changed while you were submitting. Reload and try again.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
             return new(ToReviewDto(state));
         }
 
@@ -334,7 +405,11 @@ namespace TummlyBackend.Services
                         && (latestPublishedAtUtc == null || row.OccurredAtUtc > latestPublishedAtUtc),
                     cancellationToken
                 );
-            if (actorAdminUserId == submittedBy || editedSinceLastPublish)
+            if (
+                actorAdminUserId == submittedBy
+                || actorAdminUserId == state.LastEditedByAdminUserId
+                || editedSinceLastPublish
+            )
             {
                 return await RefuseAsync<TrustIndicatorPublicationDto>(
                     actorAdminUserId,
@@ -442,46 +517,65 @@ namespace TummlyBackend.Services
                     SnapshotOptions
                 ),
             };
-            _context.TrustIndicatorPublications.Add(publication);
+            var audit = new AdminAuditAppendRequest(
+                Action: AdminAuditActions.TrustIndicatorPublish,
+                ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                TargetType: AdminAuditTargetTypes.TrustIndicatorPublication,
+                TargetId: version.ToString(),
+                ActorAdminUserId: actorAdminUserId,
+                DetailJson: JsonSerializer.Serialize(
+                    new
+                    {
+                        version,
+                        previousVersion,
+                        submittedByAdminUserId = submittedBy,
+                        draftRevision = currentRevision,
+                        reason = trimmedReason,
+                    }
+                )
+            );
 
+            state.ConcurrencyStamp = Guid.NewGuid();
             state.SubmittedByAdminUserId = null;
             state.SubmittedAtUtc = null;
             state.SubmittedRevision = null;
 
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorPublish,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorPublication,
-                    TargetId: version.ToString(),
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new
-                        {
-                            version,
-                            previousVersion,
-                            submittedByAdminUserId = submittedBy,
-                            draftRevision = currentRevision,
-                            reason = trimmedReason,
-                        }
-                    )
+            // The draft state is saved first. Its stamp check fails when another write committed after this publish
+            // read the draft, and nothing else from this publish is staged yet. On SQL Server both saves share one
+            // transaction, so a failure in the second rolls back the first.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
+            {
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _context.TrustIndicatorPublications.Add(publication);
+                    _audit.Append(audit);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+                catch (DbUpdateException ex) when (
+                    ex.InnerException is SqlException { Number: 2601 or 2627 }
                 )
-            );
-
-            try
-            {
-                await _context.SaveChangesAsync(cancellationToken);
+                {
+                    // Another publish took the version or key first.
+                    conflict = true;
+                }
             }
-            catch (DbUpdateException ex) when (
-                ex.InnerException is SqlException { Number: 2601 or 2627 }
-            )
+
+            if (conflict)
             {
-                // Another publish took the version or key first. Nothing from this attempt was saved.
                 _context.ChangeTracker.Clear();
-                return TrustIndicatorOutcome<TrustIndicatorPublicationDto>.Fail(
-                    "publish_conflict",
-                    "The draft could not be published. Reload and try again."
-                );
+                return await PublishConflictAsync(actorAdminUserId, cancellationToken);
             }
 
             return new(ToPublicationDto(publication));
@@ -569,6 +663,21 @@ namespace TummlyBackend.Services
         private static bool InLinkCheckScope(TrustIndicator row) =>
             TrustIndicatorRules.PublicStatus(row.EvidenceClass, row.Status.ToString()) == PublicStatusVerified
             || row.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment;
+
+        private async Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishConflictAsync(
+            int actorAdminUserId,
+            CancellationToken cancellationToken
+        ) =>
+            await RefuseAsync<TrustIndicatorPublicationDto>(
+                actorAdminUserId,
+                "publish",
+                "publish_conflict",
+                "The draft could not be published. Reload and try again.",
+                null,
+                AdminAuditTargetTypes.TrustIndicatorDraft,
+                "draft",
+                cancellationToken
+            );
 
         private async Task<TrustIndicatorOutcome<T>> RefuseAsync<T>(
             int actorAdminUserId,
