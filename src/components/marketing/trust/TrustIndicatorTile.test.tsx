@@ -60,6 +60,15 @@ describe("TrustIndicatorTile (closed)", () => {
     expect(tile()).not.toContain("<a")
   })
 
+  it("draws the Figma 0.825px border in #b3b3b3", () => {
+    expect(tile()).toContain("border-[0.825px]")
+    expect(tile()).toContain("border-[#b3b3b3]")
+  })
+
+  it("places the arrow anchor 21px from the tile's left edge", () => {
+    expect(tile()).toContain("left-[21px]")
+  })
+
   it("is a button with type button", () => {
     expect(tile()).toMatch(/<button[^>]*type="button"/)
   })
