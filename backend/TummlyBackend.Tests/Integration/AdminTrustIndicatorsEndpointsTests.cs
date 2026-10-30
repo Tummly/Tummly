@@ -678,6 +678,24 @@ namespace TummlyBackend.Tests.Integration
             context.Admins.AddRange(editor, publisher, support, nonApprover);
             await context.SaveChangesAsync();
 
+            // The flag only counts with a grant row behind it, as the provisioning script writes it.
+            foreach (var approver in new[] { editor, publisher })
+            {
+                context.AdminAuditEvents.Add(
+                    new AdminAuditEvent
+                    {
+                        Id = Guid.NewGuid(),
+                        OccurredAtUtc = DateTime.UtcNow,
+                        Action = AdminAuditActions.TrustApproverGrant,
+                        ActorIdentity = "script:tester",
+                        TargetType = AdminAuditTargetTypes.StaffAccount,
+                        TargetId = approver.Id.ToString(),
+                        DetailJson = "{}",
+                    }
+                );
+            }
+            await context.SaveChangesAsync();
+
             return (
                 jwtService.GenerateAdminToken(editor),
                 jwtService.GenerateAdminToken(publisher),

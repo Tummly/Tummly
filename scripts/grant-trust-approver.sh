@@ -13,17 +13,28 @@
 #
 # Target:
 #   Default: the local Docker container (TUMMLY_MSSQL_CONTAINER, default tummly-mssql),
-#   database TUMMLY_LOCAL_DB_NAME (default TummlyDB). Only --environment local may use it.
-#   CONNECTION_STRING overrides the target. It needs a host sqlcmd on PATH.
+#   database TUMMLY_LOCAL_DB_NAME (default TummlyDB). CONNECTION_STRING overrides it and
+#   needs a host sqlcmd on PATH.
 #
-# Production is refused unless TRUST_APPROVER_PRODUCTION_CONFIRMED=yes is set.
+# The environment is not trusted from the flag. The script reads @@SERVERNAME and DB_NAME()
+# from the target and maps them to an environment (CONTRACT §6). Only the local container is
+# mapped. The QA server and database names are not in the repo scripts, so no QA target is
+# mapped, and every target that is not mapped is refused. --environment must equal the
+# derived value. The write checks the same server and database again inside its transaction.
+#
+# Production is refused unless TRUST_APPROVER_PRODUCTION_CONFIRMED=yes is set. Production is
+# not mapped either, so the flag cannot make the script write to production.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VPS_ENV="$ROOT/backend/TummlyDb/vps/.env"
 CONTAINER="${TUMMLY_MSSQL_CONTAINER:-tummly-mssql}"
 LOCAL_DB="${TUMMLY_LOCAL_DB_NAME:-TummlyDB}"
+# The fixed map (CONTRACT §6): the local container's TummlyDB is the only mapped database. It is a constant,
+# not LOCAL_DB, so an overridden TUMMLY_LOCAL_DB_NAME cannot make another database count as local.
+MAPPED_LOCAL_DB="TummlyDB"
 EMAIL_PATTERN='^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$'
+NAME_PATTERN='^[A-Za-z0-9._-]+$'
 
 usage() {
   cat <<'EOF'
@@ -31,13 +42,13 @@ Usage: grant-trust-approver.sh --email EMAIL --environment local|qa|production [
 
 Options:
   --email EMAIL          Admin account email (required)
-  --environment ENV      local | qa | production (required)
+  --environment ENV      local | qa | production (required; must match the target)
   --revoke               Clear the flag (default grants it)
   -h, --help             Show this help
 
 Environment:
-  CONNECTION_STRING                 Target database (needed for qa and production)
-  TRUST_APPROVER_PRODUCTION_CONFIRMED  Must be "yes" for --environment production
+  CONNECTION_STRING                 Target database (default: the local container)
+  TRUST_APPROVER_PRODUCTION_CONFIRMED  Must be "yes" for --environment production (production is not mapped)
   TUMMLY_MSSQL_CONTAINER            Local container name (default tummly-mssql)
   TUMMLY_LOCAL_DB_NAME              Local database name (default TummlyDB)
 
@@ -115,12 +126,121 @@ fi
 
 CONNECTION_STRING="${CONNECTION_STRING:-}"
 
-# Build the SQL. Every value is validated above; only fixed words and the checked email are interpolated.
+# Set by resolve_target. TARGET_MODE is "container" or "connection".
+TARGET_MODE=""
+TARGET_LABEL=""
+CONTAINER_SQLCMD=""
+SA_PASSWORD=""
+CS_FLAGS=()
+CS_PASSWORD=""
+
+resolve_target() {
+  if [[ -n "$CONNECTION_STRING" ]]; then
+    # Split the ADO connection string with python (no secrets on the command line).
+    local -a fields
+    mapfile -d '' -t fields < <(CS="$CONNECTION_STRING" python3 -I -c '
+import os
+parts = {}
+for bit in os.environ["CS"].split(";"):
+    if "=" not in bit:
+        continue
+    key, value = bit.split("=", 1)
+    parts[key.strip().lower()] = value.strip()
+def first(*keys):
+    for key in keys:
+        if parts.get(key):
+            return parts[key]
+    return ""
+server = first("server", "data source", "address", "addr")
+database = first("database", "initial catalog")
+user = first("user id", "uid", "user")
+password = first("password", "pwd")
+encrypt = first("encrypt").lower() in ("true", "yes", "mandatory", "strict")
+trust = first("trustservercertificate").lower() in ("true", "yes")
+fields = [server, database, user, password, "1" if encrypt else "0", "1" if trust else "0"]
+print("\0".join(fields), end="")
+')
+    local server="${fields[0]:-}" database="${fields[1]:-}" user="${fields[2]:-}"
+    local password="${fields[3]:-}" encrypt="${fields[4]:-0}" trust="${fields[5]:-0}"
+
+    if [[ -z "$server" || -z "$database" || -z "$user" || -z "$password" ]]; then
+      echo "CONNECTION_STRING needs Server, Database, User Id and Password." >&2
+      exit 1
+    fi
+    if ! command -v sqlcmd >/dev/null 2>&1; then
+      echo "CONNECTION_STRING needs a host sqlcmd on PATH (go-sqlcmd or mssql-tools18)." >&2
+      exit 1
+    fi
+
+    TARGET_MODE="connection"
+    TARGET_LABEL="CONNECTION_STRING (server $server, database $database)"
+    CS_FLAGS=(-S "$server" -d "$database" -U "$user" -b -W)
+    [[ "$encrypt" == "1" ]] && CS_FLAGS+=(-N)
+    [[ "$trust" == "1" ]] && CS_FLAGS+=(-C)
+    CS_PASSWORD="$password"
+    return
+  fi
+
+  if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || true)" != "true" ]]; then
+    echo "Container $CONTAINER is not running. Start it (backend/TummlyDb/vps: docker compose up -d) and retry." >&2
+    exit 1
+  fi
+  if [[ ! -f "$VPS_ENV" ]]; then
+    echo "Missing $VPS_ENV (needs MSSQL_SA_PASSWORD)." >&2
+    exit 1
+  fi
+  SA_PASSWORD="$(grep -E '^MSSQL_SA_PASSWORD=' "$VPS_ENV" | head -1 | cut -d= -f2-)"
+  if [[ -z "$SA_PASSWORD" ]]; then
+    echo "MSSQL_SA_PASSWORD is empty in $VPS_ENV." >&2
+    exit 1
+  fi
+  CONTAINER_SQLCMD="$(find_container_sqlcmd)"
+  TARGET_MODE="container"
+  TARGET_LABEL="container $CONTAINER, database $LOCAL_DB"
+}
+
+find_container_sqlcmd() {
+  local candidate
+  for candidate in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
+    if docker exec "$CONTAINER" test -x "$candidate" 2>/dev/null; then
+      echo "$candidate"
+      return
+    fi
+  done
+  echo "sqlcmd not found in container $CONTAINER." >&2
+  exit 1
+}
+
+# Runs the SQL on stdin against the resolved target. Extra arguments go to sqlcmd.
+run_sql() {
+  if [[ "$TARGET_MODE" == "container" ]]; then
+    docker exec -i -e SQLCMDPASSWORD="$SA_PASSWORD" "$CONTAINER" "$CONTAINER_SQLCMD" \
+      -S localhost -U sa -C -d "$LOCAL_DB" -b -W "$@" -i /dev/stdin
+  else
+    SQLCMDPASSWORD="$CS_PASSWORD" sqlcmd "${CS_FLAGS[@]}" "$@" -i /dev/stdin
+  fi
+}
+
+# CONTRACT §6 derivation. The server name and database that the target reports map to an environment.
+# Only the local container's TummlyDB is mapped. Its @@SERVERNAME is the container hostname, read live from docker.
+derive_environment() {
+  local server="$1" database="$2" local_host
+  local_host="$(docker inspect -f '{{.Config.Hostname}}' "$CONTAINER" 2>/dev/null || true)"
+  if [[ -n "$local_host" && "$server" == "$local_host" && "$database" == "$MAPPED_LOCAL_DB" ]]; then
+    echo "local"
+  else
+    echo "unmapped"
+  fi
+}
+
+# Build the SQL. Every value is validated above or below; only fixed words and checked names are interpolated.
 build_sql() {
   cat <<SQL
 SET NOCOUNT ON;
 SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
+IF @@SERVERNAME <> N'$PROBED_SERVER' OR DB_NAME() <> N'$PROBED_DB'
+    THROW 50005, 'Target changed after the environment check. No change made.', 1;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 DECLARE @Matches int = (SELECT COUNT(*) FROM dbo.Admins WHERE Email = N'$EMAIL');
@@ -143,8 +263,8 @@ UPDATE dbo.Admins SET CanApproveTrustIndicators = $AFTER WHERE Id = @AdminId;
 INSERT INTO dbo.AdminAuditEvents
     ([Id], [OccurredAtUtc], [Action], [ActorAdminUserId], [ActorIdentity], [TargetType], [TargetId], [RestaurantId], [DetailJson], [Succeeded], [CorrelationId])
 VALUES
-    (NEWID(), SYSUTCDATETIME(), N'$AUDIT_ACTION', NULL, N'script:$OS_USER', N'admin', CAST(@AdminId AS nvarchar(32)), NULL,
-     N'{"email":"$EMAIL","environment":"$ENVIRONMENT","before":' + CASE WHEN @Before = 1 THEN N'true' ELSE N'false' END
+    (NEWID(), SYSUTCDATETIME(), N'$AUDIT_ACTION', NULL, N'script:$OS_USER', N'staff_account', CAST(@AdminId AS nvarchar(32)), NULL,
+     N'{"email":"$EMAIL","environment":"$DERIVED_ENVIRONMENT","before":' + CASE WHEN @Before = 1 THEN N'true' ELSE N'false' END
      + N',"after":' + CASE WHEN $AFTER = 1 THEN N'true' ELSE N'false' END + N'}',
      1, NULL);
 COMMIT TRANSACTION;
@@ -152,106 +272,31 @@ SELECT Id, Email, FullName, Role, IsActive, CanApproveTrustIndicators FROM dbo.A
 SQL
 }
 
-find_container_sqlcmd() {
-  local candidate
-  for candidate in /opt/mssql-tools18/bin/sqlcmd /opt/mssql-tools/bin/sqlcmd; do
-    if docker exec "$CONTAINER" test -x "$candidate" 2>/dev/null; then
-      echo "$candidate"
-      return
-    fi
-  done
-  echo "sqlcmd not found in container $CONTAINER." >&2
+resolve_target
+echo "Target: $TARGET_LABEL."
+
+# Read the target's identity first. Its SQL name and database decide the environment.
+PROBE_LINE="$(printf 'SET NOCOUNT ON;\nSELECT @@SERVERNAME, DB_NAME();\n' | run_sql -h -1 -s '|' | sed -n '/[^[:space:]]/{p;q;}')" || {
+  echo "Could not read the target's server name and database. No change made." >&2
   exit 1
 }
-
-run_local_container() {
-  if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || true)" != "true" ]]; then
-    echo "Container $CONTAINER is not running. Start it (backend/TummlyDb/vps: docker compose up -d) and retry." >&2
-    exit 1
-  fi
-  if [[ ! -f "$VPS_ENV" ]]; then
-    echo "Missing $VPS_ENV (needs MSSQL_SA_PASSWORD)." >&2
-    exit 1
-  fi
-  local sa_password sqlcmd
-  sa_password="$(grep -E '^MSSQL_SA_PASSWORD=' "$VPS_ENV" | head -1 | cut -d= -f2-)"
-  if [[ -z "$sa_password" ]]; then
-    echo "MSSQL_SA_PASSWORD is empty in $VPS_ENV." >&2
-    exit 1
-  fi
-  sqlcmd="$(find_container_sqlcmd)"
-
-  echo "Target: container $CONTAINER, database $LOCAL_DB."
-  build_sql | docker exec -i -e SQLCMDPASSWORD="$sa_password" "$CONTAINER" \
-    "$sqlcmd" -S localhost -U sa -C -d "$LOCAL_DB" -b -W -i /dev/stdin
-}
-
-run_connection_string() {
-  # Split the ADO connection string with python (no secrets on the command line).
-  local -a fields
-  mapfile -d '' -t fields < <(CS="$CONNECTION_STRING" python3 -I -c '
-import os
-parts = {}
-for bit in os.environ["CS"].split(";"):
-    if "=" not in bit:
-        continue
-    key, value = bit.split("=", 1)
-    parts[key.strip().lower()] = value.strip()
-def first(*keys):
-    for key in keys:
-        if parts.get(key):
-            return parts[key]
-    return ""
-server = first("server", "data source", "address", "addr")
-database = first("database", "initial catalog")
-user = first("user id", "uid", "user")
-password = first("password", "pwd")
-encrypt = first("encrypt").lower() in ("true", "yes", "mandatory", "strict")
-trust = first("trustservercertificate").lower() in ("true", "yes")
-fields = [server, database, user, password, "1" if encrypt else "0", "1" if trust else "0"]
-print("\0".join(fields), end="")
-')
-  local server="${fields[0]:-}" database="${fields[1]:-}" user="${fields[2]:-}"
-  local password="${fields[3]:-}" encrypt="${fields[4]:-0}" trust="${fields[5]:-0}"
-
-  if [[ -z "$server" || -z "$database" || -z "$user" || -z "$password" ]]; then
-    echo "CONNECTION_STRING needs Server, Database, User Id and Password." >&2
-    exit 1
-  fi
-
-  if [[ "$ENVIRONMENT" == "local" ]]; then
-    local host="${server#tcp:}"
-    host="${host%%,*}"
-    host="${host%%\\*}"
-    case "$host" in
-      localhost | 127.0.0.1 | .) ;;
-      *)
-        echo "Refused: --environment local but CONNECTION_STRING points at $host." >&2
-        exit 3
-        ;;
-    esac
-  fi
-
-  if ! command -v sqlcmd >/dev/null 2>&1; then
-    echo "CONNECTION_STRING needs a host sqlcmd on PATH (go-sqlcmd or mssql-tools18)." >&2
-    exit 1
-  fi
-
-  local -a flags=(-S "$server" -d "$database" -U "$user" -b -W)
-  [[ "$encrypt" == "1" ]] && flags+=(-N)
-  [[ "$trust" == "1" ]] && flags+=(-C)
-
-  echo "Target: CONNECTION_STRING (server $server, database $database)."
-  build_sql | SQLCMDPASSWORD="$password" sqlcmd "${flags[@]}" -i /dev/stdin
-}
-
-if [[ -n "$CONNECTION_STRING" ]]; then
-  run_connection_string
-elif [[ "$ENVIRONMENT" == "local" ]]; then
-  run_local_container
-else
-  echo "Refused: --environment $ENVIRONMENT needs CONNECTION_STRING. The default target is the local container only." >&2
+IFS='|' read -r PROBED_SERVER PROBED_DB <<< "$PROBE_LINE"
+PROBED_SERVER="${PROBED_SERVER//[[:space:]]/}"
+PROBED_DB="${PROBED_DB//[[:space:]]/}"
+if [[ ! "$PROBED_SERVER" =~ $NAME_PATTERN || ! "$PROBED_DB" =~ $NAME_PATTERN ]]; then
+  echo "Refused: the target reported a server or database name this script does not allow. No change made." >&2
   exit 3
 fi
 
-echo "Done: $ACTION recorded for $EMAIL on $ENVIRONMENT (audit row $AUDIT_ACTION)."
+DERIVED_ENVIRONMENT="$(derive_environment "$PROBED_SERVER" "$PROBED_DB")"
+if [[ "$DERIVED_ENVIRONMENT" == "unmapped" ]]; then
+  echo "Refused: the target (server $PROBED_SERVER, database $PROBED_DB) is not a mapped environment. No change made." >&2
+  exit 3
+fi
+if [[ "$DERIVED_ENVIRONMENT" != "$ENVIRONMENT" ]]; then
+  echo "Refused: --environment $ENVIRONMENT, but the target is $DERIVED_ENVIRONMENT. No change made." >&2
+  exit 3
+fi
+
+build_sql | run_sql
+echo "Done: $ACTION recorded for $EMAIL on $DERIVED_ENVIRONMENT (audit row $AUDIT_ACTION)."

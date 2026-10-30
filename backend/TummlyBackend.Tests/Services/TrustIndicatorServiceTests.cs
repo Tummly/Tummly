@@ -127,6 +127,11 @@ namespace TummlyBackend.Tests.Services
                 NewAdmin(LockedApproverId, canApprove: true, isLocked: true)
             );
             _context.SaveChanges();
+            // The flag only counts with a grant row behind it: every approver here was granted by the script.
+            foreach (var id in new[] { EditorId, PublisherId, ThirdAdminId, InactiveApproverId, LockedApproverId })
+            {
+                WriteApproverAudit(id, AdminAuditActions.TrustApproverGrant);
+            }
         }
 
         [Fact]
@@ -924,6 +929,51 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_FlagWithoutGrantAuditRowRefused()
+        {
+            // Someone set the flag directly in the database. No script grant row exists for this admin.
+            var nonApprover = await _context.Admins.SingleAsync(row => row.Id == NonApproverId);
+            nonApprover.CanApproveTrustIndicators = true;
+            await _context.SaveChangesAsync();
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(NonApproverId, "key-flag-only");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_FlagWithLatestRevokeAuditRowRefused()
+        {
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverRevoke);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-revoked");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_FlagWithLatestGrantAuditRowAllowed()
+        {
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverRevoke);
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverGrant);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-regranted"));
+
+            Assert.Equal(1, published.Version);
+        }
+
+        [Fact]
         public async Task Publish_SeparateApproverPublishes()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
@@ -1327,6 +1377,24 @@ namespace TummlyBackend.Tests.Services
                 CanApproveTrustIndicators = canApprove,
                 CreatedAt = DateTime.UtcNow,
             };
+
+        /// <summary>Writes a script-style approver row (grant or revoke) for one admin, as the provisioning script does.</summary>
+        private void WriteApproverAudit(int adminId, string action)
+        {
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
+                    Action = action,
+                    ActorIdentity = "script:tester",
+                    TargetType = AdminAuditTargetTypes.StaffAccount,
+                    TargetId = adminId.ToString(),
+                    DetailJson = "{}",
+                }
+            );
+            _context.SaveChanges();
+        }
 
         private async Task<List<AdminAuditEvent>> AuditAsync(string action) =>
             await _context.AdminAuditEvents.Where(e => e.Action == action).ToListAsync();

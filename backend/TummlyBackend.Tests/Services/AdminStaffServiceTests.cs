@@ -234,6 +234,37 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task AdminStaff_DisableClearsApproverFlagAndAudits()
+        {
+            var actor = await AddStaffAsync("boss@tummly.com", "Admin");
+            var target = await AddStaffAsync("second@tummly.com", "Admin");
+            target.CanApproveTrustIndicators = true;
+            await _context.SaveChangesAsync();
+
+            var outcome = await _sut.DisableAsync(actor.Id, target.Id, ValidReason);
+
+            Assert.True(outcome.Succeeded);
+            Assert.False((await _context.Admins.AsNoTracking().SingleAsync(a => a.Id == target.Id)).CanApproveTrustIndicators);
+            var revoke = await _context.AdminAuditEvents.SingleAsync(e => e.Action == AdminAuditActions.TrustApproverRevoke);
+            Assert.Equal(target.Id.ToString(), revoke.TargetId);
+            Assert.Equal(actor.Id, revoke.ActorAdminUserId);
+            Assert.Equal(actor.Email, revoke.ActorIdentity);
+            Assert.Contains("\"before\":true,\"after\":false", revoke.DetailJson);
+            Assert.Single(await _context.AdminAuditEvents.Where(e => e.Action == AdminAuditActions.StaffDisable).ToListAsync());
+        }
+
+        [Fact]
+        public async Task Disable_WithoutApproverFlag_WritesNoRevokeRow()
+        {
+            var actor = await AddStaffAsync("boss@tummly.com", "Admin");
+            var target = await AddStaffAsync("second@tummly.com", "Admin");
+
+            Assert.True((await _sut.DisableAsync(actor.Id, target.Id, ValidReason)).Succeeded);
+
+            Assert.False(await _context.AdminAuditEvents.AnyAsync(e => e.Action == AdminAuditActions.TrustApproverRevoke));
+        }
+
+        [Fact]
         public async Task Disable_AlreadyDisabled_IsNoOpWithoutAuditRow()
         {
             var actor = await AddStaffAsync("boss@tummly.com", "Admin");

@@ -661,14 +661,17 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// True only for a usable Admin-role row (Role Admin, active, not locked) with the approver flag.
-        /// An unknown id is not an approver. Same usability rule as AdminStaffService.
+        /// True only for a usable Admin-role row (Role Admin, active, not locked) whose approver flag is set
+        /// and whose latest trust.approver_grant / trust.approver_revoke audit row is a grant (CONTRACT §6).
+        /// A flag with no grant row behind it, or with a later revoke, is not an approver. An unknown id is not
+        /// an approver. The usability rule is the same as AdminStaffService.
         /// </summary>
         private async Task<bool> IsApproverAsync(
             int adminUserId,
             CancellationToken cancellationToken
-        ) =>
-            await _context.Admins
+        )
+        {
+            var usable = await _context.Admins
                 .AsNoTracking()
                 .AnyAsync(
                     row => row.Id == adminUserId
@@ -678,6 +681,22 @@ namespace TummlyBackend.Services
                         && row.CanApproveTrustIndicators,
                     cancellationToken
                 );
+            if (!usable)
+            {
+                return false;
+            }
+
+            var targetId = adminUserId.ToString();
+            var latestAction = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row => row.TargetId == targetId
+                    && (row.Action == AdminAuditActions.TrustApproverGrant
+                        || row.Action == AdminAuditActions.TrustApproverRevoke))
+                .OrderByDescending(row => row.OccurredAtUtc)
+                .Select(row => row.Action)
+                .FirstOrDefaultAsync(cancellationToken);
+            return latestAction == AdminAuditActions.TrustApproverGrant;
+        }
 
         private async Task<string> ActorIdentityAsync(
             int adminUserId,
