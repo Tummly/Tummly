@@ -20,16 +20,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IAdminAuditService _audit;
         private readonly TimeProvider _clock;
+        private readonly ITrustEvidenceLinkChecker _evidenceLinks;
 
         public TrustIndicatorService(
             ApplicationDbContext context,
             IAdminAuditService audit,
-            TimeProvider clock
+            TimeProvider clock,
+            ITrustEvidenceLinkChecker evidenceLinks
         )
         {
             _context = context;
             _audit = audit;
             _clock = clock;
+            _evidenceLinks = evidenceLinks;
         }
 
         public async Task<AdminTrustIndicatorsViewDto> GetAdminViewAsync(
@@ -317,6 +320,22 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // CONTRACT §5 item 6: only after the rule gate passes, and before the no-change check.
+            var linkErrors = await EvidenceLinkErrorsAsync(rows, cancellationToken);
+            if (linkErrors.Count > 0)
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "publish_gate_failed",
+                    "The draft has items that cannot be published.",
+                    linkErrors,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
             var latestSnapshot = await _context.TrustIndicatorPublications
                 .AsNoTracking()
                 .OrderByDescending(row => row.Version)
@@ -428,6 +447,40 @@ namespace TummlyBackend.Services
                 .OrderBy(item => item.ItemNumber)
                 .Select(ToPublicDto)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Checks the evidence link of each enabled item that has one, in item order. Returns one line
+        /// per failed item. An unparseable link cannot be fetched, so it fails like a network error.
+        /// </summary>
+        private async Task<List<string>> EvidenceLinkErrorsAsync(
+            IEnumerable<TrustIndicator> rows,
+            CancellationToken cancellationToken
+        )
+        {
+            var errors = new List<string>();
+            foreach (var row in rows.OrderBy(item => item.ItemNumber))
+            {
+                if (!row.Enabled || string.IsNullOrWhiteSpace(row.EvidenceUrl))
+                {
+                    continue;
+                }
+
+                var label = $"Item {row.ItemNumber:D2}";
+                if (!Uri.TryCreate(row.EvidenceUrl.Trim(), UriKind.Absolute, out var uri))
+                {
+                    errors.Add($"{label}: evidence link failed (network error).");
+                    continue;
+                }
+
+                var result = await _evidenceLinks.CheckAsync(uri, cancellationToken);
+                if (!result.Ok)
+                {
+                    errors.Add($"{label}: evidence link failed ({result.Detail}).");
+                }
+            }
+
+            return errors;
         }
 
         private async Task<TrustIndicatorOutcome<T>> RefuseAsync<T>(

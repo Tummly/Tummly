@@ -931,6 +931,12 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddScoped<ICompaniesHouseSearchService, CompaniesHouseSearchService>();
 
+// Redirects are followed by TrustEvidenceLinkChecker itself so each hop is checked for https.
+builder.Services
+    .AddHttpClient(TrustEvidenceLinkChecker.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<ITrustEvidenceLinkChecker, TrustEvidenceLinkChecker>();
+
 builder.Services.AddHttpClient(
     RecaptchaVerifier.HttpClientName,
     client =>

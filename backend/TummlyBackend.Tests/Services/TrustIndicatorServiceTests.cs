@@ -98,6 +98,7 @@ namespace TummlyBackend.Tests.Services
 
         private readonly ApplicationDbContext _context;
         private readonly AdjustableTimeProvider _clock;
+        private readonly FakeTrustEvidenceLinkChecker _evidenceLinks = new();
         private readonly TrustIndicatorService _sut;
 
         public TrustIndicatorServiceTests()
@@ -110,7 +111,8 @@ namespace TummlyBackend.Tests.Services
             _sut = new TrustIndicatorService(
                 _context,
                 new AdminAuditService(_context, _clock),
-                _clock
+                _clock,
+                _evidenceLinks
             );
             TrustIndicatorCatalogSeed.EnsureSeededAsync(_context).GetAwaiter().GetResult();
             _context.Admins.AddRange(
@@ -487,6 +489,41 @@ namespace TummlyBackend.Tests.Services
                 "Item 13: evidence expired on 2026-10-27. Disable it or renew the evidence.",
                 outcome.Details!
             );
+        }
+
+        [Fact]
+        public async Task Publish_EvidenceLinkFailureBlocksPublish()
+        {
+            await PublishValidAsync();
+            const string url = "https://ico.example/item13";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with { EvidenceUrl = url }));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-dead-link");
+
+            Assert.False(outcome.Succeeded);
+            Assert.Equal("publish_gate_failed", outcome.Code);
+            Assert.Contains("Item 13: evidence link failed (HTTP 404).", outcome.Details!);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Contains("Item 13: evidence link failed (HTTP 404).", refused.DetailJson);
+        }
+
+        [Fact]
+        public async Task Publish_DisabledItemsAreNotChecked()
+        {
+            const string disabledUrl = "https://ico.example/item13-disabled";
+            _evidenceLinks.Results[disabledUrl] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13) with { EvidenceUrl = disabledUrl }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-disabled-link"));
+
+            Assert.Equal(1, published.Version);
+            Assert.DoesNotContain(disabledUrl, _evidenceLinks.CheckedUrls);
+            Assert.Contains("https://ico.example/proof", _evidenceLinks.CheckedUrls);
         }
 
         [Fact]
