@@ -10,9 +10,33 @@ import {
 /**
  * Public certification / scheme badges stay withheld until the Director
  * approves each claim with a working proof link (ENG01, E3). The 15-indicator
- * trust model (ENG10.3) replaces this gate.
+ * trust model (ENG10.3) replaces this gate. Keep this a literal `false`; the
+ * dev preview below is the only way to see the claims before approval.
  */
-const PUBLIC_TRUST_CLAIMS_APPROVED = false
+export const PUBLIC_TRUST_CLAIMS_APPROVED = false
+
+/** localStorage key that turns the dev-only trust preview on (value "1"). */
+const TRUST_PREVIEW_KEY = "tummly.trustPreview"
+
+function readTrustPreviewFlag(): string | null {
+  try {
+    if (typeof localStorage === "undefined") return null
+    return localStorage.getItem(TRUST_PREVIEW_KEY)
+  } catch {
+    // Storage can be blocked by browser settings; treat as no preview.
+    return null
+  }
+}
+
+/**
+ * Whether public trust indicators may render. A production build never
+ * previews, even with the local key set.
+ */
+export function trustClaimsVisible(): boolean {
+  if (PUBLIC_TRUST_CLAIMS_APPROVED) return true
+  if (!import.meta.env.DEV) return false
+  return readTrustPreviewFlag() === "1"
+}
 
 /** The gate every public helper goes through; exported so tests can flip it. */
 export function gateTrustClaims<T>(
