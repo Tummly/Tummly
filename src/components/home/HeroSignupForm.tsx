@@ -30,6 +30,8 @@ export type HeroSignupFormProps = {
   legalNote?: "agree" | "read"
   /** Merged onto the legal note only (e.g. a wider max width). */
   legalNoteClassName?: string
+  /** Width of the primary button from `sm` up. Default 176px (home hero). */
+  buttonWidthClassName?: string
   className?: string
 }
 
@@ -46,6 +48,7 @@ export function HeroSignupForm({
   align = "center",
   legalNote = "agree",
   legalNoteClassName,
+  buttonWidthClassName = "sm:w-[176px]",
   className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
@@ -115,7 +118,10 @@ export function HeroSignupForm({
           <MarketingButton
             type="submit"
             variant="primary"
-            className="h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px] sm:w-[176px]"
+            className={cn(
+              "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
+              buttonWidthClassName,
+            )}
           >
             {primaryLabel}
           </MarketingButton>

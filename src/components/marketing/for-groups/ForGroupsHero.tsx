@@ -86,7 +86,8 @@ export function ForGroupsHero() {
             primaryLabel={FOR_GROUPS_HERO.primaryLabel}
             planIntent={FOR_GROUPS_HERO.planIntent}
             legalNote="read"
-            legalNoteClassName="max-w-[382px]"
+            // Figma `5661:20525`: 444px field, 10px gap, 119px button.
+            buttonWidthClassName="sm:w-[119px]"
             className="lg:max-w-[573px]"
           />
         </div>

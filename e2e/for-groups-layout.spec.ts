@@ -60,9 +60,6 @@ for (const [width, sideBySide] of [
 }
 
 test("Locations stepper sits beside its label at 1440px", async ({ page }) => {
-  // Known fail: `min-[1320px]:flex-row` is emitted before `lg:flex-col`, so the
-  // stepper stacks at every width from 1024px (ForGroupsPricing.tsx).
-  test.fail()
   await openForGroups(page, 1440)
   const pricing = section(page, "Build a plan around your group.")
   await pricing.scrollIntoViewIfNeeded()

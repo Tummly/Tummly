@@ -218,7 +218,7 @@ export function ForGroupsCampaigns() {
       imageHeight={campaignsImage.height}
       balanceToMedia
       fixedCopyHeight
-      bodyClassName="max-w-[567px]"
+      bodyClassName="max-w-[612px]"
       pointBodyClassName={POINT_BODY_TIGHT}
     />
   )

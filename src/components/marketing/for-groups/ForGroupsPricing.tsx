@@ -64,7 +64,8 @@ function PlanFeatureRow({ row }: { row: PricingFeatureRow }) {
     <div
       className={cn(
         PRICING_PLAN_FEATURE_ROW_CLASS,
-        "max-lg:flex-wrap max-lg:whitespace-normal",
+        // Figma `5661:22463`: 14px text on an 18.2px line.
+        "leading-[18.228px] max-lg:flex-wrap max-lg:whitespace-normal",
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -162,7 +163,7 @@ export function ForGroupsPricing() {
         <div className="flex w-full flex-col items-start gap-[46px] lg:flex-row">
           <div className="flex w-full min-w-0 flex-1 flex-col gap-10 py-6">
             <div className="flex flex-col gap-3">
-              <h3 className="m-0 font-jakarta text-[30px] font-semibold leading-none text-[#141414]">
+              <h3 className="m-0 font-jakarta text-[30px] font-semibold leading-[37.8px] text-[#141414]">
                 {FOR_GROUPS_PRICING.planName}
               </h3>
               <p className="m-0 max-w-[526px] font-sans text-base font-normal leading-[21px] text-[#141414]">
@@ -170,59 +171,67 @@ export function ForGroupsPricing() {
               </p>
             </div>
 
+            {/* Figma `5661:22463`: 40px under the title, 20px between price and rows. */}
             <div className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                {groupPrice != null ? (
-                  <p className="m-0 text-[#141414]">
-                    <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
-                      {groupPrice.monthly}
-                    </span>
-                    <span
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                  {groupPrice != null ? (
+                    <p className="m-0 min-h-[47px] text-[#141414]">
+                      <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
+                        {groupPrice.monthly}
+                      </span>
+                      <span
+                        className={cn(
+                          PRICING_PLAN_PRICE_SUFFIX_CLASS,
+                          "whitespace-nowrap",
+                        )}
+                      >
+                        {FOR_GROUPS_PRICING.priceSuffix}
+                      </span>
+                    </p>
+                  ) : (
+                    <PublicPlanPriceFallback status={pricesStatus} />
+                  )}
+                  {groupPrice != null ? (
+                    <p
                       className={cn(
-                        PRICING_PLAN_PRICE_SUFFIX_CLASS,
-                        "whitespace-nowrap",
+                        PRICING_PLAN_PRICE_SUBLINE_CLASS,
+                        "min-h-0 leading-[18.228px]",
                       )}
                     >
-                      {FOR_GROUPS_PRICING.priceSuffix}
-                    </span>
-                  </p>
-                ) : (
-                  <PublicPlanPriceFallback status={pricesStatus} />
-                )}
-                {groupPrice != null ? (
-                  <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "min-h-0")}>
-                    {`${groupPrice.annual}/year`}
-                  </p>
-                ) : null}
+                      {`${groupPrice.annual}/year`}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex w-full flex-col gap-4">
+                  <MarketingButton asChild variant="primary" className="w-full">
+                    <RequestTrialLink
+                      planIntent={{ plan: "Group", cadence: "monthly" }}
+                    >
+                      {FOR_GROUPS_PRICING.ctaLabel}
+                    </RequestTrialLink>
+                  </MarketingButton>
+                  <MarketingButton asChild variant="secondary" className="w-full">
+                    <Link to={FOR_GROUPS_PRICING.compareTo}>
+                      {FOR_GROUPS_PRICING.compareLabel}
+                    </Link>
+                  </MarketingButton>
+                </div>
               </div>
 
-              <div className="flex w-full flex-col gap-4">
-                <MarketingButton asChild variant="primary" className="w-full">
-                  <RequestTrialLink
-                    planIntent={{ plan: "Group", cadence: "monthly" }}
-                  >
-                    {FOR_GROUPS_PRICING.ctaLabel}
-                  </RequestTrialLink>
-                </MarketingButton>
-                <MarketingButton asChild variant="secondary" className="w-full">
-                  <Link to={FOR_GROUPS_PRICING.compareTo}>
-                    {FOR_GROUPS_PRICING.compareLabel}
-                  </Link>
-                </MarketingButton>
+              <div className="flex flex-col gap-5.5">
+                {FOR_GROUPS_PRICING.coreFeatures.map((row) => (
+                  <PlanFeatureRow key={row.label} row={row} />
+                ))}
+                <hr className="m-0 border-[#e0e0e0]" />
+                {FOR_GROUPS_PRICING.allowanceFeatures.map((row) => (
+                  <PlanFeatureRow
+                    key={`${row.label}-${row.value}`}
+                    row={row}
+                  />
+                ))}
               </div>
-            </div>
-
-            <div className="flex flex-col gap-5.5">
-              {FOR_GROUPS_PRICING.coreFeatures.map((row) => (
-                <PlanFeatureRow key={row.label} row={row} />
-              ))}
-              <hr className="m-0 border-[#e0e0e0]" />
-              {FOR_GROUPS_PRICING.allowanceFeatures.map((row) => (
-                <PlanFeatureRow
-                  key={`${row.label}-${row.value}`}
-                  row={row}
-                />
-              ))}
             </div>
           </div>
 
@@ -242,7 +251,7 @@ export function ForGroupsPricing() {
                 </div>
               </div>
 
-              <div className="flex w-full flex-col items-start gap-5 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-[30px] lg:flex-col lg:items-start min-[1320px]:flex-row min-[1320px]:items-center">
+              <div className="flex w-full flex-col items-start gap-5 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-[30px] lg:max-[1320px]:flex-col lg:max-[1320px]:items-start">
                 <div className="flex min-w-0 flex-col gap-2">
                   <p className="m-0 font-sans text-[22px] font-normal leading-none text-[#141414] sm:text-[26px]">
                     {calculator.locationLabel}

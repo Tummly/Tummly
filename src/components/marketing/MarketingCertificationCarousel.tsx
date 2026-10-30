@@ -13,6 +13,10 @@ import ukGdprCert from "@/assets/svg/marketing/product/certs/uk-gdpr.svg"
 import privacyChoicesCert from "@/assets/svg/marketing/product/certs/privacy-choices.svg"
 import optInMarketingCert from "@/assets/svg/marketing/product/certs/opt-in-marketing.svg"
 import dataRightsCert from "@/assets/svg/marketing/product/certs/data-rights.svg"
+import {
+  carouselScrollStep,
+  measureCarouselEdges,
+} from "@/components/marketing/marketingCertificationScroll"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -48,16 +52,6 @@ const CERTIFICATION_ICONS: Readonly<Record<string, string>> = {
   "opt-in-marketing": optInMarketingCert,
   "data-rights": dataRightsCert,
 }
-
-function measureEdges(track: HTMLElement) {
-  return {
-    start: track.scrollLeft <= 1,
-    end: track.scrollLeft + track.clientWidth >= track.scrollWidth - 1,
-  }
-}
-
-/** Share of the visible track one previous / next click scrolls. */
-const CAROUSEL_STEP_RATIO = 0.75
 
 /**
  * 48×48 bordered arrow. `aria-disabled` (not `disabled`) keeps keyboard focus on
@@ -95,7 +89,7 @@ export function MarketingCertificationCarousel({
     }
     const sync = () => {
       setEdges((prev) => {
-        const next = measureEdges(track)
+        const next = measureCarouselEdges(track)
         return prev.start === next.start && prev.end === next.end ? prev : next
       })
     }
@@ -110,7 +104,7 @@ export function MarketingCertificationCarousel({
   const scrollTrack = (direction: -1 | 1) => {
     const track = trackRef.current
     track?.scrollBy({
-      left: direction * track.clientWidth * CAROUSEL_STEP_RATIO,
+      left: carouselScrollStep(direction, track.clientWidth),
       behavior: "smooth",
     })
   }
@@ -121,7 +115,7 @@ export function MarketingCertificationCarousel({
         ref={trackRef}
         id={trackId}
         onScroll={(event) => {
-          setEdges(measureEdges(event.currentTarget))
+          setEdges(measureCarouselEdges(event.currentTarget))
         }}
         className="m-0 flex w-full list-none gap-6 overflow-x-auto p-0 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >

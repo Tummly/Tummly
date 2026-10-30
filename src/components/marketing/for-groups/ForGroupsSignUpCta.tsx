@@ -16,7 +16,7 @@ export function ForGroupsSignUpCta() {
       editorialBackgroundWidth={forGroupsSignUpImage.width}
       editorialBackgroundHeight={forGroupsSignUpImage.height}
       editorialAspectClass="lg:aspect-[1668/615] lg:min-h-[615px]"
-      bodyClassName="md:max-w-[544px]"
+      bodyClassName="md:max-w-[560px]"
       plateClassName="rounded-[12px]"
       legalNoteClassName="leading-[18px]"
       socialButtonClassName="bg-[#fafafa] hover:bg-[#fafafa]/90"
