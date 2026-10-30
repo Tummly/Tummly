@@ -14,18 +14,61 @@ test.describe("Home hero signup (Figma 5433:12691)", () => {
     await expect(hero.getByRole("link", { name: "Privacy Notice" })).toHaveAttribute("href", "/privacy")
   })
 
-  test("follows Figma: button line heights, campaign still, no extra chrome", async ({ page }) => {
+  test("follows Figma: button line heights and the campaign video", async ({ page }) => {
     await openHome(page)
     const hero = sectionOf(page, /Give your customers more reasons to come back/)
     // Figma Primary button label 22px, Secondary 20px.
     await expect(hero.getByRole("button", { name: "Start 30-day Pilot" })).toHaveCSS("line-height", "22px")
     const platform = sectionOf(page, /Make customer feedback useful/)
     await expect(platform.getByRole("link", { name: "Explore product features" })).toHaveCSS("line-height", "20px")
-    // Hero visual is the Figma still until the new video is uploaded.
-    await expect(hero.locator("video")).toHaveCount(0)
+    // Campaign results loop; its first frame (the pizza still) is the poster.
+    const video = hero.locator("video")
+    await expect(video).toBeVisible()
+    await expect(video).toHaveAttribute("poster", /hero-still/)
+    await expect(video.locator("source")).toHaveAttribute(
+      "src",
+      /\/marketing\/home\/hero-campaign-results-loop-1080\.mp4$/,
+    )
+  })
+
+  test("reduced motion shows the campaign still, not the video", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await openHome(page)
+    const hero = sectionOf(page, /Give your customers more reasons to come back/)
     await expect(hero.locator('img[src*="hero-still"]')).toBeVisible()
-    // The fixed demo QR chip is not in the Figma frames.
-    await expect(page.getByRole("link", { name: "Scan to try on your phone" })).toHaveCount(0)
+    await expect(hero.locator("video")).toHaveCount(0)
+  })
+
+  test("the fixed demo QR chip opens on hover and links to the product demo", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await openHome(page)
+    const chip = page.getByRole("link", { name: "Scan to try on your phone" })
+    await expect(chip).toBeVisible()
+    await expect(chip).toHaveAttribute("href", "/product-demo")
+    await expect(chip).toHaveAttribute("aria-expanded", "false")
+    await chip.hover()
+    await expect(chip).toHaveAttribute("aria-expanded", "true")
+  })
+
+  test("the fixed demo QR chip shows on marketing pages only", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const chip = page.getByRole("link", { name: "Scan to try on your phone" })
+    for (const path of ["/product", "/for-groups", "/about"]) {
+      await page.goto(path)
+      await expect(chip, path).toBeVisible()
+    }
+    for (const path of ["/signup", "/login", "/privacy"]) {
+      await page.goto(path)
+      // Wait for the page to render before checking the chip is absent.
+      await expect(page.getByRole("heading").first()).toBeVisible()
+      await expect(chip, path).toHaveCount(0)
+    }
+  })
+
+  test("the fixed demo QR chip is hidden below lg", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await openHome(page)
+    await expect(page.getByRole("link", { name: "Scan to try on your phone" })).toBeHidden()
   })
 
   test("a valid work email continues to Pilot signup", async ({ page }) => {

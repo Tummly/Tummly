@@ -5,6 +5,7 @@ import {
   MARKETING_FOOTER_COMPANY_DISCLOSURE,
   MARKETING_FOOTER_LEGAL,
   MARKETING_FOOTER_SOCIAL,
+  showsMarketingDemoQr,
 } from "@/constants/marketingNav"
 
 describe("marketing footer", () => {
@@ -53,5 +54,44 @@ describe("marketing footer", () => {
       "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
       "Registered office: 71–75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
     ])
+  })
+})
+
+describe("fixed demo QR", () => {
+  it("shows on the marketing pages", () => {
+    for (const path of [
+      "/",
+      "/product",
+      "/how-it-works",
+      "/pricing",
+      "/custom-plan",
+      "/30-day-pilot",
+      "/for-groups",
+      "/qr-materials",
+      "/ai-assistant",
+      "/trust-privacy",
+      "/about",
+      "/faqs",
+      "/pricing/",
+    ]) {
+      expect(showsMarketingDemoQr(path), path).toBe(true)
+    }
+  })
+
+  it("stays off auth, legal, help, demo and unknown pages", () => {
+    for (const path of [
+      "/login",
+      "/signup",
+      "/start",
+      "/privacy",
+      "/terms",
+      "/help-centre",
+      "/product-demo",
+      "/unsubscribe",
+      "/single-dashboard",
+      "/no-such-page",
+    ]) {
+      expect(showsMarketingDemoQr(path), path).toBe(false)
+    }
   })
 })

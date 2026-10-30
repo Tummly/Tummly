@@ -1,6 +1,8 @@
 import { Outlet, useLocation } from "react-router-dom"
 
+import { MarketingFixedDemoQr } from "@/components/marketing/MarketingFixedDemoQr"
 import MarketingHeader from "@/components/marketing/MarketingHeader"
+import { showsMarketingDemoQr } from "@/constants/marketingNav"
 import {
   marketingBodyChromePadding,
   marketingChromeBackground,
@@ -68,6 +70,7 @@ function MainLayout() {
           <Outlet />
         </div>
       </div>
+      {showsMarketingDemoQr(pathname) ? <MarketingFixedDemoQr /> : null}
     </div>
   )
 }

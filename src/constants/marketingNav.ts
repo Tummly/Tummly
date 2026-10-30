@@ -51,6 +51,30 @@ export const MARKETING_DEMO_HREF: MarketingNavHref = {
   to: MARKETING_DEMO_PATH,
 };
 
+/**
+ * Marketing pages that show the fixed "Scan to try on your phone" demo QR.
+ * Legal, Help Centre, auth and 404 pages do not.
+ */
+export const MARKETING_DEMO_QR_PATHS: ReadonlySet<string> = new Set([
+  "/",
+  MARKETING_PRODUCT_PATH,
+  MARKETING_HOW_IT_WORKS_PATH,
+  MARKETING_PRICING_PATH,
+  MARKETING_CUSTOM_PLAN_PATH,
+  MARKETING_PILOT_PATH,
+  MARKETING_FOR_GROUPS_PATH,
+  MARKETING_QR_MATERIALS_PATH,
+  MARKETING_AI_ASSISTANT_PATH,
+  MARKETING_TRUST_PRIVACY_PATH,
+  MARKETING_ABOUT_PATH,
+  MARKETING_FAQS_PATH,
+]);
+
+export function showsMarketingDemoQr(pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return MARKETING_DEMO_QR_PATHS.has(path);
+}
+
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
   {
     id: "product",
