@@ -167,7 +167,7 @@ namespace TummlyBackend.Tests.Services
                 errors
             );
 
-            Assert.Contains("CTA type must be None, ExternalProof or InternalPage.", errors);
+            Assert.Contains("CTA type must be None, ExternalProof, InternalPage or CookieSettings.", errors);
             Assert.Equal("None", result.CtaType);
         }
 
@@ -549,6 +549,22 @@ namespace TummlyBackend.Tests.Services
                 new[] { "Item 03: Roadmap items cannot use verified or certified wording." },
                 Gate(roadmap)
             );
+        }
+
+        [Fact]
+        public void PublishGate_EnabledVerifiedCredentialNeedsIssuedOn()
+        {
+            var completion = SeedRow(2, enabled: true);
+            completion.EvidenceUrl = "https://ico.example/completion";
+            completion.IssuedOn = null;
+
+            var errors = Gate(completion);
+
+            Assert.Contains("Item 02: a completion record needs an issued date.", errors);
+
+            var dated = SeedRow(2, enabled: true);
+            dated.EvidenceUrl = "https://ico.example/completion";
+            Assert.Empty(Gate(dated));
         }
 
         [Fact]

@@ -143,6 +143,7 @@ namespace TummlyBackend.Tests.Services
             blank.IconKey = null;
             blank.AltText = string.Empty;
             blank.Enabled = true;
+            blank.CtaType = TrustCtaType.InternalPage;
             // A row an admin wrote by hand: its copy must survive the seed.
             var edited = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 4);
             edited.Status = TrustIndicatorStatus.QaPending;
@@ -159,11 +160,32 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("roadmap-cyber-essentials", backfilled.Values.IconKey);
             Assert.Equal("Cyber Essentials", backfilled.Values.AltText);
             Assert.True(backfilled.Values.Enabled);
-            Assert.Equal("None", backfilled.Values.CtaType);
+            Assert.Equal("InternalPage", backfilled.Values.CtaType);
             var kept = view.Draft[3];
             Assert.Equal("QaPending", kept.Values.Status);
             Assert.Equal(string.Empty, kept.Values.StatusLabel);
             Assert.Equal("Our own note", kept.Values.Tooltip);
+        }
+
+        [Fact]
+        public async Task Seed_DoesNotBackfillAdminEditedBlankRow()
+        {
+            // Blank copy, but an admin edited it (for example to set an evidence link): the seed leaves it alone.
+            var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 5);
+            row.Status = TrustIndicatorStatus.QaPending;
+            row.StatusLabel = string.Empty;
+            row.Tooltip = string.Empty;
+            row.EvidenceUrl = "https://custom.example/iso-27001";
+            row.LastEditedByAdminUserId = EditorId;
+            await _context.SaveChangesAsync();
+            var before = TrustIndicatorRules.ToValues(row);
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.Equal(before, TrustIndicatorRules.ToValues(row));
+            Assert.Equal(EditorId, row.LastEditedByAdminUserId);
+            Assert.Equal(TrustIndicatorStatus.QaPending, row.Status);
+            Assert.Equal("https://custom.example/iso-27001", row.EvidenceUrl);
         }
 
         [Fact]

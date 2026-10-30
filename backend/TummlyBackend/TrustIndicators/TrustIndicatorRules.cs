@@ -196,7 +196,7 @@ namespace TummlyBackend.TrustIndicators
             var ctaTypeKnown = TryParseExact(ctaTypeRaw, out TrustCtaType ctaType);
             if (!ctaTypeKnown)
             {
-                errors.Add("CTA type must be None, ExternalProof or InternalPage.");
+                errors.Add("CTA type must be None, ExternalProof, InternalPage or CookieSettings.");
                 ctaType = TrustCtaType.None;
             }
 

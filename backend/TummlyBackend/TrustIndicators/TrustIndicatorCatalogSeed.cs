@@ -208,8 +208,12 @@ namespace TummlyBackend.TrustIndicators
                     continue;
                 }
 
-                // Blank copy means nobody has edited the row, so it takes the approved copy.
-                if (row.Tooltip.Length == 0 && row.StatusLabel.Length == 0)
+                // Only a row no admin ever edited (and still blank) takes the approved copy.
+                if (
+                    row.LastEditedByAdminUserId == null
+                    && row.Tooltip.Length == 0
+                    && row.StatusLabel.Length == 0
+                )
                 {
                     ApplyCopy(row, item);
                     row.UpdatedAtUtc = now;
