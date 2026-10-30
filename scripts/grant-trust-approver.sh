@@ -127,7 +127,18 @@ DECLARE @Matches int = (SELECT COUNT(*) FROM dbo.Admins WHERE Email = N'$EMAIL')
 IF @Matches <> 1
     THROW 50001, 'Expected exactly one Admin with that email. No change made.', 1;
 DECLARE @AdminId int = (SELECT Id FROM dbo.Admins WHERE Email = N'$EMAIL');
+DECLARE @Role nvarchar(max) = (SELECT Role FROM dbo.Admins WHERE Id = @AdminId);
+DECLARE @IsActive bit = (SELECT IsActive FROM dbo.Admins WHERE Id = @AdminId);
+DECLARE @IsLocked bit = (SELECT IsLocked FROM dbo.Admins WHERE Id = @AdminId);
 DECLARE @Before bit = (SELECT CanApproveTrustIndicators FROM dbo.Admins WHERE Id = @AdminId);
+-- A grant needs a usable approver account. THROW aborts the batch and rolls back under XACT_ABORT
+-- (RAISERROR does not), so each refusal is a THROW. A revoke works on any matching row.
+IF $AFTER = 1 AND @Role <> N'Admin'
+    THROW 50002, 'Grant refused: the account Role is not Admin. No change made.', 1;
+IF $AFTER = 1 AND @IsActive = 0
+    THROW 50003, 'Grant refused: the account is not active. No change made.', 1;
+IF $AFTER = 1 AND @IsLocked = 1
+    THROW 50004, 'Grant refused: the account is locked. No change made.', 1;
 UPDATE dbo.Admins SET CanApproveTrustIndicators = $AFTER WHERE Id = @AdminId;
 INSERT INTO dbo.AdminAuditEvents
     ([Id], [OccurredAtUtc], [Action], [ActorAdminUserId], [ActorIdentity], [TargetType], [TargetId], [RestaurantId], [DetailJson], [Succeeded], [CorrelationId])

@@ -166,27 +166,78 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public void No_Controller_Action_Accepts_CanApproveTrustIndicators()
+        public void No_Controller_Action_Reaches_Admin_Or_CanApproveTrustIndicators()
         {
-            // No endpoint may set the approver flag: no action parameter type may carry it.
-            var bodyTypes = typeof(AdminTrustIndicatorsController).Assembly
+            // No endpoint may set the approver flag. Walk every action parameter type and
+            // all of its public properties, recursively, and fail on the Admin entity or on
+            // any type that carries CanApproveTrustIndicators.
+            var roots = typeof(AdminTrustIndicatorsController).Assembly
                 .GetTypes()
                 .Where(type => typeof(ControllerBase).IsAssignableFrom(type) && !type.IsAbstract)
                 .SelectMany(type => type.GetMethods(
                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                 .SelectMany(method => method.GetParameters())
                 .Select(parameter => parameter.ParameterType)
-                .Distinct()
                 .ToList();
 
-            var offenders = bodyTypes
-                .Where(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Any(property => property.Name == nameof(Admin.CanApproveTrustIndicators)))
-                .Select(type => type.FullName)
-                .ToList();
+            var offenders = new List<string>();
+            var visited = new HashSet<Type>();
+            foreach (var root in roots)
+            {
+                WalkForApproverFlag(root, visited, offenders);
+            }
 
             Assert.Empty(offenders);
-            Assert.NotNull(typeof(Admin).GetProperty(nameof(Admin.CanApproveTrustIndicators)));
+
+            // The walker must detect the entity it guards, or the empty result above proves nothing.
+            var detected = new List<string>();
+            WalkForApproverFlag(typeof(Admin), new HashSet<Type>(), detected);
+            Assert.Contains(typeof(Admin).FullName!, detected);
+        }
+
+        /// <summary>
+        /// Visits a type, its generic arguments, array element and the types of its public
+        /// properties. Only TummlyBackend types are expanded; framework and primitive types are skipped.
+        /// </summary>
+        private static void WalkForApproverFlag(Type type, HashSet<Type> visited, List<string> offenders)
+        {
+            var appAssembly = typeof(Admin).Assembly;
+            var underlying = Nullable.GetUnderlyingType(type) ?? type;
+
+            if (underlying.IsArray)
+            {
+                WalkForApproverFlag(underlying.GetElementType()!, visited, offenders);
+                return;
+            }
+
+            if (underlying.IsGenericType)
+            {
+                foreach (var argument in underlying.GetGenericArguments())
+                {
+                    WalkForApproverFlag(argument, visited, offenders);
+                }
+            }
+
+            if (underlying.IsPrimitive
+                || underlying.IsEnum
+                || underlying == typeof(string)
+                || underlying.Assembly != appAssembly
+                || !visited.Add(underlying))
+            {
+                return;
+            }
+
+            if (underlying == typeof(Admin)
+                || underlying.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Any(property => property.Name == nameof(Admin.CanApproveTrustIndicators)))
+            {
+                offenders.Add(underlying.FullName!);
+            }
+
+            foreach (var property in underlying.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                WalkForApproverFlag(property.PropertyType, visited, offenders);
+            }
         }
 
         [Fact]

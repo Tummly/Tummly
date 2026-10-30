@@ -18,6 +18,7 @@ namespace TummlyBackend.Tests.Services
         private const int ThirdAdminId = 33;
         private const int NonApproverId = 44;
         private const int InactiveApproverId = 55;
+        private const int LockedApproverId = 66;
 
         private static readonly string[] CanonicalTitles =
         [
@@ -117,7 +118,8 @@ namespace TummlyBackend.Tests.Services
                 NewAdmin(PublisherId, canApprove: true),
                 NewAdmin(ThirdAdminId, canApprove: true),
                 NewAdmin(NonApproverId, canApprove: false),
-                NewAdmin(InactiveApproverId, canApprove: true, isActive: false)
+                NewAdmin(InactiveApproverId, canApprove: true, isActive: false),
+                NewAdmin(LockedApproverId, canApprove: true, isLocked: true)
             );
             _context.SaveChanges();
         }
@@ -628,6 +630,21 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_LockedApproverRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(LockedApproverId, "key-locked-approver");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Equal(LockedApproverId, refused.ActorAdminUserId);
+            Assert.Contains("approver_required", refused.DetailJson);
+        }
+
+        [Fact]
         public async Task Publish_ApproverWhoSubmittedRefused()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
@@ -682,11 +699,13 @@ namespace TummlyBackend.Tests.Services
             var approver = (await _sut.GetAdminViewAsync(PublisherId)).Viewer;
             var nonApprover = (await _sut.GetAdminViewAsync(NonApproverId)).Viewer;
             var inactive = (await _sut.GetAdminViewAsync(InactiveApproverId)).Viewer;
+            var locked = (await _sut.GetAdminViewAsync(LockedApproverId)).Viewer;
             var unknown = (await _sut.GetAdminViewAsync(999)).Viewer;
 
             Assert.Equal(new TrustIndicatorViewerDto(PublisherId, true), approver);
             Assert.Equal(new TrustIndicatorViewerDto(NonApproverId, false), nonApprover);
             Assert.Equal(new TrustIndicatorViewerDto(InactiveApproverId, false), inactive);
+            Assert.Equal(new TrustIndicatorViewerDto(LockedApproverId, false), locked);
             Assert.Equal(new TrustIndicatorViewerDto(999, false), unknown);
         }
 
@@ -746,7 +765,12 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await PublishAsync(PublisherId, $"key-{Guid.NewGuid():N}"));
         }
 
-        private static Admin NewAdmin(int id, bool canApprove, bool isActive = true) =>
+        private static Admin NewAdmin(
+            int id,
+            bool canApprove,
+            bool isActive = true,
+            bool isLocked = false
+        ) =>
             new()
             {
                 Id = id,
@@ -755,6 +779,7 @@ namespace TummlyBackend.Tests.Services
                 PasswordHash = "hash",
                 Role = "Admin",
                 IsActive = isActive,
+                IsLocked = isLocked,
                 CanApproveTrustIndicators = canApprove,
                 CreatedAt = DateTime.UtcNow,
             };

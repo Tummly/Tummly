@@ -507,7 +507,8 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// True only for an active Admin-role row with the approver flag. An unknown id is not an approver.
+        /// True only for a usable Admin-role row (Role Admin, active, not locked) with the approver flag.
+        /// An unknown id is not an approver. Same usability rule as AdminStaffService.
         /// </summary>
         private async Task<bool> IsApproverAsync(
             int adminUserId,
@@ -517,8 +518,9 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .AnyAsync(
                     row => row.Id == adminUserId
-                        && row.IsActive
                         && row.Role == "Admin"
+                        && row.IsActive
+                        && !row.IsLocked
                         && row.CanApproveTrustIndicators,
                     cancellationToken
                 );
