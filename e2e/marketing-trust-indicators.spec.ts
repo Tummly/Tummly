@@ -73,6 +73,22 @@ async function rejectCookies(page: Page) {
   }
 }
 
+/**
+ * Opens /terms and waits until the footer is rendered, without scrolling. Measurements
+ * are document-relative, so no scroll is needed. With `awaitTrustResponse`, also waits
+ * for the stubbed trust response, so a "no block" check does not pass before the fetch
+ * has finished. A scroll can race a dev-server reload that detaches the footer.
+ */
+async function openSettledFooter(page: Page, { awaitTrustResponse }: { awaitTrustResponse: boolean }) {
+  const trust = awaitTrustResponse ? page.waitForResponse(TRUST_API) : null
+  await page.goto("/terms")
+  await rejectCookies(page)
+  const footer = page.locator("footer").last()
+  await expect(footer.getByText("Proud to be a company of")).toBeVisible()
+  if (trust !== null) await trust
+  return footer
+}
+
 async function openHome(page: Page) {
   await page.goto("/")
   await rejectCookies(page)
@@ -380,29 +396,36 @@ test.describe("footer trust list", () => {
     })
   }
 
-  test("200% zoom keeps the tooltip above its tile inside the viewport and the status visible", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 768, height: 900 })
-    await previewOn(page)
-    await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
-    const footer = await openFooter(page)
+  // 200% browser zoom: the page is laid out at half the CSS width, with device pixels
+  // doubled. Device scale emulation matches that layout; a CSS `zoom` would not.
+  for (const zoomed of [
+    { css: 768, viewport: { width: 384, height: 512 } },
+    { css: 1440, viewport: { width: 720, height: 450 } },
+  ]) {
+    test.describe(`200% zoom at ${zoomed.css}px`, () => {
+      test.use({ viewport: zoomed.viewport, deviceScaleFactor: 2 })
 
-    await page.evaluate(() => {
-      document.documentElement.style.zoom = "2"
+      test("tooltip opens above its tile inside the viewport; text and status visible", async ({
+        page,
+      }) => {
+        await previewOn(page)
+        await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
+        const footer = await openFooter(page)
+
+        const trigger = tileButton(trustList(footer), ICO)
+        await trigger.hover()
+        const bubble = bubbleOf(page, ICO)
+        await expect(bubble).toBeVisible()
+        await expect(bubble).toContainText(TRUST_TOOLTIPS.ico)
+        await expectBubbleAboveTile(bubble, trigger)
+        await expectInsideViewport(page, bubble)
+        await expectInsideViewport(page, arrowOf(bubble))
+        const status = trigger.getByText(ICO.statusLabel, { exact: true })
+        await expect(status).toBeVisible()
+        await expectInsideViewport(page, status)
+      })
     })
-    const trigger = tileButton(trustList(footer), ICO)
-    await trigger.hover()
-    const bubble = bubbleOf(page, ICO)
-    await expect(bubble).toBeVisible()
-    await expectBubbleAboveTile(bubble, trigger)
-    await expectInsideViewport(page, bubble)
-    await expect(arrowOf(bubble)).toBeVisible()
-    await expectInsideViewport(page, arrowOf(bubble))
-    const status = trigger.getByText(ICO.statusLabel, { exact: true })
-    await expect(status).toBeVisible()
-    await expectInsideViewport(page, status)
-  })
+  }
 })
 
 test.describe("trust surfaces share the published titles", () => {
@@ -499,8 +522,7 @@ test.describe("no trust block: empty array, 500 and gate closed", () => {
       const plain = await page.context().newPage()
       await plain.setViewportSize({ width, height: 900 })
       await stubTrustApi(plain, api)
-      const baselineFooter = await openFooter(plain)
-      await expect(baselineFooter.getByText("Proud to be a company of")).toBeVisible()
+      const baselineFooter = await openSettledFooter(plain, { awaitTrustResponse: false })
       const baseline = await footerLayout(baselineFooter)
       await plain.close()
 
@@ -512,8 +534,7 @@ test.describe("no trust block: empty array, 500 and gate closed", () => {
       for (const testCase of cases) {
         api.status = testCase.status
         api.body = testCase.body
-        const footer = await openFooter(page)
-        await expect(footer.getByText("Proud to be a company of")).toBeVisible()
+        const footer = await openSettledFooter(page, { awaitTrustResponse: true })
         await expect(footer.getByText("Built with trust in mind"), testCase.name).toHaveCount(0)
         await expect(trustList(footer), testCase.name).toHaveCount(0)
         expect(await footerLayout(footer), testCase.name).toEqual(baseline)
