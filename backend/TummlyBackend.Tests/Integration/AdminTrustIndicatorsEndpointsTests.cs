@@ -81,6 +81,34 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Operator_IsForbidden_OnEveryTrustEndpoint()
+        {
+            await SeedAdminsAsync();
+            var jwt = await SeedOperatorJwtAsync();
+
+            using var get = await SendAsync(HttpMethod.Get, "/api/admin/trust-indicators", jwt);
+            using var put = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                jwt,
+                new { status = "Roadmap", statusLabel = "On our roadmap" }
+            );
+            using var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", jwt);
+            using var publish = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                jwt,
+                new { reason = "Evidence checked" },
+                key: "operator-key"
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, get.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, submit.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
+        }
+
+        [Fact]
         public async Task Anonymous_IsUnauthorized_OnEveryTrustEndpoint()
         {
             await SeedAdminsAsync();
@@ -702,6 +730,31 @@ namespace TummlyBackend.Tests.Integration
                 jwtService.GenerateAdminToken(support),
                 jwtService.GenerateAdminToken(nonApprover)
             );
+        }
+
+        /// <summary>A real operator account (Users row, Owner) and its token, as the operator login mints it.</summary>
+        private async Task<string> SeedOperatorJwtAsync()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider.GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Trust Operator",
+                Email = $"operator-{Guid.NewGuid():N}@restaurant.example",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(user.Id.ToString(), user.Email, user.Role);
         }
 
         private async Task<HttpResponseMessage> SendAsync(
