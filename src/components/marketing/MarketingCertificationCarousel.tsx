@@ -73,7 +73,10 @@ export function MarketingCertificationCarousel({
         className="m-0 flex w-full list-none gap-6 overflow-x-auto p-0 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {indicators.map((indicator) => (
-          <li key={indicator.itemNumber} className="flex shrink-0">
+          <li
+            key={indicator.itemNumber}
+            className="flex w-[clamp(140px,10.3vw,172px)] shrink-0"
+          >
             <TrustIndicatorTile indicator={indicator} variant="carousel" />
           </li>
         ))}

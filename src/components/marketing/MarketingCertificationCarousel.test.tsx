@@ -50,6 +50,11 @@ describe("MarketingCertificationCarousel", () => {
     expect(html).toContain('aria-label="ISO/IEC 27001, On our roadmap"')
   })
 
+  it("gives each tile the existing slot width", () => {
+    const html = renderHtml()
+    expect(html).toContain("w-[clamp(140px,10.3vw,172px)]")
+  })
+
   it("keeps the indicator order", () => {
     const html = renderHtml()
     expect(html.indexOf("ICO data protection fee")).toBeLessThan(

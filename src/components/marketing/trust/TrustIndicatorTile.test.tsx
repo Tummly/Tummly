@@ -73,9 +73,10 @@ describe("TrustIndicatorTile (closed)", () => {
     expect(tile()).toMatch(/<button[^>]*type="button"/)
   })
 
-  it("uses the 94px footer width and the 120px carousel width", () => {
+  it("uses the 94px footer width and fills the slot in the carousel", () => {
     expect(tile(ROADMAP, "footer")).toContain("w-[94px]")
-    expect(tile(ROADMAP, "carousel")).toContain("w-[120px]")
+    expect(tile(ROADMAP, "carousel")).toContain("w-full")
+    expect(tile(ROADMAP, "carousel")).not.toContain("w-[120px]")
     expect(tile(ROADMAP, "carousel")).not.toContain("w-[94px]")
   })
 

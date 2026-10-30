@@ -36,7 +36,9 @@ const carouselArrowClassName = cn(
 function TrustIndicatorSlide({ indicator }: { indicator: PublicTrustIndicator }) {
   return (
     <CarouselItem className="basis-auto pl-6">
-      <TrustIndicatorTile indicator={indicator} variant="carousel" />
+      <div className="flex w-[172px]">
+        <TrustIndicatorTile indicator={indicator} variant="carousel" />
+      </div>
     </CarouselItem>
   )
 }

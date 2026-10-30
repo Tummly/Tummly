@@ -1,4 +1,4 @@
-import type { PublicTrustIndicator } from "@/lib/marketing/publicTrustIndicators"
+import type { PublicTrustIndicatorsState } from "@/hooks/usePublicTrustIndicators"
 
 /**
  * Public trust indicators stay withheld until the Director approves the
@@ -35,10 +35,9 @@ export function trustClaimsVisible(): boolean {
  * is open and the request is `ready`. Callers still treat an empty list as
  * "render no trust block".
  */
-export function visibleTrustIndicators(trust: {
-  state: "loading" | "ready" | "error"
-  items: readonly PublicTrustIndicator[]
-}): readonly PublicTrustIndicator[] {
+export function visibleTrustIndicators(
+  trust: PublicTrustIndicatorsState,
+): PublicTrustIndicatorsState["items"] {
   if (!trustClaimsVisible() || trust.state !== "ready") return []
   return trust.items
 }

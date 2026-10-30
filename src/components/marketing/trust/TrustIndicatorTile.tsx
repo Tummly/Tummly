@@ -31,7 +31,8 @@ type TrustIndicatorTileProps = {
 const TILE_CLASS =
   "flex shrink-0 cursor-pointer flex-col items-center gap-1.5 rounded-[7px] border-[0.825px] border-[#b3b3b3] bg-transparent p-2 text-center font-sans font-normal text-[var(--op-color-black)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--op-color-black)]/40"
 
-const TILE_WIDTH_CLASS = { footer: "w-[94px]", carousel: "w-[120px]" } as const
+/** Footer tiles have a fixed Figma width. Carousel tiles fill the slot the caller gives them. */
+const TILE_WIDTH_CLASS = { footer: "w-[94px]", carousel: "w-full" } as const
 
 /** Figma bubble: fill `#d5d5d5` (`--op-color-gray-300`), radius 4px, padding 12px, Figma drop-shadow stack. Text 12/16 (Ruling 20). */
 const BUBBLE_CLASS =
@@ -92,7 +93,7 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
   }, [state.open, state.source])
 
   return (
-    <div className="relative inline-flex">
+    <div className={cn("relative", variant === "carousel" ? "flex w-full" : "inline-flex")}>
       <Popover
         open={state.open}
         onOpenChange={(next) => {
