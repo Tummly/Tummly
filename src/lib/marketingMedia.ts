@@ -36,8 +36,11 @@ export function signUpCtaVideoUrl(): string {
   return marketingMediaUrl(SIGN_UP_CTA_VIDEO_PATH)
 }
 
-/** Home hero campaign visual (`marketing/home/hero-campaign.mp4`). */
-export const HOME_HERO_VIDEO_PATH = "home/hero-campaign.mp4"
+/**
+ * Home hero campaign results loop, 1920×1080 web copy of the 4K master.
+ * The older `home/hero-campaign.mp4` stays on Blob for cached pages.
+ */
+export const HOME_HERO_VIDEO_PATH = "home/hero-campaign-results-loop-1080.mp4"
 
 export function homeHeroVideoUrl(): string {
   return marketingMediaUrl(HOME_HERO_VIDEO_PATH)
