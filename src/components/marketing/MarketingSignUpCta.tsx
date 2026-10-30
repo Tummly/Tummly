@@ -7,15 +7,15 @@ import {
   type FormEvent,
 } from "react"
 import { CircleCheckBig } from "lucide-react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import signupEditorialBg from "@/assets/images/marketing/about/signup-cta-bg.jpg"
 import { signupCtaBgPicture } from "@/assets/marketing-images"
 import { AuthSocialContinueButtons } from "@/components/auth/AuthSocialContinueButtons"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { MarketingSignupLegalNote } from "@/components/marketing/MarketingSignupLegalNote"
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { Input } from "@/components/ui/input"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { PANORAMIC_BG_IMAGE_SIZES } from "@/lib/imagePresets"
 import { signUpCtaVideoUrl } from "@/lib/marketingMedia"
 import {
@@ -60,6 +60,12 @@ export type MarketingSignUpCtaContent = {
   badge?: string
   /** When set, primary CTA and OAuth open signup with this plan intent. */
   planIntent?: SignupPlanIntent | null
+  /**
+   * Line under the form. `agree` (default): "By signing up, I agree to…".
+   * `read`: Figma Sign up Type=Default `6788:42946` ("Read our Terms of Service
+   * and Privacy Notice…") with its 163px primary button.
+   */
+  legalNote?: "agree" | "read"
 }
 
 /** `media` = dark video CTA; `editorial` = light CTA on marble / photo (About, For Groups). */
@@ -178,6 +184,7 @@ export function MarketingSignUpCta({
   } as CSSProperties
 
   const badge = content.badge
+  const isReadLegalNote = content.legalNote === "read"
 
   return (
     <section className="w-full pt-5">
@@ -190,7 +197,11 @@ export function MarketingSignUpCta({
           "relative flex w-full flex-col overflow-hidden rounded-[8px]",
           isEditorial
             ? cn("bg-[#eceae6] lg:block", editorialAspectClass)
-            : "bg-[#141414] lg:aspect-[1668/615] lg:block",
+            : cn(
+                "bg-[#141414] lg:block",
+                // Home Figma `6788:42946` is a FIXED 625px frame (other pages: 1668×615).
+                isReadLegalNote ? "lg:h-[625px]" : "lg:aspect-[1668/615]",
+              ),
         )}
       >
         {isEditorial ? (
@@ -270,7 +281,9 @@ export function MarketingSignUpCta({
             <div className="flex flex-col gap-[18px]">
               <h2
                 className={cn(
-                  "m-0 max-w-md md:max-w-[544px]",
+                  "m-0 max-w-md",
+                  // Figma `6788:42946` title box is 544px; Jakarta renders slightly wider here.
+                  isReadLegalNote ? "md:max-w-[580px]" : "md:max-w-[544px]",
                   isEditorial ? SIGN_UP_TITLE_EDITORIAL : SIGN_UP_TITLE_MEDIA,
                 )}
               >
@@ -278,7 +291,8 @@ export function MarketingSignUpCta({
               </h2>
               <p
                 className={cn(
-                  "m-0 max-w-sm md:max-w-[397px]",
+                  "m-0 max-w-sm",
+                  isReadLegalNote ? "md:max-w-[544px]" : "md:max-w-[397px]",
                   marketingHeroBody,
                   "font-normal lg:text-[18px] lg:leading-6",
                   isEditorial ? "text-[#141414]" : "text-white",
@@ -331,7 +345,9 @@ export function MarketingSignUpCta({
                     variant={isEditorial ? "dark" : "primary"}
                     className={cn(
                       "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
-                      isEditorial ? "sm:w-[163px]" : "sm:w-[176px]",
+                      isEditorial || isReadLegalNote
+                        ? "sm:w-[163px]"
+                        : "sm:w-[176px]",
                     )}
                   >
                     {content.primaryLabel}
@@ -359,30 +375,22 @@ export function MarketingSignUpCta({
                 />
               </div>
 
-              <p
-                className={cn(
-                  "m-0",
-                  isEditorial
-                    ? "text-xs leading-4 text-[#141414]"
-                    : "text-sm leading-[22px] text-white",
-                )}
-              >
-                By signing up, I agree to Tummly&apos;s{" "}
-                <Link
-                  to={LEGAL_ROUTES.terms}
-                  className="underline underline-offset-2"
-                >
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link
-                  to={LEGAL_ROUTES.privacy}
-                  className="underline underline-offset-2"
-                >
-                  Privacy Policy
-                </Link>
-                .
-              </p>
+              {isReadLegalNote ? (
+                <MarketingSignupLegalNote
+                  className={cn(
+                    "max-w-[382px] leading-4 text-[#7c7c7c]",
+                  )}
+                />
+              ) : (
+                <MarketingSignupLegalNote
+                  variant="agree"
+                  className={
+                    isEditorial
+                      ? "leading-4 text-[#141414]"
+                      : "text-sm leading-[22px] text-white"
+                  }
+                />
+              )}
             </div>
           </div>
         </div>

@@ -6,6 +6,12 @@ type MarketingLoopVideoProps = {
   src: string
   className?: string
   videoClassName?: string
+  /**
+   * How far outside the viewport the video mounts. Default `200px 0px`.
+   * Pair a wider margin with `preload="auto"` so the file downloads before the
+   * card scrolls in (with the default `preload="none"` nothing loads until play).
+   */
+  loadRootMargin?: string
 } & Omit<
   VideoHTMLAttributes<HTMLVideoElement>,
   "src" | "muted" | "controls" | "autoPlay" | "className" | "loop" | "playsInline"
@@ -30,6 +36,7 @@ export function MarketingLoopVideo({
   src,
   className,
   videoClassName,
+  loadRootMargin = "200px 0px",
   ...videoProps
 }: MarketingLoopVideoProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -53,7 +60,7 @@ export function MarketingLoopVideo({
           setShouldLoad(true)
         }
       },
-      { root: null, rootMargin: "200px 0px", threshold: 0 },
+      { root: null, rootMargin: loadRootMargin, threshold: 0 },
     )
 
     // Play as soon as any part is on screen. A 0.3 gate left For Groups product
@@ -71,7 +78,7 @@ export function MarketingLoopVideo({
       loadObserver.disconnect()
       playObserver.disconnect()
     }
-  }, [])
+  }, [loadRootMargin])
 
   useEffect(() => {
     const el = videoRef.current

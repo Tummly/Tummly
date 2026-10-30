@@ -303,6 +303,35 @@
   }
 }
 
+/* Home "Built for the way you serve" marquee (`HomeServeStrip`): two copies of the chip list, shifted by one copy. */
+@keyframes home-serve-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.home-serve-marquee-track {
+  animation: home-serve-marquee 45s linear infinite;
+}
+
+/* Pause on hover (pointer devices only), keyboard focus, and the toggle button / touch tap. */
+@media (hover: hover) {
+  .home-serve-marquee:hover .home-serve-marquee-track {
+    animation-play-state: paused;
+  }
+}
+
+.home-serve-marquee:focus-within .home-serve-marquee-track,
+.home-serve-marquee[data-paused="true"] .home-serve-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-serve-marquee-track {
+    animation: none;
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

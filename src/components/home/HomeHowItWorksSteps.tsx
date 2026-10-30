@@ -1,31 +1,37 @@
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useRef,
   useState,
-  type ReactNode,
+  type CSSProperties,
+  type KeyboardEvent,
 } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { Link } from "react-router-dom"
 
-import howBringImage from "@/assets/images/marketing/home/how-bring.png"
-import howBuildImage from "@/assets/images/marketing/home/how-build.png"
-import { signupCtaBgPicture } from "@/assets/marketing-images"
+import howConnectImage from "@/assets/images/marketing/home/how-connect.webp"
+import howInviteBackImage from "@/assets/images/marketing/home/how-invite-back.png"
+import howKnowGuestsImage from "@/assets/images/marketing/home/how-know-guests.png"
+import howUnderstandResponseImage from "@/assets/images/marketing/home/how-understand-response.png"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import {
-  HOME_HOW_IT_WORKS_PLACE_MEDIA,
   HOME_HOW_IT_WORKS_STEPS,
-  type HomeHowItWorksPlaceMedia,
   type HomeHowItWorksStep,
 } from "@/content/marketing/homePage"
-import { signUpCtaVideoUrl } from "@/lib/marketingMedia"
-import { remoteSimpleUrl } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
 const STEP_COUNT = HOME_HOW_IT_WORKS_STEPS.length
-/** Fallback until measured (tabs + visual + padding). */
-const FALLBACK_PANEL_HEIGHT_PX = 834
+/** Fallback until measured: tabs 48 + gap 30 + media 600 + padding 80. */
+const FALLBACK_PANEL_HEIGHT_PX = 758
 const CROSSFADE_MS = 0.25
+/** Figma media row: every state sits in a 600px-high frame; the widest is 766px. */
+const MEDIA_BOX_WIDTH_PX = 766
+const MEDIA_BOX_HEIGHT_PX = 600
+/** Release the tab-click scroll lock if the browser never reports arrival. */
+const SCROLL_LOCK_MS = 1500
+const STEP_PANEL_ID = "home-how-step-panel"
 /** Minimum clearance under sticky marketing header chrome. */
 const HEADER_CLEARANCE_PX = 86
 /** Left copy + right visual share the same step reveal (fade up from bottom). */
@@ -34,24 +40,28 @@ const STEP_REVEAL = {
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -8 },
 } as const
-/** Match Pricing QR expand timing — Place panels grow/collapse in place. */
-const PLACE_EXPAND_MS = 0.85
-const PLACE_EXPAND_EASE = [0.22, 1, 0.36, 1] as const
-/** Active panel vs peek share inside the 600px Place media frame. */
-const PLACE_EXPANDED_GROW = 6.6
-const PLACE_COLLAPSED_GROW = 1
 
-const STEP_IMAGES = {
-  build: howBuildImage,
-  bring: howBringImage,
-} as const satisfies Record<"build" | "bring", string>
-
-const placeMediaImages = Object.fromEntries(
-  HOME_HOW_IT_WORKS_PLACE_MEDIA.map((item) => [
-    item.id,
-    remoteSimpleUrl(item.mediaId),
-  ]),
-) as Record<HomeHowItWorksPlaceMedia["id"], string>
+/**
+ * Media per tab state, exported from Figma at 2×:
+ * `5339:30056` (photo), `4161:19167`, `4161:19210`, `4161:19253` (product UI).
+ * Widths follow the frames: 750px, except the Guests screen (766px). The
+ * visual box is always 766×600 so every tab yields the same panel height.
+ */
+const STEP_MEDIA = {
+  connect: { src: howConnectImage, width: 750 },
+  /**
+   * Figma `4161:19167` carries a VIDEO fill (hash `a282565a…`) that the
+   * API cannot export. The still below is the frame's rendered export
+   * (Guests table + guest drawer). Video source is pending: swap this still
+   * for a `MarketingLoopVideo` once the file is published to Blob.
+   */
+  know: { src: howKnowGuestsImage, width: 766 },
+  invite: { src: howInviteBackImage, width: 750 },
+  understand: { src: howUnderstandResponseImage, width: 750 },
+} as const satisfies Record<
+  HomeHowItWorksStep["id"],
+  { src: string; width: number }
+>
 
 function stickyTopForViewport(viewportHeight: number, panelHeight: number) {
   const available = viewportHeight - HEADER_CLEARANCE_PX
@@ -72,10 +82,40 @@ function StepTabs({
   activeIndex: number
   onSelect: (index: number) => void
 }) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const focusedIndex = tabRefs.current.findIndex(
+      (node) => node === document.activeElement,
+    )
+    const current = focusedIndex >= 0 ? focusedIndex : activeIndex
+    let next: number
+    switch (event.key) {
+      case "ArrowRight":
+        next = (current + 1) % STEP_COUNT
+        break
+      case "ArrowLeft":
+        next = (current - 1 + STEP_COUNT) % STEP_COUNT
+        break
+      case "Home":
+        next = 0
+        break
+      case "End":
+        next = STEP_COUNT - 1
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+    onSelect(next)
+    tabRefs.current[next]?.focus()
+  }
+
   return (
     <div
       role="tablist"
       aria-label="How it works steps"
+      onKeyDown={onKeyDown}
       className="flex w-full gap-[10px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] lg:gap-[18px] [&::-webkit-scrollbar]:hidden"
     >
       {HOME_HOW_IT_WORKS_STEPS.map((step, index) => {
@@ -83,11 +123,14 @@ function StepTabs({
         return (
           <button
             key={step.id}
+            ref={(node) => {
+              tabRefs.current[index] = node
+            }}
             type="button"
             role="tab"
             id={`home-how-step-tab-${step.id}`}
             aria-selected={active}
-            aria-controls={`home-how-step-panel-${step.id}`}
+            aria-controls={active ? STEP_PANEL_ID : undefined}
             tabIndex={active ? 0 : -1}
             onClick={() => {
               onSelect(index)
@@ -116,7 +159,7 @@ function StepCopy({
   reduceMotion: boolean | null
 }) {
   return (
-    <div className="relative w-full max-w-[542px] pt-0 lg:pt-10">
+    <div className="relative w-full pt-0 lg:min-w-0 lg:flex-1 lg:pt-10">
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={step.id}
@@ -130,189 +173,25 @@ function StepCopy({
           className="flex w-full flex-col items-start gap-10 text-[#141414] lg:gap-[52px]"
         >
           <div className="flex w-full flex-col gap-[18px]">
-            <h3 className="m-0 w-full max-w-[467px] font-jakarta text-[28px] font-medium leading-[normal] lg:text-[36px]">
+            <h3 className="m-0 w-full max-w-[400px] font-jakarta text-[28px] font-medium leading-[normal] text-balance lg:text-[36px]">
               {step.title}
             </h3>
-            <p className="m-0 w-full max-w-[542px] font-sans text-base font-normal leading-5">
+            <p className="m-0 w-full max-w-[440px] font-sans text-base font-normal leading-5">
               {step.body}
             </p>
           </div>
-          <MarketingButton variant="secondary" asChild>
-            <Link to={step.ctaTo}>{step.ctaLabel}</Link>
-          </MarketingButton>
+          <div className="flex flex-wrap items-center gap-x-[22px] gap-y-3">
+            <MarketingButton variant="primary" asChild>
+              <RequestTrialLink planIntent={{ plan: "Pilot" }}>
+                {step.primaryLabel}
+              </RequestTrialLink>
+            </MarketingButton>
+            <MarketingButton variant="secondary" asChild>
+              <Link to={step.secondaryTo}>{step.secondaryLabel}</Link>
+            </MarketingButton>
+          </div>
         </motion.div>
       </AnimatePresence>
-    </div>
-  )
-}
-
-/**
- * Place the Guest Loop — Figma `5339:30041`.
- * Three material panels expand/collapse in place; only the in-image label
- * buttons change the active panel (no hover expand).
- */
-function PlaceStepVisual({ reduceMotion }: { reduceMotion: boolean | null }) {
-  const [activeId, setActiveId] = useState<HomeHowItWorksPlaceMedia["id"]>(
-    HOME_HOW_IT_WORKS_PLACE_MEDIA[0].id,
-  )
-  const duration = reduceMotion ? 0 : PLACE_EXPAND_MS
-
-  return (
-    <div
-      className="relative flex aspect-[750/600] w-full flex-col overflow-hidden rounded-[12px] bg-[#e2eae5] lg:aspect-auto lg:h-[600px]"
-      role="group"
-      aria-label="Guest Loop placement materials"
-    >
-      {HOME_HOW_IT_WORKS_PLACE_MEDIA.map((item) => {
-        const active = item.id === activeId
-        return (
-          <motion.div
-            key={item.id}
-            initial={false}
-            animate={{ flexGrow: active ? PLACE_EXPANDED_GROW : PLACE_COLLAPSED_GROW }}
-            transition={{ duration, ease: PLACE_EXPAND_EASE }}
-            className="relative min-h-0 w-full basis-0 overflow-hidden"
-            style={{ flexShrink: 1 }}
-          >
-            <img
-              src={placeMediaImages[item.id]}
-              alt={active ? item.imageAlt : ""}
-              width={750}
-              height={600}
-              className="pointer-events-none absolute inset-0 size-full object-cover"
-              draggable={false}
-              decoding="async"
-              aria-hidden={!active}
-            />
-            <div
-              aria-hidden
-              className={cn(
-                "pointer-events-none absolute inset-0",
-                active
-                  ? "bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgb(0,0,0)_116%),linear-gradient(90deg,rgba(0,0,0,0.2),rgba(0,0,0,0.2))]"
-                  : "bg-black/80",
-              )}
-            />
-            <button
-              type="button"
-              aria-pressed={active}
-              onClick={() => {
-                setActiveId(item.id)
-              }}
-              className={cn(
-                "absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-[30px] border border-[#363636] bg-transparent px-[18px] py-2 font-jakarta font-semibold uppercase text-white",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
-                active
-                  ? "bottom-8 text-sm leading-[normal] lg:bottom-10"
-                  : "top-1/2 -translate-y-1/2 text-xs leading-[normal]",
-              )}
-            >
-              {item.label}
-            </button>
-          </motion.div>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * Hear from guests — signup CTA video cropped to the step media box.
- */
-function HearStepVisual({ step }: { step: HomeHowItWorksStep }) {
-  const mediaRef = useRef<HTMLDivElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [videoFailed, setVideoFailed] = useState(false)
-  const [videoInView, setVideoInView] = useState(false)
-
-  useEffect(() => {
-    const root = mediaRef.current
-    if (root == null || typeof IntersectionObserver === "undefined") {
-      setVideoInView(true)
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setVideoInView(entry?.isIntersecting === true)
-      },
-      {
-        root: null,
-        rootMargin: "0px",
-        threshold: 0.25,
-      },
-    )
-
-    observer.observe(root)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    const el = videoRef.current
-    if (el == null || videoFailed) {
-      return
-    }
-
-    if (videoInView) {
-      void el.play().catch(() => {
-        /* Autoplay can still be blocked. */
-      })
-    } else {
-      el.pause()
-    }
-  }, [videoFailed, videoInView])
-
-  return (
-    <div
-      ref={mediaRef}
-      className="relative aspect-[750/600] w-full overflow-hidden rounded-[12px] bg-[#e2eae5] lg:aspect-auto lg:h-[600px]"
-    >
-      <img
-        src={signupCtaBgPicture.img.src}
-        alt={step.imageAlt}
-        width={750}
-        height={600}
-        className="absolute inset-0 size-full object-cover object-center"
-        draggable={false}
-        decoding="async"
-      />
-      {!videoFailed ? (
-        <video
-          ref={videoRef}
-          className="absolute inset-0 size-full object-cover object-center"
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          poster={signupCtaBgPicture.img.src}
-          aria-label={step.imageAlt}
-          onError={() => setVideoFailed(true)}
-        >
-          <source src={signUpCtaVideoUrl()} type="video/mp4" />
-        </video>
-      ) : null}
-    </div>
-  )
-}
-
-function StaticStepVisual({
-  stepId,
-  imageAlt,
-}: {
-  stepId: keyof typeof STEP_IMAGES
-  imageAlt: string
-}) {
-  return (
-    <div className="relative aspect-[750/600] w-full overflow-hidden rounded-[12px] bg-[#e2eae5] lg:aspect-auto lg:h-[600px]">
-      <img
-        src={STEP_IMAGES[stepId]}
-        alt={imageAlt}
-        width={750}
-        height={600}
-        className="absolute inset-0 size-full object-cover"
-        draggable={false}
-        decoding="async"
-      />
     </div>
   )
 }
@@ -324,17 +203,21 @@ function StepVisual({
   step: HomeHowItWorksStep
   reduceMotion: boolean | null
 }) {
-  let media: ReactNode = null
-  if (step.id === "place") {
-    media = <PlaceStepVisual reduceMotion={reduceMotion} />
-  } else if (step.id === "hear") {
-    media = <HearStepVisual step={step} />
-  } else if (step.id === "build" || step.id === "bring") {
-    media = <StaticStepVisual stepId={step.id} imageAlt={step.imageAlt} />
-  }
+  const media = STEP_MEDIA[step.id]
 
+  /* The outer box keeps one fixed ratio for every tab, so the panel height
+   * never depends on the active step (a per-tab height fed the scroll sync
+   * back into itself). The frame inside is right-aligned like the Figma row. */
   return (
-    <div className="relative w-full lg:w-[min(100%,750px)] lg:shrink-0">
+    <div
+      className="relative w-full lg:w-[766px] lg:max-w-[58%] lg:shrink-0"
+      style={
+        {
+          aspectRatio: `${MEDIA_BOX_WIDTH_PX} / ${MEDIA_BOX_HEIGHT_PX}`,
+          "--step-media-share": `${(media.width / MEDIA_BOX_WIDTH_PX) * 100}%`,
+        } as CSSProperties
+      }
+    >
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={step.id}
@@ -345,9 +228,19 @@ function StepVisual({
             duration: reduceMotion ? 0 : CROSSFADE_MS,
             ease: "easeOut",
           }}
-          className="w-full"
+          className="absolute inset-0 flex justify-end"
         >
-          {media}
+          <div className="relative h-full w-full overflow-hidden rounded-[12px] bg-[#e2eae5] lg:w-(--step-media-share)">
+            <img
+              src={media.src}
+              alt={step.imageAlt}
+              width={media.width}
+              height={MEDIA_BOX_HEIGHT_PX}
+              className="absolute inset-0 size-full object-cover object-center"
+              draggable={false}
+              decoding="async"
+            />
+          </div>
         </motion.div>
       </AnimatePresence>
     </div>
@@ -382,7 +275,7 @@ function PanelChrome({
       <StepTabs activeIndex={activeIndex} onSelect={onSelect} />
 
       <div
-        id={`home-how-step-panel-${step.id}`}
+        id={STEP_PANEL_ID}
         role="tabpanel"
         aria-labelledby={`home-how-step-tab-${step.id}`}
         className="flex w-full flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-12"
@@ -395,8 +288,8 @@ function PanelChrome({
 }
 
 /**
- * Home How it works steps —
- * Figma `5339:30041`, `4161:19285`, `4161:19284`, `4161:19283`.
+ * Home How it works steps — Figma `5754:22093`; tab states `5339:30041`,
+ * `4161:19285`, `4161:19284`, `4161:19283`.
  * Sticky scroll-driven active step on all viewports (same pattern as
  * How it works page). Tabs also jump the track.
  */
@@ -405,6 +298,8 @@ export function HomeHowItWorksSteps() {
   const trackRef = useRef<HTMLDivElement>(null)
   const panelNodeRef = useRef<HTMLDivElement | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const measuredWidthRef = useRef<number | null>(null)
+  const scrollLockRef = useRef<{ index: number; until: number } | null>(null)
 
   const [panelHeightPx, setPanelHeightPx] = useState(FALLBACK_PANEL_HEIGHT_PX)
   const [stickyTopPx, setStickyTopPx] = useState(() =>
@@ -416,40 +311,53 @@ export function HomeHowItWorksSteps() {
 
   const trackHeightPx = panelHeightPx * STEP_COUNT
 
-  const applyPanelHeight = useEffectEvent((height: number) => {
-    if (height > 0) {
-      setPanelHeightPx((prev) => {
-        const next = Math.ceil(height)
-        return prev === next ? prev : next
-      })
-    }
-  })
-
-  const onPanelNode = useEffectEvent((node: HTMLDivElement | null) => {
-    resizeObserverRef.current?.disconnect()
-    resizeObserverRef.current = null
-    panelNodeRef.current = node
-    if (node == null || typeof ResizeObserver === "undefined") {
+  /*
+   * The panel height only grows while the panel width stays the same. The
+   * track height is derived from it and the active step is derived from the
+   * scroll position, so a height that moved with the active step could
+   * re-trigger itself. A width change (resize) starts a fresh measurement.
+   */
+  const applyPanelHeight = useCallback((height: number, width: number) => {
+    if (height <= 0) {
       return
     }
-    applyPanelHeight(node.getBoundingClientRect().height)
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (entry == null) {
+    const next = Math.ceil(height)
+    const widthChanged =
+      measuredWidthRef.current == null ||
+      Math.abs(measuredWidthRef.current - width) >= 1
+    measuredWidthRef.current = width
+    setPanelHeightPx((prev) => {
+      if (widthChanged) {
+        return prev === next ? prev : next
+      }
+      return next > prev ? next : prev
+    })
+  }, [])
+
+  const onPanelNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      resizeObserverRef.current?.disconnect()
+      resizeObserverRef.current = null
+      panelNodeRef.current = node
+      measuredWidthRef.current = null
+      if (node == null || typeof ResizeObserver === "undefined") {
         return
       }
-      const borderBox = entry.borderBoxSize?.[0]?.blockSize
-      const height =
-        borderBox != null && borderBox > 0
-          ? borderBox
-          : entry.target instanceof HTMLElement
-            ? entry.target.getBoundingClientRect().height
-            : entry.contentRect.height
-      applyPanelHeight(height)
-    })
-    ro.observe(node)
-    resizeObserverRef.current = ro
-  })
+      const initial = node.getBoundingClientRect()
+      applyPanelHeight(initial.height, initial.width)
+      const ro = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (entry == null || !(entry.target instanceof HTMLElement)) {
+          return
+        }
+        const rect = entry.target.getBoundingClientRect()
+        applyPanelHeight(rect.height, rect.width)
+      })
+      ro.observe(node)
+      resizeObserverRef.current = ro
+    },
+    [applyPanelHeight],
+  )
 
   const syncFromScroll = useEffectEvent(() => {
     const track = trackRef.current
@@ -472,11 +380,16 @@ export function HomeHowItWorksSteps() {
         ? Number.parseFloat(getComputedStyle(stickyEl).top) || stickyTopPx
         : stickyTopPx
     const rect = track.getBoundingClientRect()
-    const scrolled = Math.max(
-      0,
-      Math.min(scrollable, stickyTop - rect.top),
-    )
+    const scrolled = Math.max(0, Math.min(scrollable, stickyTop - rect.top))
     const next = clampIndex(Math.floor((scrolled / scrollable) * STEP_COUNT))
+    const lock = scrollLockRef.current
+    if (lock != null) {
+      // A tab click is scrolling to its step: ignore the steps passed on the way.
+      if (next !== lock.index && performance.now() < lock.until) {
+        return
+      }
+      scrollLockRef.current = null
+    }
     setActiveIndex((prev) => (prev === next ? prev : next))
   })
 
@@ -516,8 +429,13 @@ export function HomeHowItWorksSteps() {
     }
     const step = scrollable / STEP_COUNT
     const trackTop = window.scrollY + track.getBoundingClientRect().top
+    scrollLockRef.current = {
+      index: next,
+      until: performance.now() + SCROLL_LOCK_MS,
+    }
+    // Aim at the middle of the step so rounding never lands on a neighbour.
     window.scrollTo({
-      top: trackTop - stickyTopPx + next * step,
+      top: trackTop - stickyTopPx + (next + 0.5) * step,
       behavior: reduceMotion ? "auto" : "smooth",
     })
   }

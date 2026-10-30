@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  publicFooterTrustCredentials,
+  publicFooterTrustBadges,
   publicForGroupsTrustBadges,
   publicHomeTrustBadges,
 } from "@/content/marketing/publicTrustClaims"
@@ -17,7 +17,7 @@ describe("public trust claims", () => {
     expect(publicForGroupsTrustBadges()).toEqual([])
   })
 
-  it("withholds footer trust credentials with placeholder proof links", () => {
-    expect(publicFooterTrustCredentials()).toEqual([])
+  it("withholds the footer trust badge grid", () => {
+    expect(publicFooterTrustBadges()).toEqual([])
   })
 })

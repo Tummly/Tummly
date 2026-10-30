@@ -1,10 +1,24 @@
-import { ProductCaptureMaterialsPanel } from "@/components/marketing/product/ProductCaptureMaterialsPanel"
+import qrCounterDisplayImage from "@/assets/images/marketing/home/qr-counter-display.webp"
+import {
+  ProductCaptureMaterialsPanel,
+  type CaptureMaterialImage,
+} from "@/components/marketing/product/ProductCaptureMaterialsPanel"
 import { HOME_QR_MATERIALS } from "@/content/marketing/homePage"
 import { cn } from "@/lib/utils"
 
+/** Figma `4902:19649` photo for the first format (1448×1086). */
+const HOME_QR_MATERIAL_IMAGES: Readonly<Record<string, CaptureMaterialImage>> = {
+  "counter-display": {
+    src: qrCounterDisplayImage,
+    width: 1448,
+    height: 1086,
+  },
+}
+
 /**
  * Home QR materials — Figma `4902:19649` / mobile `6241:18095`.
- * Same Capture materials panel as Product; intro copy sits above the list.
+ * Same Capture materials panel as Product, with the format list and
+ * intro copy above it. Also rendered on How it works.
  */
 export function HomeQrMaterials() {
   return (
@@ -27,7 +41,11 @@ export function HomeQrMaterials() {
             title: HOME_QR_MATERIALS.title,
             body: HOME_QR_MATERIALS.body,
             titleId: "home-qr-materials-heading",
+            eyebrowClassName: "text-[#4a4a4a]",
+            bodyClassName: "lg:max-w-[659px]",
           }}
+          materials={HOME_QR_MATERIALS.items}
+          imageOverrides={HOME_QR_MATERIAL_IMAGES}
         />
       </div>
     </section>

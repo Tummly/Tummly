@@ -67,6 +67,23 @@ export function forGroupsProductVideoUrl(key: ForGroupsProductVideoKey): string 
   return marketingMediaUrl(FOR_GROUPS_PRODUCT_VIDEO_PATHS[key])
 }
 
+/**
+ * Home platform card loops: the same For Groups loops, re-encoded to 864×1080
+ * (`*-864.mp4`). The 2160×2700 masters decode about 6.5× slower and made the
+ * three cards stutter; the cards draw them at about 400×500px.
+ */
+export const HOME_PLATFORM_VIDEO_PATHS = {
+  "guest-relationships": "for-groups/product-e1dfdb-guest-relationships-864.mp4",
+  "reasons-to-return": "for-groups/product-e1dfdb-reasons-to-return-864.mp4",
+  "whats-working": "for-groups/product-e1dfdb-whats-working-864.mp4",
+} as const
+
+export type HomePlatformVideoKey = keyof typeof HOME_PLATFORM_VIDEO_PATHS
+
+export function homePlatformVideoUrl(key: HomePlatformVideoKey): string {
+  return marketingMediaUrl(HOME_PLATFORM_VIDEO_PATHS[key])
+}
+
 /** AI Assistant marketing page videos (`marketing/ai-assistant/*`). */
 export const AI_ASSISTANT_VIDEO_PATHS = {
   guestLoop: "ai-assistant/guest-loop.mp4",

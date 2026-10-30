@@ -59,6 +59,13 @@ describe("marketingMediaUrl", () => {
     )
   })
 
+  it("builds the Home platform card video URLs (864px loops)", async () => {
+    const { homePlatformVideoUrl } = await import("./marketingMedia")
+    expect(homePlatformVideoUrl("reasons-to-return")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-e1dfdb-reasons-to-return-864.mp4",
+    )
+  })
+
   it("builds About restaurant-reality video URLs", async () => {
     const { aboutRealityVideoUrl, ABOUT_REALITY_VIDEO_PATHS } =
       await import("./marketingMedia")

@@ -1,15 +1,11 @@
 import {
-  MARKETING_FOOTER_TRUST_CREDENTIALS,
-  type MarketingTrustCredential,
-} from "@/constants/marketingNav"
+  FOOTER_TRUST_BADGES,
+  type FooterTrustBadge,
+} from "@/content/marketing/footerTrustBadges"
 import {
   FOR_GROUPS_HERO_TRUST,
   type ForGroupsHeroTrustBadge,
 } from "@/content/marketing/forGroupsPage"
-import {
-  HOME_TRUST_CONTROL,
-  type HomeTrustBadge,
-} from "@/content/marketing/homePage"
 
 /**
  * Public certification / scheme badges stay withheld until the Director
@@ -18,14 +14,15 @@ import {
  */
 const PUBLIC_TRUST_CLAIMS_APPROVED = false
 
-export function publicHomeTrustBadges(): readonly HomeTrustBadge[] {
-  return PUBLIC_TRUST_CLAIMS_APPROVED ? HOME_TRUST_CONTROL.badges : []
+/** Home carousel shows the same 15 badges as the footer grid. */
+export function publicHomeTrustBadges(): readonly FooterTrustBadge[] {
+  return PUBLIC_TRUST_CLAIMS_APPROVED ? FOOTER_TRUST_BADGES : []
 }
 
 export function publicForGroupsTrustBadges(): readonly ForGroupsHeroTrustBadge[] {
   return PUBLIC_TRUST_CLAIMS_APPROVED ? FOR_GROUPS_HERO_TRUST.badges : []
 }
 
-export function publicFooterTrustCredentials(): readonly MarketingTrustCredential[] {
-  return PUBLIC_TRUST_CLAIMS_APPROVED ? MARKETING_FOOTER_TRUST_CREDENTIALS : []
+export function publicFooterTrustBadges(): readonly FooterTrustBadge[] {
+  return PUBLIC_TRUST_CLAIMS_APPROVED ? FOOTER_TRUST_BADGES : []
 }

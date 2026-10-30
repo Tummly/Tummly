@@ -5,6 +5,7 @@ import {
   type MouseEvent,
 } from "react"
 import { DownloadIcon } from "lucide-react"
+import { useLocation } from "react-router-dom"
 
 import { downloadLegalDocument } from "@/api/legalDocumentsApi"
 import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
@@ -166,6 +167,15 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => scheduleWarmSignUpCtaMedia(), [])
+
+  // Deep links such as the footer "Privacy for Guests" open at their section.
+  const { hash } = useLocation()
+  useEffect(() => {
+    const sectionId = decodeURIComponent(hash.replace(/^#/, ""))
+    if (sectionId) {
+      scrollToSection(sectionId)
+    }
+  }, [hash])
 
   const closeMobileToc = useCallback(() => {
     setMobileTocValue(undefined)

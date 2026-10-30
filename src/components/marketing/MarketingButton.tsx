@@ -46,11 +46,12 @@ type MarketingButtonProps = Omit<
 const baseClass =
   "inline-flex h-auto min-h-0 cursor-pointer items-center justify-center rounded-[4px] border text-sm font-inter font-medium whitespace-nowrap no-underline shadow-none outline-none select-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 disabled:pointer-events-none disabled:opacity-50"
 
+/** Figma buttons are 46px: Primary `4128:13977` = 22px label, no border; Secondary `4129:14588` = 20px label + 1px border. */
 const variantClass: Record<MarketingButtonVariant, string> = {
-  primary: "border-transparent text-white",
-  dark: "border-transparent text-white",
-  secondary: "border-[#4e4e4e] text-[#141414]",
-  "secondary-inverse": "border-[#4e4e4e] text-white",
+  primary: "border-0 text-white leading-[22px]",
+  dark: "border-0 text-white leading-[22px]",
+  secondary: "border-[#4e4e4e] text-[#141414] leading-5",
+  "secondary-inverse": "border-[#4e4e4e] text-white leading-5",
 }
 
 type SurfaceStyle = {
