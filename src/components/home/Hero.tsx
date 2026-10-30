@@ -1,6 +1,8 @@
 import heroStillImage from "@/assets/images/marketing/home/hero-still.webp"
 import { HeroSignupForm } from "@/components/home/HeroSignupForm"
+import { MarketingLoopVideo } from "@/components/marketing/MarketingLoopVideo"
 import { HOME_HERO } from "@/content/marketing/homePage"
+import { homeHeroVideoUrl } from "@/lib/marketingMedia"
 import { cn } from "@/lib/utils"
 
 /**
@@ -46,21 +48,17 @@ function Hero() {
         </div>
 
         {/*
-          Figma `5985:32077` (1548×796, radius 12) has a video fill (people eating
-          pizza, Figma video hash `0f9f1a24…`). Its source file is pending, so this
-          slot shows the Figma still of that video until it can be uploaded.
+          Figma `5985:32077` (1548×796, radius 12): campaign results loop. Its
+          first frame is the pizza table, so that still is the poster and the
+          reduced-motion image.
         */}
-        <div className="aspect-[1548/796] w-full overflow-hidden rounded-[12px] bg-[#ebebeb]">
-          <img
-            src={heroStillImage}
-            alt=""
-            width={1548}
-            height={796}
-            fetchPriority="high"
-            decoding="async"
-            className="size-full object-cover"
-          />
-        </div>
+        <MarketingLoopVideo
+          src={homeHeroVideoUrl()}
+          poster={heroStillImage}
+          preload="auto"
+          className="aspect-[1548/796] w-full rounded-[12px] bg-[#ebebeb]"
+          videoClassName="object-center"
+        />
       </div>
     </section>
   )

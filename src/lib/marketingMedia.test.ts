@@ -53,9 +53,9 @@ describe("marketingMediaUrl", () => {
   it("builds the Home hero campaign video URL", async () => {
     const { homeHeroVideoUrl, HOME_HERO_VIDEO_PATH } =
       await import("./marketingMedia")
-    expect(HOME_HERO_VIDEO_PATH).toBe("home/hero-campaign.mp4")
+    expect(HOME_HERO_VIDEO_PATH).toBe("home/hero-campaign-results-loop-1080.mp4")
     expect(homeHeroVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/home/hero-campaign.mp4",
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/home/hero-campaign-results-loop-1080.mp4",
     )
   })
 

@@ -1,5 +1,6 @@
 import type { MarketingSignUpCtaContent } from "@/components/marketing/MarketingSignUpCta"
 import {
+  MARKETING_DEMO_PATH,
   MARKETING_HOW_IT_WORKS_PATH,
   MARKETING_PRODUCT_PATH,
   MARKETING_TRUST_PRIVACY_PATH,
@@ -21,6 +22,14 @@ export const HOME_HERO = {
   emailPlaceholder: "Work email",
   planIntent: { plan: "Pilot" as const },
   visualAlt: "",
+} as const
+
+/** Fixed demo QR chip — Figma Demo `5661:30036` / Scan variants. */
+export const HOME_DEMO_QR = {
+  ariaLabel: "Scan to try on your phone",
+  href: MARKETING_DEMO_PATH,
+  /** Expanded Variant3 `5557:7269` — wraps in a 137px column. */
+  title: "Scan to try on your phone",
 } as const
 
 /** Figma Home "Built for the way you serve" strip `6757:45771`. */
