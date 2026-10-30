@@ -68,10 +68,14 @@ namespace TummlyBackend.DTOs.Admin
         IReadOnlyList<TrustIndicatorItemDto> Items
     );
 
+    /// <summary>The viewing admin and whether they may publish. Drives the publish control.</summary>
+    public sealed record TrustIndicatorViewerDto(int AdminUserId, bool CanApprove);
+
     public sealed record AdminTrustIndicatorsViewDto(
         IReadOnlyList<TrustIndicatorItemDto> Draft,
         TrustIndicatorReviewDto Review,
-        TrustIndicatorPublicationDto? Published
+        TrustIndicatorPublicationDto? Published,
+        TrustIndicatorViewerDto Viewer
     );
 
     public sealed class AdminTrustIndicatorPublishRequest

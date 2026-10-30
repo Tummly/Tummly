@@ -70,6 +70,16 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         TRUST INDICATOR APPROVER
+         Only a provisioning script sets this (scripts/grant-trust-approver.sh).
+         No API or UI may write it.
+         =========================================
+        */
+
+        public bool CanApproveTrustIndicators { get; set; } = false;
+
+        /*
+         =========================================
          CREATED DATE
          =========================================
         */

@@ -100,6 +100,8 @@
         public const string TrustIndicatorSubmit = "trust_indicator.submit";
         public const string TrustIndicatorPublish = "trust_indicator.publish";
         public const string TrustIndicatorRefused = "trust_indicator.refused";
+        public const string TrustApproverGrant = "trust.approver_grant";
+        public const string TrustApproverRevoke = "trust.approver_revoke";
         public const string StaffPasswordChange = "staff.password_change";
         public const string StaffCreate = "staff.create";
         public const string StaffDisable = "staff.disable";

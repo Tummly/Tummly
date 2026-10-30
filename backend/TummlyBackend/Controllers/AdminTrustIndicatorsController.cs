@@ -21,7 +21,13 @@ namespace TummlyBackend.Controllers
         [HttpGet]
         public async Task<IActionResult> Get(CancellationToken cancellationToken)
         {
-            var item = await _trust.GetAdminViewAsync(cancellationToken);
+            var adminId = ResolveAdminId();
+            if (adminId == null)
+            {
+                return Unauthorized(new { success = false, message = "Admin required." });
+            }
+
+            var item = await _trust.GetAdminViewAsync(adminId.Value, cancellationToken);
             return Ok(new { success = true, item });
         }
 
@@ -100,6 +106,7 @@ namespace TummlyBackend.Controllers
 
             return outcome.Code switch
             {
+                "approver_required" => StatusCode(StatusCodes.Status403Forbidden, body),
                 "not_found" => NotFound(body),
                 "not_submitted" or "already_submitted" or "self_approval_denied" or "no_changes" or "publish_conflict" => Conflict(body),
                 _ => BadRequest(body),

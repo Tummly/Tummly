@@ -33,6 +33,7 @@ namespace TummlyBackend.Services
         }
 
         public async Task<AdminTrustIndicatorsViewDto> GetAdminViewAsync(
+            int actorAdminUserId,
             CancellationToken cancellationToken = default
         )
         {
@@ -51,10 +52,13 @@ namespace TummlyBackend.Services
                 .OrderByDescending(row => row.Version)
                 .FirstOrDefaultAsync(cancellationToken);
 
+            var canApprove = await IsApproverAsync(actorAdminUserId, cancellationToken);
+
             return new AdminTrustIndicatorsViewDto(
                 rows.Select(ToItemDto).ToList(),
                 ToReviewDto(state),
-                publication == null ? null : ToPublicationDto(publication)
+                publication == null ? null : ToPublicationDto(publication),
+                new TrustIndicatorViewerDto(actorAdminUserId, canApprove)
             );
         }
 
@@ -210,6 +214,20 @@ namespace TummlyBackend.Services
             if (replay != null)
             {
                 return new(ToPublicationDto(replay));
+            }
+
+            if (!await IsApproverAsync(actorAdminUserId, cancellationToken))
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "approver_required",
+                    "Only a trust indicator approver can publish.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
             }
 
             var trimmedReason = reason?.Trim() ?? string.Empty;
@@ -487,6 +505,23 @@ namespace TummlyBackend.Services
                         .Select(row => Key(row.ItemNumber, TrustIndicatorRules.ToValues(row)))
                 );
         }
+
+        /// <summary>
+        /// True only for an active Admin-role row with the approver flag. An unknown id is not an approver.
+        /// </summary>
+        private async Task<bool> IsApproverAsync(
+            int adminUserId,
+            CancellationToken cancellationToken
+        ) =>
+            await _context.Admins
+                .AsNoTracking()
+                .AnyAsync(
+                    row => row.Id == adminUserId
+                        && row.IsActive
+                        && row.Role == "Admin"
+                        && row.CanApproveTrustIndicators,
+                    cancellationToken
+                );
 
         private async Task<string> ActorIdentityAsync(
             int adminUserId,

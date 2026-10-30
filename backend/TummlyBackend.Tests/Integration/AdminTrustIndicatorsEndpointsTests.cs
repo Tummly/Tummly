@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Controllers;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -47,6 +50,143 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Support_IsForbidden_OnEveryTrustEndpoint()
+        {
+            var admins = await SeedAdminsAsync();
+            var jwt = admins.SupportJwt;
+
+            using var get = await SendAsync(HttpMethod.Get, "/api/admin/trust-indicators", jwt);
+            using var put = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                jwt,
+                new { status = "Roadmap", statusLabel = "On our roadmap" }
+            );
+            using var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", jwt);
+            using var publish = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                jwt,
+                new { reason = "Evidence checked" },
+                key: "support-key"
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, get.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, submit.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
+        }
+
+        [Fact]
+        public async Task Anonymous_IsUnauthorized_OnEveryTrustEndpoint()
+        {
+            await SeedAdminsAsync();
+
+            using var get = await _client.GetAsync("/api/admin/trust-indicators");
+            using var put = await _client.PutAsJsonAsync(
+                "/api/admin/trust-indicators/items/1",
+                new { status = "Roadmap" }
+            );
+            using var submit = await _client.PostAsync("/api/admin/trust-indicators/submit", null);
+            using var publish = await _client.PostAsJsonAsync(
+                "/api/admin/trust-indicators/publish",
+                new { reason = "Evidence checked" }
+            );
+
+            Assert.Equal(HttpStatusCode.Unauthorized, get.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, put.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, submit.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, publish.StatusCode);
+        }
+
+        [Fact]
+        public async Task Get_ReportsViewerCanApprove_PerActor()
+        {
+            var admins = await SeedAdminsAsync();
+
+            var approver = await GetViewerAsync(admins.PublisherJwt);
+            var nonApprover = await GetViewerAsync(admins.NonApproverJwt);
+
+            Assert.True(approver.GetProperty("canApprove").GetBoolean());
+            Assert.False(nonApprover.GetProperty("canApprove").GetBoolean());
+        }
+
+        [Fact]
+        public async Task NonApproverAdmin_PublishIsForbidden_WithApproverRequired_AndAudited()
+        {
+            var admins = await SeedAdminsAsync();
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                admins.EditorJwt,
+                new
+                {
+                    enabled = true,
+                    status = "VerifiedPublicRecord",
+                    statusLabel = "Registered",
+                    ctaType = "ExternalProof",
+                    ctaTarget = "https://ico.example/proof",
+                    ctaLabel = "View registration",
+                    evidenceUrl = "https://ico.example/proof",
+                    issuer = "Information Commissioner’s Office",
+                }
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
+            {
+                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            }
+
+            using var publish = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.NonApproverJwt,
+                new { reason = "Evidence checked" },
+                key: "http-non-approver"
+            );
+
+            Assert.Equal(HttpStatusCode.Forbidden, publish.StatusCode);
+            var body = await publish.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("approver_required", body.GetProperty("code").GetString());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(0, await context.TrustIndicatorPublications.CountAsync());
+            Assert.Equal(
+                1,
+                await context.AdminAuditEvents.CountAsync(e =>
+                    e.Action == AdminAuditActions.TrustIndicatorRefused
+                )
+            );
+        }
+
+        [Fact]
+        public void No_Controller_Action_Accepts_CanApproveTrustIndicators()
+        {
+            // No endpoint may set the approver flag: no action parameter type may carry it.
+            var bodyTypes = typeof(AdminTrustIndicatorsController).Assembly
+                .GetTypes()
+                .Where(type => typeof(ControllerBase).IsAssignableFrom(type) && !type.IsAbstract)
+                .SelectMany(type => type.GetMethods(
+                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                .SelectMany(method => method.GetParameters())
+                .Select(parameter => parameter.ParameterType)
+                .Distinct()
+                .ToList();
+
+            var offenders = bodyTypes
+                .Where(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Any(property => property.Name == nameof(Admin.CanApproveTrustIndicators)))
+                .Select(type => type.FullName)
+                .ToList();
+
+            Assert.Empty(offenders);
+            Assert.NotNull(typeof(Admin).GetProperty(nameof(Admin.CanApproveTrustIndicators)));
         }
 
         [Fact]
@@ -181,7 +321,15 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private async Task<(string EditorJwt, string PublisherJwt, string SupportJwt)> SeedAdminsAsync()
+        private async Task<JsonElement> GetViewerAsync(string jwt)
+        {
+            using var response = await SendAsync(HttpMethod.Get, "/api/admin/trust-indicators", jwt);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            return body.GetProperty("item").GetProperty("viewer");
+        }
+
+        private async Task<(string EditorJwt, string PublisherJwt, string SupportJwt, string NonApproverJwt)> SeedAdminsAsync()
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -196,6 +344,7 @@ namespace TummlyBackend.Tests.Integration
                 PasswordHash = "hash",
                 Role = "Admin",
                 IsActive = true,
+                CanApproveTrustIndicators = true,
                 CreatedAt = DateTime.UtcNow,
             };
             var publisher = new Admin
@@ -205,6 +354,17 @@ namespace TummlyBackend.Tests.Integration
                 PasswordHash = "hash",
                 Role = "Admin",
                 IsActive = true,
+                CanApproveTrustIndicators = true,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var nonApprover = new Admin
+            {
+                FullName = "Trust Reader",
+                Email = $"reader-{Guid.NewGuid():N}@tummly.com",
+                PasswordHash = "hash",
+                Role = "Admin",
+                IsActive = true,
+                CanApproveTrustIndicators = false,
                 CreatedAt = DateTime.UtcNow,
             };
             var support = new Admin
@@ -216,13 +376,14 @@ namespace TummlyBackend.Tests.Integration
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
             };
-            context.Admins.AddRange(editor, publisher, support);
+            context.Admins.AddRange(editor, publisher, support, nonApprover);
             await context.SaveChangesAsync();
 
             return (
                 jwtService.GenerateAdminToken(editor),
                 jwtService.GenerateAdminToken(publisher),
-                jwtService.GenerateAdminToken(support)
+                jwtService.GenerateAdminToken(support),
+                jwtService.GenerateAdminToken(nonApprover)
             );
         }
 
