@@ -402,7 +402,7 @@ export function MarketingSignUpCta({
                 <MarketingSignupLegalNote
                   className={cn(
                     "max-w-[382px] leading-4",
-                    isEditorial ? "text-[#141414]" : "text-[#a3a3a3]",
+                    isEditorial ? "text-[#141414]" : "text-[#7c7c7c]",
                   )}
                 />
               ) : (

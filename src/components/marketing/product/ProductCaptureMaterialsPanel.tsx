@@ -433,9 +433,9 @@ function PanelChrome({
         /* Home mobile Figma `6241:18094`: 12px radius on the grey card. */
         "rounded-[12px]",
       )}
-      {...(intro == null
-        ? { role: "region", "aria-label": "QR capture materials" }
-        : null)}
+      role="region"
+      aria-label="QR capture materials"
+      aria-labelledby={intro?.titleId}
     >
       <div
         className={cn(
