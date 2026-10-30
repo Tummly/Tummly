@@ -298,18 +298,13 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
 
-            using var submit = await SendAsync(
-                HttpMethod.Post,
-                "/api/admin/trust-indicators/submit",
-                admins.EditorJwt
-            );
-            Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            var revision = await SubmitAsync(admins.EditorJwt);
 
             using var selfPublish = await SendAsync(
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.EditorJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(revision),
                 key: "http-self"
             );
             Assert.Equal(HttpStatusCode.Conflict, selfPublish.StatusCode);
@@ -320,7 +315,7 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" }
+                PublishBody(revision)
             );
             Assert.Equal(HttpStatusCode.BadRequest, noKey.StatusCode);
             var missingKey = await noKey.Content.ReadFromJsonAsync<JsonElement>();
@@ -330,7 +325,7 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(revision),
                 key: "http-publish"
             );
             Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
@@ -341,7 +336,7 @@ namespace TummlyBackend.Tests.Integration
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(revision),
                 key: "http-publish"
             );
             Assert.Equal(HttpStatusCode.OK, repeat.StatusCode);
@@ -390,6 +385,51 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
             var body = await replay.Content.ReadFromJsonAsync<JsonElement>();
             Assert.Equal("idempotency_key_reused", body.GetProperty("code").GetString());
+        }
+
+        [Fact]
+        public async Task PublishWithStaleRevision_Returns409DraftChanged()
+        {
+            var admins = await SeedAdminsAsync();
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/1",
+                admins.EditorJwt,
+                ItemOneBody(enabled: true, link: "https://ico.example/proof")
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            var reviewed = await SubmitAsync(admins.EditorJwt);
+            using (var edit = await SendAsync(
+                HttpMethod.Put,
+                "/api/admin/trust-indicators/items/2",
+                admins.EditorJwt,
+                new
+                {
+                    enabled = false,
+                    status = "VerifiedCredential",
+                    statusLabel = "Self-assessment completed",
+                    ctaType = "None",
+                    tooltip = "Changed after the review",
+                }
+            ))
+            {
+                Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+            }
+            await SubmitAsync(admins.EditorJwt);
+
+            using var publish = await SendAsync(
+                HttpMethod.Post,
+                "/api/admin/trust-indicators/publish",
+                admins.PublisherJwt,
+                PublishBody(reviewed),
+                key: "http-stale-revision"
+            );
+
+            Assert.Equal(HttpStatusCode.Conflict, publish.StatusCode);
+            var body = await publish.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("draft_changed", body.GetProperty("code").GetString());
         }
 
         [Fact]
@@ -456,15 +496,12 @@ namespace TummlyBackend.Tests.Integration
             {
                 Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
             }
-            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
-            {
-                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
-            }
+            var gateRevision = await SubmitAsync(admins.EditorJwt);
             using (var gate = await SendAsync(
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(gateRevision),
                 key: "http-gate-fail"
             ))
             {
@@ -497,15 +534,12 @@ namespace TummlyBackend.Tests.Integration
             {
                 Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
             }
-            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
-            {
-                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
-            }
+            var linkRevision = await SubmitAsync(admins.EditorJwt);
             using (var linkFail = await SendAsync(
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(linkRevision),
                 key: "http-link-fail"
             ))
             {
@@ -548,19 +582,28 @@ namespace TummlyBackend.Tests.Integration
             {
                 Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
             }
-            using (var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", admins.EditorJwt))
-            {
-                Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
-            }
+            var revision = await SubmitAsync(admins.EditorJwt);
             using var publish = await SendAsync(
                 HttpMethod.Post,
                 "/api/admin/trust-indicators/publish",
                 admins.PublisherJwt,
-                new { reason = "Evidence checked" },
+                PublishBody(revision),
                 key: key
             );
             Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
         }
+
+        /// <summary>Submits the draft as the editor and returns the revision the submit recorded.</summary>
+        private async Task<string> SubmitAsync(string editorJwt)
+        {
+            using var submit = await SendAsync(HttpMethod.Post, "/api/admin/trust-indicators/submit", editorJwt);
+            Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
+            var body = await submit.Content.ReadFromJsonAsync<JsonElement>();
+            return body.GetProperty("item").GetProperty("draftRevision").GetString()!;
+        }
+
+        private static object PublishBody(string draftRevision) =>
+            new { reason = "Evidence checked", draftRevision };
 
         private static object ItemOneBody(bool enabled, string link) =>
             new

@@ -5542,6 +5542,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("SubmittedByAdminUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("SubmittedRevision")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.HasKey("Id");
 
                     b.ToTable("TrustIndicatorDraftStates");

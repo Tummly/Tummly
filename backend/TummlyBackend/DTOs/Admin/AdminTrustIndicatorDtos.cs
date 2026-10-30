@@ -54,7 +54,8 @@ namespace TummlyBackend.DTOs.Admin
         int? LastEditedByAdminUserId,
         DateTime? LastEditedAtUtc,
         int? SubmittedByAdminUserId,
-        DateTime? SubmittedAtUtc
+        DateTime? SubmittedAtUtc,
+        string? DraftRevision
     );
 
     public sealed record TrustIndicatorPublicationDto(
@@ -81,6 +82,9 @@ namespace TummlyBackend.DTOs.Admin
     public sealed class AdminTrustIndicatorPublishRequest
     {
         public string? Reason { get; set; }
+
+        /// <summary>The draft revision the reviewer read (review.draftRevision from GET).</summary>
+        public string? DraftRevision { get; set; }
     }
 
     /// <summary>

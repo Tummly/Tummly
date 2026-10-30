@@ -114,6 +114,10 @@ namespace TummlyBackend.Models
         public int? SubmittedByAdminUserId { get; set; }
 
         public DateTime? SubmittedAtUtc { get; set; }
+
+        /// <summary>Hash of the 15 editable rows at submit time (CONTRACT §6 draft revision). Null when not submitted.</summary>
+        [MaxLength(64)]
+        public string? SubmittedRevision { get; set; }
     }
 
     /// <summary>

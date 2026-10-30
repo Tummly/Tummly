@@ -25,6 +25,7 @@ namespace TummlyBackend.Interfaces
             int actorAdminUserId,
             string? idempotencyKey,
             string? reason,
+            string? draftRevision,
             CancellationToken cancellationToken = default
         );
 

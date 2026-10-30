@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -122,6 +124,7 @@ namespace TummlyBackend.Services
             state.LastEditedAtUtc = now;
             state.SubmittedByAdminUserId = null;
             state.SubmittedAtUtc = null;
+            state.SubmittedRevision = null;
 
             _audit.Append(
                 new AdminAuditAppendRequest(
@@ -165,9 +168,14 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var rows = await _context.TrustIndicators
+                .OrderBy(row => row.ItemNumber)
+                .ToListAsync(cancellationToken);
+            var revision = DraftRevisionOf(rows);
             var now = _clock.GetUtcNow().UtcDateTime;
             state.SubmittedByAdminUserId = actorAdminUserId;
             state.SubmittedAtUtc = now;
+            state.SubmittedRevision = revision;
 
             _audit.Append(
                 new AdminAuditAppendRequest(
@@ -177,7 +185,11 @@ namespace TummlyBackend.Services
                     TargetId: "draft",
                     ActorAdminUserId: actorAdminUserId,
                     DetailJson: JsonSerializer.Serialize(
-                        new { lastEditedByAdminUserId = state.LastEditedByAdminUserId }
+                        new
+                        {
+                            lastEditedByAdminUserId = state.LastEditedByAdminUserId,
+                            draftRevision = revision,
+                        }
                     )
                 )
             );
@@ -194,6 +206,7 @@ namespace TummlyBackend.Services
             int actorAdminUserId,
             string? idempotencyKey,
             string? reason,
+            string? draftRevision,
             CancellationToken cancellationToken = default
         )
         {
@@ -335,6 +348,29 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // The reviewer must have seen the submitted rows: the body revision, the stored revision and the
+            // rows read now must all agree (CONTRACT §6). Any other case is a stale view or an out-of-band change.
+            var currentRevision = DraftRevisionOf(rows);
+            var storedRevision = state.SubmittedRevision;
+            if (
+                string.IsNullOrWhiteSpace(draftRevision)
+                || storedRevision == null
+                || !string.Equals(draftRevision.Trim(), storedRevision, StringComparison.Ordinal)
+                || !string.Equals(storedRevision, currentRevision, StringComparison.Ordinal)
+            )
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "draft_changed",
+                    "The draft changed after it was submitted. Reload it and review it again.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
             var today = TrustIndicatorRules.LondonToday(_clock.GetUtcNow().UtcDateTime);
             var gateErrors = TrustIndicatorRules.PublishGateErrors(rows, today);
             if (gateErrors.Count > 0)
@@ -410,6 +446,7 @@ namespace TummlyBackend.Services
 
             state.SubmittedByAdminUserId = null;
             state.SubmittedAtUtc = null;
+            state.SubmittedRevision = null;
 
             _audit.Append(
                 new AdminAuditAppendRequest(
@@ -424,6 +461,7 @@ namespace TummlyBackend.Services
                             version,
                             previousVersion,
                             submittedByAdminUserId = submittedBy,
+                            draftRevision = currentRevision,
                             reason = trimmedReason,
                         }
                     )
@@ -609,6 +647,20 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
+        /// CONTRACT §6 draft revision: lowercase hex SHA-256 of the editable values of the rows, in item order,
+        /// serialized with the snapshot options.
+        /// </summary>
+        private static string DraftRevisionOf(IEnumerable<TrustIndicator> rows)
+        {
+            var canonical = JsonSerializer.Serialize(
+                rows.OrderBy(row => row.ItemNumber).Select(TrustIndicatorRules.ToValues).ToList(),
+                SnapshotOptions
+            );
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+                .ToLowerInvariant();
+        }
+
+        /// <summary>
         /// True only for a usable Admin-role row (Role Admin, active, not locked) with the approver flag.
         /// An unknown id is not an approver. Same usability rule as AdminStaffService.
         /// </summary>
@@ -646,7 +698,9 @@ namespace TummlyBackend.Services
                 state?.LastEditedByAdminUserId,
                 state?.LastEditedAtUtc,
                 state?.SubmittedByAdminUserId,
-                state?.SubmittedAtUtc
+                state?.SubmittedAtUtc,
+                // A revision means something only while a submission stands.
+                state?.SubmittedByAdminUserId == null ? null : state.SubmittedRevision
             );
 
         private static TrustIndicatorPublicationDto ToPublicationDto(

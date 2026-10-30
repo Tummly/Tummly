@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
@@ -404,7 +406,8 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
-            var outcome = await _sut.PublishAsync(PublisherId, "  ", "Evidence checked");
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+            var outcome = await _sut.PublishAsync(PublisherId, "  ", "Evidence checked", revision);
 
             Assert.Equal("idempotency_key_required", outcome.Code);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -416,7 +419,8 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
-            var outcome = await _sut.PublishAsync(PublisherId, "key-no-reason", "   ");
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+            var outcome = await _sut.PublishAsync(PublisherId, "key-no-reason", "   ", revision);
 
             Assert.Equal("validation_failed", outcome.Code);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -566,6 +570,113 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("publish_gate_failed", outcome.Code);
             Assert.Contains("Item 02: evidence link failed (HTTP 404).", outcome.Details!);
             Assert.Contains(url, _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
+        public async Task AdminView_ReturnsDraftRevisionWhenSubmitted()
+        {
+            Assert.Null((await _sut.GetAdminViewAsync(EditorId)).Review.DraftRevision);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            Assert.NotNull(submitted.DraftRevision);
+            Assert.Matches("^[0-9a-f]{64}$", submitted.DraftRevision!);
+            Assert.Equal(submitted.DraftRevision, (await _sut.GetAdminViewAsync(EditorId)).Review.DraftRevision);
+        }
+
+        [Fact]
+        public async Task DraftRevision_IsSha256OfCanonicalValuesInItemOrder()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var view = await _sut.GetAdminViewAsync(EditorId);
+
+            var canonical = JsonSerializer.Serialize(
+                view.Draft.OrderBy(item => item.ItemNumber).Select(item => item.Values).ToList(),
+                SnapshotWebOptions
+            );
+            var expected = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+                .ToLowerInvariant();
+
+            Assert.Equal(expected, submitted.DraftRevision);
+        }
+
+        [Fact]
+        public async Task Edit_AfterSubmitClearsSubmission()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Assert.NotNull(submitted.DraftRevision);
+
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Changed after submit" }, PublisherId));
+
+            var view = await _sut.GetAdminViewAsync(EditorId);
+            Assert.Null(view.Review.SubmittedByAdminUserId);
+            Assert.Null(view.Review.SubmittedAtUtc);
+            Assert.Null(view.Review.DraftRevision);
+            var state = await _context.TrustIndicatorDraftStates.SingleAsync();
+            Assert.Null(state.SubmittedByAdminUserId);
+            Assert.Null(state.SubmittedAtUtc);
+            Assert.Null(state.SubmittedRevision);
+        }
+
+        [Fact]
+        public async Task Publish_WithoutDraftRevisionRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await _sut.PublishAsync(PublisherId, "key-no-revision", "Evidence checked", null);
+
+            Assert.Equal("draft_changed", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+            Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+        }
+
+        [Fact]
+        public async Task Publish_WithStaleDraftRevisionRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var first = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var reviewed = first.DraftRevision;
+
+            // A third admin changes the draft after the submit, which clears it, and submits again.
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Changed by a third admin" }, ThirdAdminId));
+            var second = Succeeded(await _sut.SubmitDraftAsync(ThirdAdminId));
+            Assert.NotEqual(reviewed, second.DraftRevision);
+
+            var stale = await _sut.PublishAsync(PublisherId, "key-stale", "Evidence checked", reviewed);
+
+            Assert.Equal("draft_changed", stale.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+
+            var fresh = Succeeded(
+                await _sut.PublishAsync(PublisherId, "key-fresh", "Evidence checked", second.DraftRevision)
+            );
+            Assert.Equal(1, fresh.Version);
+        }
+
+        [Fact]
+        public async Task Publish_WhenRowsChangedAfterSubmitRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            // A row changed without the service, after the submit. The stored revision no longer matches the rows.
+            var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 9);
+            row.Tooltip = "Changed outside the service";
+            await _context.SaveChangesAsync();
+
+            var outcome = await _sut.PublishAsync(
+                PublisherId,
+                "key-out-of-band",
+                "Evidence checked",
+                submitted.DraftRevision
+            );
+
+            Assert.Equal("draft_changed", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
         }
 
         [Fact]
@@ -1108,10 +1219,14 @@ namespace TummlyBackend.Tests.Services
             int actorId = EditorId
         ) => _sut.UpdateDraftItemAsync(actorId, itemNumber, values);
 
-        private Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishAsync(
+        private async Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishAsync(
             int actorId,
             string key
-        ) => _sut.PublishAsync(actorId, key, "Evidence checked");
+        )
+        {
+            var revision = (await _sut.GetAdminViewAsync(actorId)).Review.DraftRevision;
+            return await _sut.PublishAsync(actorId, key, "Evidence checked", revision);
+        }
 
         private async Task PublishValidAsync()
         {
