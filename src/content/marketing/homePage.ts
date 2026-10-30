@@ -285,8 +285,8 @@ export type HomeTrustControlItem = {
 }
 
 /**
- * Home Trust & control — Figma `4942:19219`. The badge carousel reuses
- * `FOOTER_TRUST_BADGES` and stays behind the public trust-claims gate.
+ * Home Trust & control — Figma `4942:19219`. The indicator carousel shows the
+ * published trust indicators and stays behind the public trust-claims gate.
  */
 export const HOME_TRUST_CONTROL = {
   eyebrow: "TRUST & CONTROL",

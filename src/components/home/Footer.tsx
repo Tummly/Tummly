@@ -4,7 +4,7 @@ import { MarketingAskAiIcons } from "@/components/marketing/MarketingAskAiIcons"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { MarketingLogo } from "@/components/marketing/MarketingLogo"
 import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
-import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
+import { TrustIndicatorTile } from "@/components/marketing/trust/TrustIndicatorTile"
 import {
   MARKETING_FOOTER_BOTTOM_LINKS,
   MARKETING_FOOTER_COMPANY,
@@ -16,8 +16,10 @@ import {
   MARKETING_FOOTER_SOCIAL,
   type MarketingNavItem,
 } from "@/constants/marketingNav"
-import type { FooterTrustBadge } from "@/content/marketing/footerTrustBadges"
-import { publicFooterTrustBadges } from "@/content/marketing/publicTrustClaims"
+import { visibleTrustIndicators } from "@/content/marketing/publicTrustClaims"
+import { usePublicTrustIndicators } from "@/hooks/usePublicTrustIndicators"
+import type { PublicTrustIndicator } from "@/lib/marketing/publicTrustIndicators"
+import { buildSignupPath } from "@/lib/signupPlanIntent"
 import { cn } from "@/lib/utils"
 
 /** Figma link Item is 18px tall (14px text, "normal" line height). */
@@ -103,29 +105,22 @@ function AskAiBlock({ className }: { className?: string }) {
   )
 }
 
-function TrustBadgeGrid({ badges }: { badges: readonly FooterTrustBadge[] }) {
+/**
+ * "Built with trust in mind" grid: 5 columns × 3 rows from `sm`, 3 columns from
+ * 360px, 2 columns below that. The DOM order is the reading order. The caller
+ * renders this only when there are indicators to show.
+ */
+export function TrustIndicatorGrid({ items }: { items: readonly PublicTrustIndicator[] }) {
   return (
     <div className="flex flex-col gap-7.5">
       <p className={footerHeadingClass}>Built with trust in mind</p>
       <ul
-        aria-label="Trust badges"
-        className="m-0 flex max-w-[530px] list-none flex-wrap gap-x-3.5 gap-y-2 p-0"
+        aria-label="Trust indicators"
+        className="m-0 grid max-w-[530px] list-none grid-cols-2 gap-x-3.5 gap-y-2 p-0 min-[360px]:grid-cols-3 sm:grid-cols-5"
       >
-        {badges.map((badge) => (
-          <li
-            key={badge.itemNumber}
-            className="flex h-[95px] w-[94px] items-center justify-center rounded-[7px] border-[0.8px] border-[#b3b3b3]"
-          >
-            <img
-              src={badge.src}
-              alt={badge.title}
-              title={badge.title}
-              width={badge.width}
-              height={badge.height}
-              loading="lazy"
-              decoding="async"
-              className="block"
-            />
+        {items.map((indicator) => (
+          <li key={indicator.itemNumber} className="flex">
+            <TrustIndicatorTile indicator={indicator} variant="footer" />
           </li>
         ))}
       </ul>
@@ -133,15 +128,25 @@ function TrustBadgeGrid({ badges }: { badges: readonly FooterTrustBadge[] }) {
   )
 }
 
+/** The one green Pilot call to action in the footer. */
+export function FooterPilotButton() {
+  return (
+    <MarketingButton asChild variant="primary">
+      <Link to={buildSignupPath({ plan: "Pilot" })}>Start 30-day Pilot</Link>
+    </MarketingButton>
+  )
+}
+
 /** Figma marketing Footer: desktop `5839:73487`, mobile `6243:19686`. */
 export default function Footer() {
-  const trustBadges = publicFooterTrustBadges()
+  const trust = usePublicTrustIndicators()
+  const trustIndicators = visibleTrustIndicators(trust)
 
   return (
     <footer className="w-full pt-5">
       <div className="flex w-full flex-col overflow-hidden rounded-tl-[8px] rounded-tr-[8px] px-6 pb-[60px] pt-10 sm:px-10 xl:px-[60px] xl:pb-[70px]">
         <div className="flex w-full flex-col gap-[110px] xl:gap-[70px]">
-          {/* Top: brand | link columns, trust badges under the brand on desktop */}
+          {/* Top: brand | link columns, trust indicators under the brand on desktop */}
           <div
             className={cn(
               "flex w-full flex-col gap-[70px]",
@@ -167,11 +172,7 @@ export default function Footer() {
                 </p>
 
                 <div>
-                  <MarketingButton asChild variant="primary">
-                    <RequestTrialLink planIntent={{ plan: "Pilot" }}>
-                      Start 30-day Pilot
-                    </RequestTrialLink>
-                  </MarketingButton>
+                  <FooterPilotButton />
                 </div>
               </div>
 
@@ -196,13 +197,13 @@ export default function Footer() {
               <AskAiBlock className="hidden md:order-6 md:flex" />
             </div>
 
-            {trustBadges.length > 0 ? (
+            {trustIndicators.length > 0 ? (
               <div className="flex flex-col gap-8 xl:col-start-1 xl:row-start-2">
                 <div
                   className="hidden h-px w-full max-w-[525px] bg-[#aaaaaa] xl:block"
                   aria-hidden
                 />
-                <TrustBadgeGrid badges={trustBadges} />
+                <TrustIndicatorGrid items={trustIndicators} />
               </div>
             ) : null}
           </div>
@@ -225,15 +226,15 @@ export default function Footer() {
 
             <div className="flex w-full flex-col items-start gap-[30px] md:flex-row md:items-center md:justify-between md:gap-10">
               <div className="flex flex-col gap-3 text-[#141414]">
-                <p className="m-0 text-sm font-normal leading-[normal]">
-                  © 2026 Tummly.com Ltd. All rights reserved.
-                </p>
                 <p className="m-0 text-xs font-normal leading-[18px]">
                   {MARKETING_FOOTER_COMPANY_DISCLOSURE.map((line) => (
                     <span key={line} className="block">
                       {line}
                     </span>
                   ))}
+                </p>
+                <p className="m-0 text-sm font-normal leading-[normal]">
+                  © 2026 Tummly.com Ltd. All rights reserved.
                 </p>
               </div>
 

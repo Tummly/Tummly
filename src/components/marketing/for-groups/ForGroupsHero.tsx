@@ -8,7 +8,8 @@ import {
   FOR_GROUPS_SECTION_Y,
 } from "@/content/marketing/forGroupsPage"
 import { PRODUCT_EYEBROW } from "@/content/marketing/productPage"
-import { publicForGroupsTrustBadges } from "@/content/marketing/publicTrustClaims"
+import { visibleTrustIndicators } from "@/content/marketing/publicTrustClaims"
+import { usePublicTrustIndicators } from "@/hooks/usePublicTrustIndicators"
 import { marketingHeroHeading } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
@@ -17,10 +18,11 @@ const heroBodyClass = "font-sans text-base font-normal leading-6 text-[#141414]"
 /**
  * Figma For Groups hero `5661:20525`.
  * Laurel eyebrow + title + body + Pilot signup + hero photo + trust carousel
- * (hidden behind `publicForGroupsTrustBadges()` until the claims are approved).
+ * (omitted unless the release gate is open and the indicators are ready).
  */
 export function ForGroupsHero() {
-  const trustBadges = publicForGroupsTrustBadges()
+  const trust = usePublicTrustIndicators()
+  const indicators = visibleTrustIndicators(trust)
 
   return (
     <section
@@ -106,12 +108,12 @@ export function ForGroupsHero() {
           aria-hidden
         />
 
-        {trustBadges.length > 0 ? (
+        {indicators.length > 0 ? (
           <div className="flex w-full flex-col items-center gap-10">
             <p className="m-0 text-center font-sans text-lg font-medium leading-[normal] text-black">
               {FOR_GROUPS_HERO.trustTitle}
             </p>
-            <MarketingCertificationCarousel certifications={trustBadges} />
+            <MarketingCertificationCarousel indicators={indicators} />
           </div>
         ) : null}
       </div>

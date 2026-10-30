@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 
-import { FOOTER_TRUST_BADGES } from "@/content/marketing/footerTrustBadges"
 import { HOME_PRICING, HOME_TRUST_CONTROL } from "@/content/marketing/homePage"
 
 // Figma `4942:19219` (Trust & control) and `4902:19866` (Pricing).
@@ -12,10 +11,6 @@ describe("Home Trust & control copy", () => {
       "Access that fits the job",
       "Help with the work, oversight of the decision",
     ])
-  })
-
-  it("reuses the 15 footer badges for the carousel", () => {
-    expect(FOOTER_TRUST_BADGES).toHaveLength(15)
   })
 })
 

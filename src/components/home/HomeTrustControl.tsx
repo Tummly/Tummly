@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { TrustIndicatorTile } from "@/components/marketing/trust/TrustIndicatorTile"
 import {
   Accordion,
   AccordionContent,
@@ -14,13 +15,11 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel"
-import type { FooterTrustBadge } from "@/content/marketing/footerTrustBadges"
 import { HOME_TRUST_CONTROL } from "@/content/marketing/homePage"
-import { publicHomeTrustBadges } from "@/content/marketing/publicTrustClaims"
+import { visibleTrustIndicators } from "@/content/marketing/publicTrustClaims"
+import { usePublicTrustIndicators } from "@/hooks/usePublicTrustIndicators"
+import type { PublicTrustIndicator } from "@/lib/marketing/publicTrustIndicators"
 import { cn } from "@/lib/utils"
-
-/** Figma carousel badges are drawn 72px tall in the 43px footer artwork scale. */
-const BADGE_SCALE = 72 / 43
 
 const accordionTriggerClassName = cn(
   "items-start gap-[30px] rounded-none border-0 py-0 hover:no-underline hover:cursor-pointer",
@@ -34,25 +33,10 @@ const carouselArrowClassName = cn(
   "hover:bg-[#f1f1f1] disabled:opacity-20 [&_svg]:size-[22px]",
 )
 
-function TrustBadgeSlide({ badge }: { badge: FooterTrustBadge }) {
+function TrustIndicatorSlide({ indicator }: { indicator: PublicTrustIndicator }) {
   return (
     <CarouselItem className="basis-auto pl-6">
-      <div className="flex w-[172px] flex-col items-center gap-6">
-        <div className="flex h-[152px] w-full items-center justify-center rounded-xl bg-[#f2f0ec]">
-          <img
-            src={badge.src}
-            alt=""
-            width={Math.round(badge.width * BADGE_SCALE)}
-            height={Math.round(badge.height * BADGE_SCALE)}
-            className="block shrink-0"
-            decoding="async"
-            aria-hidden
-          />
-        </div>
-        <p className="m-0 w-[132px] text-center font-sans text-sm font-normal leading-[17px] text-[#141414]">
-          {badge.title}
-        </p>
-      </div>
+      <TrustIndicatorTile indicator={indicator} variant="carousel" />
     </CarouselItem>
   )
 }
@@ -60,11 +44,12 @@ function TrustBadgeSlide({ badge }: { badge: FooterTrustBadge }) {
 /**
  * Home Trust & control — Figma `4942:19219`.
  * Copy + accordion (all items open, as drawn) + "Explore Trust & Privacy".
- * The badge carousel stays hidden behind `publicHomeTrustBadges()`.
+ * The indicator carousel shows only the published indicators, behind the release gate.
  */
 export function HomeTrustControl() {
   const allOpen = HOME_TRUST_CONTROL.items.map((item) => item.id)
-  const badges = publicHomeTrustBadges()
+  const trust = usePublicTrustIndicators()
+  const indicators = visibleTrustIndicators(trust)
 
   return (
     <section
@@ -129,15 +114,15 @@ export function HomeTrustControl() {
           </Accordion>
         </div>
 
-        {badges.length > 0 ? (
+        {indicators.length > 0 ? (
           <Carousel
             opts={{ align: "start", dragFree: true, containScroll: "trimSnaps" }}
             className="flex w-full flex-col gap-2.5"
             aria-label="Trust and privacy credentials"
           >
             <CarouselContent className="-ml-6">
-              {badges.map((badge) => (
-                <TrustBadgeSlide key={badge.itemNumber} badge={badge} />
+              {indicators.map((indicator) => (
+                <TrustIndicatorSlide key={indicator.itemNumber} indicator={indicator} />
               ))}
             </CarouselContent>
             <div className="flex items-start justify-end gap-5">

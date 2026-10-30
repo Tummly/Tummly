@@ -15,7 +15,8 @@ import {
   PRODUCT_SECTION_Y,
   PRODUCT_TRUST,
 } from "@/content/marketing/productPage"
-import { publicProductTrustCertifications } from "@/content/marketing/publicTrustClaims"
+import { visibleTrustIndicators } from "@/content/marketing/publicTrustClaims"
+import { usePublicTrustIndicators } from "@/hooks/usePublicTrustIndicators"
 import { cn } from "@/lib/utils"
 
 const accordionTriggerClassName = cn(
@@ -28,11 +29,12 @@ const accordionTriggerClassName = cn(
 /**
  * Figma Product Trust & privacy `6937:13422`.
  * Intro + CTA, accordion (open by default, Figma shows every answer), and a
- * scrolling row of certification badges with previous / next controls (hidden
- * behind `publicProductTrustCertifications()` until the claims are approved).
+ * scrolling row of published trust indicators with previous / next controls
+ * (omitted unless the release gate is open and the indicators are ready).
  */
 export function ProductTrust() {
-  const certifications = publicProductTrustCertifications()
+  const trust = usePublicTrustIndicators()
+  const indicators = visibleTrustIndicators(trust)
 
   return (
     <section
@@ -93,8 +95,8 @@ export function ProductTrust() {
           </Accordion>
         </div>
 
-        {certifications.length > 0 ? (
-          <MarketingCertificationCarousel certifications={certifications} />
+        {indicators.length > 0 ? (
+          <MarketingCertificationCarousel indicators={indicators} />
         ) : null}
       </div>
     </section>

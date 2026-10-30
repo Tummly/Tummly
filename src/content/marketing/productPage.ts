@@ -480,11 +480,6 @@ export type ProductTrustItem = {
   body: string
 }
 
-export type ProductCertification = {
-  id: string
-  label: string
-}
-
 /** Figma Product Trust & privacy `6937:13422`. */
 export const PRODUCT_TRUST = {
   eyebrow: "TRUST & PRIVACY",
@@ -514,20 +509,6 @@ export const PRODUCT_TRUST = {
       body: "AI can explain feedback and prepare drafts for your team to review.",
     },
   ] satisfies ProductTrustItem[],
-  certifications: [
-    { id: "iso-27001", label: "ISO/IEC 27001" },
-    { id: "cyber-essentials-plus", label: "Cyber Essentials Plus" },
-    { id: "ico-dpe", label: "ICO Data Protection Essentials" },
-    { id: "ico-data", label: "ICO Data Protection Fee Registration" },
-    { id: "cyber-essentials", label: "Cyber Essentials" },
-    { id: "iasme-level-1", label: "IASME Cyber Assurance Level One" },
-    { id: "good-business-charter", label: "Good Business Charter" },
-    { id: "iso-27701", label: "ISO/IEC 27701:2025" },
-    { id: "uk-gdpr", label: "UK GDPR & Data Protection" },
-    { id: "privacy-choices", label: "Cookie & Privacy Choices" },
-    { id: "opt-in-marketing", label: "Permission-Based Marketing" },
-    { id: "data-rights", label: "Guest Data Rights" },
-  ] satisfies ProductCertification[],
 } as const
 
 /**

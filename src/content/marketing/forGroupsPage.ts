@@ -29,7 +29,7 @@ export const FOR_GROUPS_HERO = {
   primaryLabel: "Get started",
   emailPlaceholder: "Work email",
   planIntent: { plan: "Pilot" as const },
-  /** Trust strip under the hero visual (Figma `6424:16986`). Badges: `PRODUCT_TRUST.certifications`. */
+  /** Trust strip under the hero visual (Figma `6424:16986`). Indicators: published, via `usePublicTrustIndicators`. */
   trustTitle: "Built with trust at the heart of Tummly.",
 } as const
 

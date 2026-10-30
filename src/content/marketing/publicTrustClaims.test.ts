@@ -1,15 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { PRODUCT_TRUST } from "@/content/marketing/productPage"
 import {
   PUBLIC_TRUST_CLAIMS_APPROVED,
-  gateTrustClaims,
-  publicFooterTrustBadges,
-  publicForGroupsTrustBadges,
-  publicHomeTrustBadges,
-  publicProductTrustCertifications,
   trustClaimsVisible,
+  visibleTrustIndicators,
 } from "@/content/marketing/publicTrustClaims"
+import type { PublicTrustIndicator } from "@/lib/marketing/publicTrustIndicators"
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -22,33 +18,20 @@ function stubPreview(value: string | null) {
   })
 }
 
-// ENG01 / E3: no scheme or proof is shown publicly until the Director approves
-// it with a working proof link (replaced by the 15-indicator model, ENG10.3).
-describe("public trust claims", () => {
-  it("withholds Home trust badges", () => {
-    expect(publicHomeTrustBadges()).toEqual([])
-  })
+const ONE: PublicTrustIndicator = {
+  itemNumber: 1,
+  title: "ICO data protection fee",
+  status: "Verified",
+  statusLabel: "Verified",
+  iconKey: "ico-data",
+  imageUrl: null,
+  altText: "",
+  tooltip: "We pay the data protection fee.",
+  cta: null,
+}
 
-  it("withholds the footer trust badge grid", () => {
-    expect(publicFooterTrustBadges()).toEqual([])
-  })
-
-  it("withholds For Groups trust badges", () => {
-    expect(publicForGroupsTrustBadges()).toEqual([])
-  })
-
-  it("withholds the Product Trust section certifications", () => {
-    expect(publicProductTrustCertifications()).toEqual([])
-  })
-
-  it("returns the full list once the claims are approved", () => {
-    expect(gateTrustClaims(true, PRODUCT_TRUST.certifications)).toBe(
-      PRODUCT_TRUST.certifications,
-    )
-    expect(gateTrustClaims(false, PRODUCT_TRUST.certifications)).toEqual([])
-  })
-})
-
+// ENG01 / E3 and CONTRACT §9: public trust indicators render only through the
+// release gate, and only when the published request is ready with items.
 describe("trustClaimsVisible release gate", () => {
   it("keeps the approval flag a literal false", () => {
     expect(PUBLIC_TRUST_CLAIMS_APPROVED).toBe(false)
@@ -74,5 +57,32 @@ describe("trustClaimsVisible release gate", () => {
     vi.stubEnv("DEV", true)
     vi.stubGlobal("localStorage", undefined)
     expect(trustClaimsVisible()).toBe(false)
+  })
+})
+
+describe("visibleTrustIndicators", () => {
+  it("returns the items when the gate is open and the request is ready", () => {
+    vi.stubEnv("DEV", true)
+    stubPreview("1")
+    expect(visibleTrustIndicators({ state: "ready", items: [ONE] })).toEqual([ONE])
+  })
+
+  it("returns nothing while loading or after an error", () => {
+    vi.stubEnv("DEV", true)
+    stubPreview("1")
+    expect(visibleTrustIndicators({ state: "loading", items: [ONE] })).toEqual([])
+    expect(visibleTrustIndicators({ state: "error", items: [ONE] })).toEqual([])
+  })
+
+  it("returns nothing while the gate is closed", () => {
+    vi.stubEnv("DEV", true)
+    stubPreview(null)
+    expect(visibleTrustIndicators({ state: "ready", items: [ONE] })).toEqual([])
+  })
+
+  it("returns nothing in a production build, even with the preview key", () => {
+    vi.stubEnv("DEV", false)
+    stubPreview("1")
+    expect(visibleTrustIndicators({ state: "ready", items: [ONE] })).toEqual([])
   })
 })

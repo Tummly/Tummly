@@ -2,24 +2,37 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { MarketingCertificationCarousel } from "@/components/marketing/MarketingCertificationCarousel"
-import { PRODUCT_TRUST } from "@/content/marketing/productPage"
+import type { PublicTrustIndicator } from "@/lib/marketing/publicTrustIndicators"
+
+const INDICATORS: PublicTrustIndicator[] = [
+  {
+    itemNumber: 1,
+    title: "ICO data protection fee",
+    status: "Verified",
+    statusLabel: "Verified",
+    iconKey: "ico-data",
+    imageUrl: null,
+    altText: "",
+    tooltip: "We pay the data protection fee.",
+    cta: null,
+  },
+  {
+    itemNumber: 2,
+    title: "ISO/IEC 27001",
+    status: "Roadmap",
+    statusLabel: "On our roadmap",
+    iconKey: "roadmap-iso-27001",
+    imageUrl: null,
+    altText: "",
+    tooltip: "We are working towards this standard.",
+    cta: null,
+  },
+]
 
 function renderHtml() {
   return renderToStaticMarkup(
-    <MarketingCertificationCarousel
-      certifications={PRODUCT_TRUST.certifications}
-    />,
+    <MarketingCertificationCarousel indicators={INDICATORS} />,
   )
-}
-
-/** `renderToStaticMarkup` escapes text the same way React does for the DOM. */
-function escapeHtml(text: string) {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#x27;")
 }
 
 function buttonTag(html: string, label: string) {
@@ -31,11 +44,17 @@ function buttonTag(html: string, label: string) {
 }
 
 describe("MarketingCertificationCarousel", () => {
-  it("lists every certification label", () => {
+  it("renders a tile per indicator, named by title and status", () => {
     const html = renderHtml()
-    for (const cert of PRODUCT_TRUST.certifications) {
-      expect(html).toContain(`>${escapeHtml(cert.label)}</p>`)
-    }
+    expect(html).toContain('aria-label="ICO data protection fee, Verified"')
+    expect(html).toContain('aria-label="ISO/IEC 27001, On our roadmap"')
+  })
+
+  it("keeps the indicator order", () => {
+    const html = renderHtml()
+    expect(html.indexOf("ICO data protection fee")).toBeLessThan(
+      html.indexOf("ISO/IEC 27001"),
+    )
   })
 
   it("holds Previous at the start and keeps Next active", () => {
