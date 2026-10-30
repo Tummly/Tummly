@@ -464,8 +464,8 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Checks the evidence link of each enabled item that has one, in item order. Returns one line
-        /// per failed item. An unparseable link cannot be fetched, so it fails like a network error.
+        /// Checks the evidence link of each enabled item in scope, in item order. Returns one line per failed
+        /// item. An unparseable link cannot be fetched, so it fails like a network error.
         /// </summary>
         private async Task<List<string>> EvidenceLinkErrorsAsync(
             IEnumerable<TrustIndicator> rows,
@@ -475,7 +475,7 @@ namespace TummlyBackend.Services
             var errors = new List<string>();
             foreach (var row in rows.OrderBy(item => item.ItemNumber))
             {
-                if (!row.Enabled || string.IsNullOrWhiteSpace(row.EvidenceUrl))
+                if (!row.Enabled || string.IsNullOrWhiteSpace(row.EvidenceUrl) || !InLinkCheckScope(row))
                 {
                     continue;
                 }
@@ -496,6 +496,14 @@ namespace TummlyBackend.Services
 
             return errors;
         }
+
+        /// <summary>
+        /// CONTRACT §5.6: the link is checked for an item public as Verified, and for every self-assessment.
+        /// A Roadmap, QaPending or UnderReview item is not checked.
+        /// </summary>
+        private static bool InLinkCheckScope(TrustIndicator row) =>
+            TrustIndicatorRules.PublicStatus(row.EvidenceClass, row.Status.ToString()) == PublicStatusVerified
+            || row.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment;
 
         private async Task<TrustIndicatorOutcome<T>> RefuseAsync<T>(
             int actorAdminUserId,

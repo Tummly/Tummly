@@ -528,6 +528,47 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_UnderReviewItemWithDeadLinkIsNotChecked()
+        {
+            // The link is checked only when the item is public-Verified or a self-assessment (CONTRACT §5.6).
+            const string url = "https://ico.example/item13-under-review";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
+                Status = "UnderReview",
+                StatusLabel = "Under review",
+                EvidenceUrl = url,
+            }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-under-review-link"));
+
+            Assert.Equal(1, published.Version);
+            Assert.DoesNotContain(url, _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
+        public async Task Publish_Item02AlwaysChecked()
+        {
+            const string url = "https://ico.example/completion-dead";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(2, Seeded(2, enabled: true) with
+            {
+                Status = "UnderReview",
+                StatusLabel = "Under review",
+                EvidenceUrl = url,
+            }));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-item02-link");
+
+            Assert.Equal("publish_gate_failed", outcome.Code);
+            Assert.Contains("Item 02: evidence link failed (HTTP 404).", outcome.Details!);
+            Assert.Contains(url, _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
         public async Task Publish_KeepsPriorVersionUntouched_WhenNewVersionIsCreated()
         {
             await PublishValidAsync();
