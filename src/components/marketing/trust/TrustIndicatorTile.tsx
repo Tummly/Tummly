@@ -38,9 +38,6 @@ const TILE_WIDTH_CLASS = { footer: "w-[94px]", carousel: "w-full" } as const
 const BUBBLE_CLASS =
   "w-max max-w-[min(260px,calc(100vw-24px))] gap-2 rounded-[4px] bg-[var(--op-color-gray-300)] p-3 text-[12px] leading-4 text-[var(--op-color-black)] shadow-none ring-0 [filter:drop-shadow(4px_23px_3.5px_rgba(0,0,0,0))_drop-shadow(3px_15px_3px_rgba(0,0,0,0.01))_drop-shadow(1px_8px_2.5px_rgba(0,0,0,0.03))_drop-shadow(1px_4px_2px_rgba(0,0,0,0.05))_drop-shadow(0px_1px_1px_rgba(0,0,0,0.05))]"
 
-/** Figma: the arrow sits about 21px from the bubble's left edge. The bubble's left edge is the tile's. */
-const ARROW_X_PX = 21
-
 const CTA_CLASS =
   "inline-flex w-fit items-center gap-1 rounded-sm text-[12px] leading-4 font-normal text-[var(--op-color-black)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--op-color-black)]/40"
 
@@ -101,7 +98,6 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
           if (!next) dispatch({ type: "close" })
         }}
       >
-        <PopoverAnchor className="pointer-events-none absolute top-0 left-[21px] size-0" />
         <PopoverTrigger
           asChild
           onClick={(event) => {
@@ -153,11 +149,19 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
             </span>
           </button>
         </PopoverTrigger>
+        {/*
+          Figma: the arrow sits about 21px from the bubble's left edge. This 42px anchor is at the
+          tile's left edge, so its centre is 21px in; `alignOffset={0}` keeps the bubble on the tile.
+          It goes after the trigger on purpose: refs attach in tree order, so this anchor registers
+          last. Radix remounts the trigger once it sees a custom anchor, and an earlier anchor would
+          keep pointing at the detached first button.
+        */}
+        <PopoverAnchor className="pointer-events-none absolute inset-y-0 left-0 w-[42px]" />
         <PopoverContent
           ref={contentRef}
           side="top"
           align="start"
-          alignOffset={-ARROW_X_PX}
+          alignOffset={0}
           sideOffset={8}
           collisionPadding={12}
           aria-label={indicator.title}
@@ -167,8 +171,10 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
             if (state.source !== "click" || cta === null) event.preventDefault()
           }}
           onCloseAutoFocus={(event) => {
-            // Escape returns focus to the trigger (Radix default). Other closes must not move it.
-            if (!closedByEscape.current) event.preventDefault()
+            // Radix's own focus-return to the trigger did not run after Escape from the CTA, so
+            // this handler does it. Escape returns focus to the trigger; other closes leave it.
+            event.preventDefault()
+            if (closedByEscape.current) triggerRef.current?.focus()
             closedByEscape.current = false
           }}
           onEscapeKeyDown={() => {

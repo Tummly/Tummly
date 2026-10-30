@@ -65,8 +65,11 @@ describe("TrustIndicatorTile (closed)", () => {
     expect(tile()).toContain("border-[#b3b3b3]")
   })
 
-  it("places the arrow anchor 21px from the tile's left edge", () => {
-    expect(tile()).toContain("left-[21px]")
+  it("sizes the arrow anchor to 42px at the tile's left edge, so its centre is 21px in", () => {
+    const html = tile()
+    expect(html).toContain("w-[42px]")
+    expect(html).toContain("left-0")
+    expect(html).not.toContain("left-[21px]")
   })
 
   it("is a button with type button", () => {
