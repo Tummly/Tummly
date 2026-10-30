@@ -7,7 +7,8 @@ import {
   FOR_GROUPS_SECTION_INSET,
   FOR_GROUPS_SECTION_Y,
 } from "@/content/marketing/forGroupsPage"
-import { PRODUCT_EYEBROW, PRODUCT_TRUST } from "@/content/marketing/productPage"
+import { PRODUCT_EYEBROW } from "@/content/marketing/productPage"
+import { publicForGroupsTrustBadges } from "@/content/marketing/publicTrustClaims"
 import { marketingHeroHeading } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
@@ -15,9 +16,12 @@ const heroBodyClass = "font-sans text-base font-normal leading-6 text-[#141414]"
 
 /**
  * Figma For Groups hero `5661:20525`.
- * Laurel eyebrow + title + body + Pilot signup + hero photo + trust carousel.
+ * Laurel eyebrow + title + body + Pilot signup + hero photo + trust carousel
+ * (hidden behind `publicForGroupsTrustBadges()` until the claims are approved).
  */
 export function ForGroupsHero() {
+  const trustBadges = publicForGroupsTrustBadges()
+
   return (
     <section
       className="w-full overflow-hidden rounded-[12px] bg-white"
@@ -101,14 +105,14 @@ export function ForGroupsHero() {
           aria-hidden
         />
 
-        <div className="flex w-full flex-col items-center gap-10">
-          <p className="m-0 text-center font-sans text-lg font-medium leading-[normal] text-black">
-            {FOR_GROUPS_HERO.trustTitle}
-          </p>
-          <MarketingCertificationCarousel
-            certifications={PRODUCT_TRUST.certifications}
-          />
-        </div>
+        {trustBadges.length > 0 ? (
+          <div className="flex w-full flex-col items-center gap-10">
+            <p className="m-0 text-center font-sans text-lg font-medium leading-[normal] text-black">
+              {FOR_GROUPS_HERO.trustTitle}
+            </p>
+            <MarketingCertificationCarousel certifications={trustBadges} />
+          </div>
+        ) : null}
       </div>
     </section>
   )

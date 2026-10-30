@@ -1,3 +1,4 @@
+import { useReducedMotion } from "framer-motion"
 import { useEffect, useRef, useState, type VideoHTMLAttributes } from "react"
 
 import { cn } from "@/lib/utils"
@@ -31,14 +32,18 @@ function videoSourceType(src: string): string | undefined {
 /**
  * Lightweight muted marketing loop. Loads only near the viewport, plays only
  * while visible, and pauses (no decode work) when the user scrolls away.
+ * With `prefers-reduced-motion: reduce` and a `poster`, it shows the poster as
+ * a still and never loads the video (no `poster` keeps the loop playing).
  */
 export function MarketingLoopVideo({
   src,
   className,
   videoClassName,
   loadRootMargin = "200px 0px",
+  poster,
   ...videoProps
 }: MarketingLoopVideoProps) {
+  const showStill = useReducedMotion() === true && poster != null
   const rootRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [shouldLoad, setShouldLoad] = useState(false)
@@ -82,7 +87,7 @@ export function MarketingLoopVideo({
 
   useEffect(() => {
     const el = videoRef.current
-    if (el == null || !shouldLoad || failed) {
+    if (el == null || !shouldLoad || failed || showStill) {
       return
     }
 
@@ -106,7 +111,7 @@ export function MarketingLoopVideo({
     }
 
     el.pause()
-  }, [failed, inView, shouldLoad, src])
+  }, [failed, inView, shouldLoad, showStill, src])
 
   if (failed) {
     return (
@@ -124,7 +129,19 @@ export function MarketingLoopVideo({
       className={cn("relative overflow-hidden", className)}
       aria-hidden
     >
-      {shouldLoad ? (
+      {poster != null && (showStill || !shouldLoad) ? (
+        <img
+          src={poster}
+          alt=""
+          className={cn(
+            "absolute inset-0 size-full object-cover object-top",
+            videoClassName,
+          )}
+          style={videoProps.style}
+          decoding="async"
+          loading="lazy"
+        />
+      ) : shouldLoad ? (
         <video
           key={src}
           ref={videoRef}
@@ -136,6 +153,7 @@ export function MarketingLoopVideo({
           loop
           playsInline
           preload="none"
+          poster={poster}
           disableRemotePlayback
           onError={() => setFailed(true)}
           {...videoProps}

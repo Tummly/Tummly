@@ -69,6 +69,12 @@ export type ForGroupsProductCard = {
   body: string
   /** Figma body text box width (px) — sets where the 14/20 copy wraps. */
   bodyWidth: number
+  /**
+   * Share of the card height (%) the loop video moves up. The UI card in each
+   * clip sits lower than in the Figma still (Figma: 19% from the top); the
+   * value is the clip's measured card top minus 19%.
+   */
+  videoShiftPct: number
 }
 
 /**
@@ -89,24 +95,28 @@ export const FOR_GROUPS_PRODUCT = {
       title: "Local feedback",
       body: "Know which restaurant a customer is talking about.",
       bodyWidth: 273,
+      videoShiftPct: 14.04,
     },
     {
       id: "guest-relationships",
       title: "Considered follow-up",
       body: "Give the responsible manager the context to reply.",
       bodyWidth: 209,
+      videoShiftPct: 15.22,
     },
     {
       id: "reasons-to-return",
       title: "Relevant invitations",
       body: "Prepare offers and updates for the right restaurant audience.",
       bodyWidth: 261,
+      videoShiftPct: 6.41,
     },
     {
       id: "whats-working",
       title: "Shared visibility",
       body: "Bring feedback and engagement into a consistent group review.",
       bodyWidth: 273,
+      videoShiftPct: 10.41,
     },
   ] satisfies ForGroupsProductCard[],
 } as const
