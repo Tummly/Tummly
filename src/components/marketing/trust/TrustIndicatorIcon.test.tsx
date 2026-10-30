@@ -3,10 +3,17 @@ import { describe, expect, it } from "vitest"
 
 import icoDataUrl from "@/assets/svg/marketing/footer-trust-badges/ico-data.svg"
 
+import type { PublicTrustStatus } from "@/lib/marketing/publicTrustIndicators"
+
 import { TrustIndicatorIcon } from "./TrustIndicatorIcon"
 
 function render(
-  overrides: { iconKey?: string | null; imageUrl?: string | null; size?: "sm" | "lg" } = {},
+  overrides: {
+    iconKey?: string | null
+    imageUrl?: string | null
+    size?: "sm" | "lg"
+    status?: PublicTrustStatus
+  } = {},
 ) {
   return renderToStaticMarkup(
     <TrustIndicatorIcon
@@ -14,6 +21,7 @@ function render(
       imageUrl={null}
       altText=""
       size="sm"
+      status="Verified"
       {...overrides}
     />,
   )
@@ -79,6 +87,28 @@ describe("TrustIndicatorIcon", () => {
     expect(lgImg).toContain("max-h-full max-w-full object-contain")
     expect(lgImg).not.toMatch(/\swidth=/)
     expect(lgImg).not.toMatch(/\sheight=/)
+  })
+
+  it("draws only the neutral glyph for a Roadmap item, even with an artwork key", () => {
+    const html = render({ iconKey: "ico-data", status: "Roadmap" })
+    expect(html).toMatch(/lucide-shield[\s"]/)
+    expect(html).not.toContain("<img")
+    expect(html).not.toContain(icoDataUrl)
+  })
+
+  it("draws the neutral roadmap glyph for a Roadmap key, and ignores any image", () => {
+    const html = render({
+      iconKey: "roadmap-iso-27001",
+      imageUrl: "https://cdn.example/award.svg",
+      status: "Roadmap",
+    })
+    expect(html).toMatch(/lucide-file-lock[\s"]/)
+    expect(html).not.toContain("<img")
+  })
+
+  it("keeps the artwork for a Verified item with the same key", () => {
+    const html = render({ iconKey: "ico-data", status: "Verified" })
+    expect(html).toContain(`src="${icoDataUrl}"`)
   })
 
   it("is always hidden from assistive technology", () => {

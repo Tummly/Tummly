@@ -236,6 +236,16 @@ namespace TummlyBackend.TrustIndicators
                 errors.Add("Roadmap items cannot have an image.");
             }
 
+            // Ruling 30: a roadmap item never shows award-style artwork, only a neutral roadmap glyph.
+            if (
+                iconKey != null
+                && evidenceClass == TrustEvidenceClass.Roadmap
+                && !iconKey.StartsWith("roadmap-", StringComparison.Ordinal)
+            )
+            {
+                errors.Add("Roadmap items must use a neutral roadmap icon.");
+            }
+
             if (imageUrl != null && !IsHttpsUrl(imageUrl) && !IsRootPath(imageUrl))
             {
                 errors.Add("Image must be an https link or a path that starts with /.");

@@ -134,6 +134,7 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
               imageUrl={indicator.imageUrl}
               altText={indicator.altText}
               size={variant === "carousel" ? "lg" : "sm"}
+              status={indicator.status}
             />
             <span className="line-clamp-3 w-full text-[12px] leading-[15px] font-medium">
               {indicator.title}

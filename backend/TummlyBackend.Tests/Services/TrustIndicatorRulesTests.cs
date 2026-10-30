@@ -179,6 +179,35 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public void Normalize_RoadmapRejectsNonRoadmapIconKey()
+        {
+            var errors = new List<string>();
+
+            TrustIndicatorRules.Normalize(
+                TrustEvidenceClass.Roadmap,
+                Draft("Roadmap") with { IconKey = "ico-data" },
+                errors
+            );
+
+            Assert.Contains("Roadmap items must use a neutral roadmap icon.", errors);
+        }
+
+        [Fact]
+        public void Normalize_RoadmapAcceptsRoadmapIconKey()
+        {
+            var errors = new List<string>();
+
+            var result = TrustIndicatorRules.Normalize(
+                TrustEvidenceClass.Roadmap,
+                Draft("Roadmap") with { IconKey = "roadmap-iso-27001" },
+                errors
+            );
+
+            Assert.DoesNotContain("Roadmap items must use a neutral roadmap icon.", errors);
+            Assert.Equal("roadmap-iso-27001", result.IconKey);
+        }
+
+        [Fact]
         public void Normalize_RejectsUnknownCtaType()
         {
             var errors = new List<string>();

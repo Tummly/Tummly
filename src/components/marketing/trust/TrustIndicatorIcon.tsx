@@ -17,6 +17,7 @@ import icoDpe from "@/assets/svg/marketing/footer-trust-badges/ico-dpe.svg"
 import optInMarketing from "@/assets/svg/marketing/footer-trust-badges/opt-in-marketing.svg"
 import privacyChoices from "@/assets/svg/marketing/footer-trust-badges/privacy-choices.svg"
 import ukCompany from "@/assets/svg/marketing/footer-trust-badges/uk-company.svg"
+import type { PublicTrustStatus } from "@/lib/marketing/publicTrustIndicators"
 import { cn } from "@/lib/utils"
 
 /** Existing footer artwork, keyed by CONTRACT §9 icon key. */
@@ -45,14 +46,25 @@ type TrustIndicatorIconProps = {
    */
   altText: string
   size: keyof typeof BOX_CLASS
+  status: PublicTrustStatus
 }
 
 /**
  * Decorative only: the tile carries the status text, so this is always hidden
  * from assistive technology. Unknown or missing keys show Lucide `Shield`.
  */
-export function TrustIndicatorIcon({ iconKey, imageUrl, size }: TrustIndicatorIconProps) {
+export function TrustIndicatorIcon({
+  iconKey,
+  imageUrl,
+  size,
+  status,
+}: TrustIndicatorIconProps) {
   const box = cn("inline-flex shrink-0 items-center justify-center", BOX_CLASS[size])
+
+  // Ruling 30: a roadmap item is never shown with award-style artwork or an image.
+  if (status === "Roadmap") {
+    return <span aria-hidden="true" className={box}>{roadmapGlyph(iconKey)}</span>
+  }
 
   if (imageUrl !== null) {
     return <span aria-hidden="true" className={box}>{tileImage(imageUrl)}</span>

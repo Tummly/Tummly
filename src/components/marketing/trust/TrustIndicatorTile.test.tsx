@@ -98,6 +98,11 @@ describe("TrustIndicatorTile (closed)", () => {
     expect(tile(ROADMAP, "carousel")).not.toContain("w-[94px]")
   })
 
+  it("never draws artwork for a Roadmap item, even with an artwork key", () => {
+    expect(tile({ ...ROADMAP, iconKey: "ico-data" })).not.toContain("<img")
+    expect(tile({ ...ROADMAP, iconKey: "ico-data" })).toMatch(/lucide-shield[\s"]/)
+  })
+
   it("uses the small icon box in the footer and the large one in the carousel", () => {
     expect(tile(ROADMAP, "footer")).toContain("size-[43px]")
     expect(tile(ROADMAP, "carousel")).toContain("size-[74px]")
