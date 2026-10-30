@@ -28,6 +28,8 @@ export type HeroSignupFormProps = {
    * "Read our Terms of Service and Privacy Notice…".
    */
   legalNote?: "agree" | "read"
+  /** Merged onto the legal note only (e.g. a wider max width). */
+  legalNoteClassName?: string
   className?: string
 }
 
@@ -43,6 +45,7 @@ export function HeroSignupForm({
   planIntent = HOME_HERO.planIntent,
   align = "center",
   legalNote = "agree",
+  legalNoteClassName,
   className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
@@ -140,6 +143,7 @@ export function HeroSignupForm({
           className={cn(
             "w-full leading-[18px] text-[#141414]",
             align === "center" ? "max-w-[353px] text-center" : "text-left",
+            legalNoteClassName,
           )}
         />
       ) : (
@@ -148,6 +152,7 @@ export function HeroSignupForm({
           className={cn(
             "w-full leading-4 text-[#141414]",
             align === "center" ? "text-center leading-[18px]" : "text-left",
+            legalNoteClassName,
           )}
         />
       )}

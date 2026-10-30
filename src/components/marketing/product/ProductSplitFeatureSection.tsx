@@ -116,6 +116,16 @@ export type ProductSplitFeatureSectionProps = {
   pointBodyClassName?: string
   /** Merged onto the intro body (e.g. a narrower max width). */
   bodyClassName?: string
+  /**
+   * For Groups only: at `xl` the copy column is a fixed 560px high and spaces
+   * intro, list and button with `justify-between` (Figma bands 04, 06, 07, 08).
+   * Without it the column keeps its natural height with a 116px intro gap (band 05).
+   */
+  fixedCopyHeight?: boolean
+  /** For Groups only: gap between the list and the CTA button. Default 54px. */
+  ctaGapClassName?: string
+  /** Merged onto the padded inner row (e.g. a different vertical pad). */
+  contentClassName?: string
 }
 
 /**
@@ -141,6 +151,9 @@ export function ProductSplitFeatureSection({
   className,
   pointBodyClassName,
   bodyClassName,
+  fixedCopyHeight = false,
+  ctaGapClassName,
+  contentClassName,
 }: ProductSplitFeatureSectionProps) {
   const hasPoints = points.length > 0
   const hasFooter = hasPoints || cta != null
@@ -150,8 +163,14 @@ export function ProductSplitFeatureSection({
       className={cn(
         "flex w-full flex-col gap-10",
         balanceToMedia
-          ? // For Groups: 640px copy at Figma width (49.5% below it), 116px between intro and list.
-            "max-w-[640px] lg:w-[49.5%] lg:shrink-0 lg:gap-14 xl:gap-[116px]"
+          ? // For Groups: 640px copy at Figma width (49.5% below it). At xl either a fixed
+            // 560px column (space-between) or the natural height with a 116px intro gap.
+            cn(
+              "max-w-[640px] lg:w-[49.5%] lg:shrink-0 lg:gap-14",
+              fixedCopyHeight
+                ? "xl:h-[560px] xl:justify-between xl:gap-0"
+                : "xl:gap-[116px]",
+            )
           : "max-w-[712px] lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
@@ -174,7 +193,7 @@ export function ProductSplitFeatureSection({
             <h2
               id={headingId}
               className={cn(
-                "m-0 max-w-[567px] lg:whitespace-pre-line",
+                "m-0 max-w-[567px] text-balance xl:text-wrap xl:whitespace-pre-line",
                 PRODUCT_BAND_HEADING,
                 "lg:leading-[45px]",
               )}
@@ -218,7 +237,7 @@ export function ProductSplitFeatureSection({
             "flex w-full flex-col",
             balanceToMedia
               ? cta != null
-                ? "gap-[54px]"
+                ? (ctaGapClassName ?? "gap-[54px]")
                 : "gap-4"
               : "gap-[26px]",
           )}
@@ -296,12 +315,13 @@ export function ProductSplitFeatureSection({
             ? // Figma For Groups: 720 media + 120 gap + 640 copy at 1668px; both columns
               // and the gap scale down below that. Copy-left bands pack to the right edge.
               cn(
-                "lg:items-center lg:gap-[clamp(32px,3.5vw,120px)]",
+                "lg:items-center lg:gap-[clamp(32px,3.5vw,48px)] xl:gap-[clamp(48px,6.95vw,120px)]",
                 mediaFirst ? null : "lg:justify-end",
               )
             : "lg:items-stretch lg:justify-between lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
+          contentClassName,
         )}
       >
         {mediaFirst ? (

@@ -1,4 +1,4 @@
-import aiAssistantImage from "@/assets/images/marketing/for-groups/ai-assistant.webp"
+import { forGroupsAiImage } from "@/assets/for-groups-images"
 import aiConcernIcon from "@/assets/svg/marketing/for-groups/ai-concern.svg"
 import aiFollowUpIcon from "@/assets/svg/marketing/for-groups/ai-follow-up.svg"
 import aiLocalDetailIcon from "@/assets/svg/marketing/for-groups/ai-local-detail.svg"
@@ -33,8 +33,6 @@ const locationManagementImage = remoteSimpleImg(
 )
 const teamsImage = remoteSimpleImg("for-groups/feature-teams")
 const campaignsImage = remoteSimpleImg("for-groups/feature-campaigns")
-/** Figma AI Assistant plate `5661:22128` — 720×650 at 4×, baked with the `#eceae6` plate. */
-const AI_IMAGE = { width: 2880, height: 2600 } as const
 
 /** Figma For Groups point glyphs — root width/height from export. */
 const REPORTING_POINT_ICONS = {
@@ -147,6 +145,7 @@ export function ForGroupsReporting() {
       imageHeight={reportingImage.height}
       mediaFirst
       balanceToMedia
+      fixedCopyHeight
       bodyClassName="max-w-[612px]"
     />
   )
@@ -195,6 +194,7 @@ export function ForGroupsTeams() {
       imageHeight={teamsImage.height}
       mediaFirst
       balanceToMedia
+      fixedCopyHeight
       bodyClassName="max-w-[612px]"
       pointBodyClassName={POINT_BODY_TIGHT}
     />
@@ -217,6 +217,7 @@ export function ForGroupsCampaigns() {
       imageWidth={campaignsImage.width}
       imageHeight={campaignsImage.height}
       balanceToMedia
+      fixedCopyHeight
       bodyClassName="max-w-[567px]"
       pointBodyClassName={POINT_BODY_TIGHT}
     />
@@ -233,12 +234,16 @@ export function ForGroupsAi() {
       body={FOR_GROUPS_AI.body}
       points={FOR_GROUPS_AI.points}
       pointIconImgs={AI_POINT_ICONS}
-      imageSrc={aiAssistantImage}
+      imageSrc={forGroupsAiImage.src}
+      imageSrcSet={forGroupsAiImage.srcSet}
       imageAlt={FOR_GROUPS_AI.imageAlt}
-      imageWidth={AI_IMAGE.width}
-      imageHeight={AI_IMAGE.height}
+      imageWidth={forGroupsAiImage.width}
+      imageHeight={forGroupsAiImage.height}
       mediaFirst
       balanceToMedia
+      fixedCopyHeight
+      ctaGapClassName="gap-[51px]"
+      contentClassName="lg:py-[84.5px]"
       pointBodyClassName={POINT_BODY_TIGHT}
       cta={{ label: FOR_GROUPS_AI.ctaLabel, to: FOR_GROUPS_AI.ctaTo }}
     />

@@ -21,7 +21,7 @@ export const FOR_GROUPS_SECTION_BODY =
 export const FOR_GROUPS_SECTION_HEADING =
   "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[46px] lg:leading-[52px]"
 
-/** Figma For Groups hero `5661:20525`. Hero visual is video on Blob. */
+/** Figma For Groups hero `5661:20525`. Hero photo is a local webp (`for-groups-images.ts`). */
 export const FOR_GROUPS_HERO = {
   eyebrow: "Tummly for restaurant groups",
   title: "See where your restaurant group needs attention.",

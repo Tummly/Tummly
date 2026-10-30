@@ -13,6 +13,7 @@ import ukGdprCert from "@/assets/svg/marketing/product/certs/uk-gdpr.svg"
 import privacyChoicesCert from "@/assets/svg/marketing/product/certs/privacy-choices.svg"
 import optInMarketingCert from "@/assets/svg/marketing/product/certs/opt-in-marketing.svg"
 import dataRightsCert from "@/assets/svg/marketing/product/certs/data-rights.svg"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 /** Figma export size (viewBox) per badge, so the `<img>` reserves its box. */
@@ -58,6 +59,13 @@ function measureEdges(track: HTMLElement) {
 /** Share of the visible track one previous / next click scrolls. */
 const CAROUSEL_STEP_RATIO = 0.75
 
+/**
+ * 48×48 bordered arrow. `aria-disabled` (not `disabled`) keeps keyboard focus on
+ * the button when it reaches an end of the track.
+ */
+const CAROUSEL_BUTTON_CLASS =
+  "size-12 min-h-12 rounded-[2px] border-[#4e4e4e] bg-transparent p-3 text-[#141414] hover:bg-transparent hover:text-[#141414] focus-visible:border-[#4e4e4e] focus-visible:ring-2 focus-visible:ring-[#141414]/40 aria-disabled:cursor-default aria-disabled:opacity-20 aria-disabled:active:scale-100"
+
 export type MarketingCertification = {
   id: string
   label: string
@@ -66,7 +74,7 @@ export type MarketingCertification = {
 /**
  * Certification badge row with previous / next controls — Figma Product Trust
  * & privacy `6937:13422` and For Groups hero `6424:16986`. Tiles scroll
- * horizontally; the buttons disable at either end.
+ * horizontally; the buttons look disabled at either end.
  */
 export function MarketingCertificationCarousel({
   certifications,
@@ -134,7 +142,7 @@ export function MarketingCertificationCarousel({
                 loading="lazy"
               />
             </div>
-            <p className="m-0 w-full max-w-[148px] text-center font-sans text-sm font-normal leading-[17px] text-[#141414]">
+            <p className="m-0 w-full max-w-[132px] text-center font-sans text-sm font-normal leading-[17px] text-[#141414]">
               {cert.label}
             </p>
           </li>
@@ -142,34 +150,46 @@ export function MarketingCertificationCarousel({
       </ul>
 
       <div className="flex items-start gap-5">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Previous certifications"
           aria-controls={trackId}
-          onClick={() => scrollTrack(-1)}
-          disabled={edges.start}
-          className="flex size-12 cursor-pointer items-center justify-center rounded-[2px] border border-[#4e4e4e] bg-transparent p-3 text-[#141414] focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:outline-none disabled:cursor-default disabled:opacity-20"
+          aria-disabled={edges.start}
+          onClick={() => {
+            if (!edges.start) {
+              scrollTrack(-1)
+            }
+          }}
+          className={CAROUSEL_BUTTON_CLASS}
         >
           <ChevronLeft
             className="size-[22px]"
             strokeWidth={1.5}
             aria-hidden
           />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Next certifications"
           aria-controls={trackId}
-          onClick={() => scrollTrack(1)}
-          disabled={edges.end}
-          className="flex size-12 cursor-pointer items-center justify-center rounded-[2px] border border-[#4e4e4e] bg-transparent p-3 text-[#141414] focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:outline-none disabled:cursor-default disabled:opacity-20"
+          aria-disabled={edges.end}
+          onClick={() => {
+            if (!edges.end) {
+              scrollTrack(1)
+            }
+          }}
+          className={CAROUSEL_BUTTON_CLASS}
         >
           <ChevronRight
             className="size-[22px]"
             strokeWidth={1.5}
             aria-hidden
           />
-        </button>
+        </Button>
       </div>
     </div>
   )

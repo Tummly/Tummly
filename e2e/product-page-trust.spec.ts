@@ -23,10 +23,11 @@ test("Certification carousel scrolls with the arrow buttons", async ({ page }) =
   const next = page.getByRole("button", { name: "Next certifications" })
   await next.scrollIntoViewIfNeeded()
 
-  await expect(prev).toBeDisabled()
-  await expect(next).toBeEnabled()
+  // The ends use aria-disabled (not disabled) so focus stays on the button.
+  await expect(prev).toHaveAttribute("aria-disabled", "true")
+  await expect(next).toHaveAttribute("aria-disabled", "false")
   await next.click()
-  await expect(prev).toBeEnabled()
+  await expect(prev).toHaveAttribute("aria-disabled", "false")
   await prev.click()
-  await expect(prev).toBeDisabled()
+  await expect(prev).toHaveAttribute("aria-disabled", "true")
 })

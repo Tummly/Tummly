@@ -1,4 +1,4 @@
-import heroImage from "@/assets/images/marketing/for-groups/hero.webp"
+import { forGroupsHeroImage } from "@/assets/for-groups-images"
 import laurel from "@/assets/svg/marketing/for-groups/laurel.svg"
 import { HeroSignupForm } from "@/components/home/HeroSignupForm"
 import { MarketingCertificationCarousel } from "@/components/marketing/MarketingCertificationCarousel"
@@ -34,12 +34,13 @@ export function ForGroupsHero() {
           <div className="flex w-full max-w-[716px] flex-col items-center gap-[22px] text-center">
             <div className="flex w-full flex-col items-center gap-3.5">
               <div className="flex items-center">
-                <span className="flex size-[38px] shrink-0 items-start justify-start pl-2.5 pt-[2.8px]">
+                <span className="flex size-6 shrink-0 items-start justify-start sm:size-[38px] sm:pl-2.5 sm:pt-[2.8px]">
                   <img
                     src={laurel}
                     alt=""
                     width={13.4328}
                     height={30.9522}
+                    className="max-sm:h-6 max-sm:w-auto"
                     aria-hidden
                     decoding="async"
                   />
@@ -47,13 +48,13 @@ export function ForGroupsHero() {
                 <p className={cn(PRODUCT_EYEBROW, "text-center")}>
                   {FOR_GROUPS_HERO.eyebrow}
                 </p>
-                <span className="flex size-[38px] shrink-0 items-start justify-end pr-2.5 pt-[2.8px]">
+                <span className="flex size-6 shrink-0 items-start justify-end sm:size-[38px] sm:pr-2.5 sm:pt-[2.8px]">
                   <img
                     src={laurel}
                     alt=""
                     width={13.4328}
                     height={30.9522}
-                    className="-scale-x-100"
+                    className="-scale-x-100 max-sm:h-6 max-sm:w-auto"
                     aria-hidden
                     decoding="async"
                   />
@@ -81,16 +82,19 @@ export function ForGroupsHero() {
             primaryLabel={FOR_GROUPS_HERO.primaryLabel}
             planIntent={FOR_GROUPS_HERO.planIntent}
             legalNote="read"
-            className="lg:max-w-[573px] [&_p]:max-w-[382px]"
+            legalNoteClassName="max-w-[382px]"
+            className="lg:max-w-[573px]"
           />
         </div>
 
         {/* Figma `6392:18184` is 1548×763. */}
         <img
-          src={heroImage}
+          src={forGroupsHeroImage.src}
+          srcSet={forGroupsHeroImage.srcSet}
+          sizes="(min-width: 1024px) min(1548px, calc(100vw - 180px)), calc(100vw - 40px)"
           alt=""
-          width={3096}
-          height={1526}
+          width={forGroupsHeroImage.width}
+          height={forGroupsHeroImage.height}
           className="aspect-[1548/763] w-full rounded-[12px] bg-[#ebebeb] object-cover"
           fetchPriority="high"
           decoding="async"

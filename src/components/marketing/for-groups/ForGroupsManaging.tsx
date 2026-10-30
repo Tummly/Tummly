@@ -29,6 +29,16 @@ const CARD_ICONS = {
 } as const
 
 /**
+ * Figma `5661:20544`: the first card body is a 425px text box that wraps to 3 lines
+ * ("…across your / restaurants and explore the customer feedback / behind them.").
+ * Helvetica Neue is narrower than the Figma render, so 425px gives 2 lines here;
+ * 400px restores the 3-line wrap. The other cards fill 450px.
+ */
+const CARD_BODY_MAX_WIDTH: Partial<Record<keyof typeof CARD_ICONS, string>> = {
+  "spot-recurring-issues": "max-w-[400px]",
+}
+
+/**
  * Figma For Groups Managing multiple restaurants `5661:20535`.
  * Centre copy + three grey cards. 20px gap above (hero is a rounded frame).
  */
@@ -60,7 +70,7 @@ export function ForGroupsManaging() {
           </p>
         </header>
 
-        <ul className="m-0 grid w-full list-none grid-cols-1 gap-5 p-0 md:grid-cols-3">
+        <ul className="m-0 grid w-full list-none grid-cols-1 gap-5 p-0 lg:grid-cols-3">
           {FOR_GROUPS_MANAGING.cards.map((card) => {
             const icon = CARD_ICONS[card.id]
             return (
@@ -79,7 +89,12 @@ export function ForGroupsManaging() {
                     <h3 className="m-0 font-jakarta text-2xl font-bold leading-[34px]">
                       {card.title}
                     </h3>
-                    <p className="m-0 font-sans text-base font-normal leading-[22px] lg:text-[18px] lg:leading-6">
+                    <p
+                      className={cn(
+                        "m-0 font-sans text-base font-normal leading-[22px] lg:text-[18px] lg:leading-6",
+                        CARD_BODY_MAX_WIDTH[card.id],
+                      )}
+                    >
                       {card.body}
                     </p>
                   </div>
