@@ -492,6 +492,69 @@ test.describe("footer trust list", () => {
   }
 })
 
+// Ruling 28: marketing pages do not set `html.op`, so the `--op-color-*` tokens are
+// undefined there. The bubble, arrow and status colours are literal hex values, and
+// these checks fail if a token comes back.
+const TOOLTIP_BUBBLE_RGB = "rgb(213, 213, 213)"
+const TOOLTIP_STATUS_GREY_RGB = "rgb(93, 93, 93)"
+const TOOLTIP_INK_RGB = "rgb(20, 20, 20)"
+
+test.describe("tooltip colours on marketing pages", () => {
+  const SURFACES: { surface: "footer" | "product"; width: number }[] = [
+    { surface: "footer", width: 375 },
+    { surface: "footer", width: 1440 },
+    { surface: "product", width: 1440 },
+  ]
+
+  for (const { surface, width } of SURFACES) {
+    test(`${surface} tooltip at ${width}px: grey bubble, arrow and status colours`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await previewOn(page)
+      await stubTrustApi(page, published(TRUST_INDICATORS_FIXTURE))
+
+      let scope: Locator
+      if (surface === "footer") {
+        scope = trustList(await openFooter(page))
+      } else {
+        const response = page.waitForResponse(TRUST_API)
+        await openProductPage(page)
+        scope = section(page, /Guest trust\./)
+        await awaitTrustRender(page, response)
+      }
+
+      const roadmapTile = tileButton(scope, ROADMAP)
+      await roadmapTile.hover()
+      const bubble = bubbleOf(page, ROADMAP)
+      await expect(bubble).toBeVisible()
+      await expect(bubble).toHaveCSS("background-color", TOOLTIP_BUBBLE_RGB)
+      await expect(arrowOf(bubble)).toHaveCSS("fill", TOOLTIP_BUBBLE_RGB)
+      await expect(roadmapTile.getByText(ROADMAP.statusLabel, { exact: true })).toHaveCSS(
+        "color",
+        TOOLTIP_STATUS_GREY_RGB,
+      )
+      await page.screenshot({
+        path: `.scratch/footer-trust-indicators/verify/${surface}-${width}-tooltip-roadmap.png`,
+      })
+      await page.mouse.move(1, 1)
+      await expect(bubble).toBeHidden()
+
+      const verifiedTile = tileButton(scope, COOKIES)
+      await verifiedTile.hover()
+      await expect(bubbleOf(page, COOKIES)).toBeVisible()
+      await expect(verifiedTile.getByText(COOKIES.statusLabel, { exact: true })).toHaveCSS(
+        "color",
+        TOOLTIP_INK_RGB,
+      )
+      await expect(verifiedTile.locator("span.rounded-full")).toHaveCSS(
+        "background-color",
+        TOOLTIP_INK_RGB,
+      )
+    })
+  }
+})
+
 test.describe("trust surfaces share the published titles", () => {
   test("Home, Product and For groups show the same titles as the footer", async ({ page }) => {
     test.setTimeout(120000)

@@ -27,19 +27,22 @@ type TrustIndicatorTileProps = {
   variant: "footer" | "carousel"
 }
 
-/** Figma tile border `#b3b3b3` has no design token; the other colours map to `--op-color-*`. */
+/**
+ * Literal hex, not `--op-color-*`: marketing routes do not set `html.op`, so those tokens are
+ * undefined there. The Figma tile border `#b3b3b3` has no token either.
+ */
 const TILE_CLASS =
-  "flex shrink-0 cursor-pointer flex-col items-center gap-1.5 rounded-[7px] border-[0.825px] border-[#b3b3b3] bg-transparent p-2 text-center font-sans font-normal text-[var(--op-color-black)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--op-color-black)]/40"
+  "flex shrink-0 cursor-pointer flex-col items-center gap-1.5 rounded-[7px] border-[0.825px] border-[#b3b3b3] bg-transparent p-2 text-center font-sans font-normal text-[#141414] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40"
 
 /** Footer tiles have a fixed Figma width. Carousel tiles fill the slot the caller gives them. */
 const TILE_WIDTH_CLASS = { footer: "w-[94px]", carousel: "w-full" } as const
 
-/** Figma bubble: fill `#d5d5d5` (`--op-color-gray-300`), radius 4px, padding 12px, Figma drop-shadow stack. Text 12/16 (Ruling 20). */
+/** Figma bubble: fill `#d5d5d5`, radius 4px, padding 12px, Figma drop-shadow stack. Text 12/16 (Ruling 20). */
 const BUBBLE_CLASS =
-  "w-max max-w-[min(260px,calc(100vw-24px))] gap-2 rounded-[4px] bg-[var(--op-color-gray-300)] p-3 text-[12px] leading-4 text-[var(--op-color-black)] shadow-none ring-0 [filter:drop-shadow(4px_23px_3.5px_rgba(0,0,0,0))_drop-shadow(3px_15px_3px_rgba(0,0,0,0.01))_drop-shadow(1px_8px_2.5px_rgba(0,0,0,0.03))_drop-shadow(1px_4px_2px_rgba(0,0,0,0.05))_drop-shadow(0px_1px_1px_rgba(0,0,0,0.05))]"
+  "w-max max-w-[min(260px,calc(100vw-24px))] gap-2 rounded-[4px] bg-[#d5d5d5] p-3 text-[12px] leading-4 text-[#141414] shadow-none ring-0 [filter:drop-shadow(4px_23px_3.5px_rgba(0,0,0,0))_drop-shadow(3px_15px_3px_rgba(0,0,0,0.01))_drop-shadow(1px_8px_2.5px_rgba(0,0,0,0.03))_drop-shadow(1px_4px_2px_rgba(0,0,0,0.05))_drop-shadow(0px_1px_1px_rgba(0,0,0,0.05))]"
 
 const CTA_CLASS =
-  "inline-flex w-fit items-center gap-1 rounded-sm text-[12px] leading-4 font-normal text-[var(--op-color-black)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--op-color-black)]/40"
+  "inline-flex w-fit items-center gap-1 rounded-sm text-[12px] leading-4 font-normal text-[#141414] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40"
 
 /**
  * Footer and carousel tile with the status text and a toggletip. Opens on mouse
@@ -136,12 +139,12 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
               {verified ? (
                 <span
                   aria-hidden="true"
-                  className="size-1.5 shrink-0 rounded-full bg-[var(--op-color-black)]"
+                  className="size-1.5 shrink-0 rounded-full bg-[#141414]"
                 />
               ) : null}
               <span
                 className={
-                  verified ? "text-[var(--op-color-black)]" : "text-[var(--op-color-gray-700)]"
+                  verified ? "text-[#141414]" : "text-[#5d5d5d]"
                 }
               >
                 {indicator.statusLabel}
@@ -199,7 +202,7 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
             width={14}
             height={12}
             aria-hidden="true"
-            className="block fill-[var(--op-color-gray-300)]"
+            className="block fill-[#d5d5d5]"
           />
         </PopoverContent>
       </Popover>
@@ -213,7 +216,7 @@ export function TrustIndicatorTooltipBody({ indicator }: { indicator: PublicTrus
   return (
     <>
       {indicator.tooltip !== "" ? (
-        <p className="m-0 text-[12px] leading-4 text-[var(--op-color-black)]">{indicator.tooltip}</p>
+        <p className="m-0 text-[12px] leading-4 text-[#141414]">{indicator.tooltip}</p>
       ) : null}
       {cta !== null ? <TrustCta cta={cta} /> : null}
     </>
