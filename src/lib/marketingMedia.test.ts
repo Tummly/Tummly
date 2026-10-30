@@ -50,6 +50,15 @@ describe("marketingMediaUrl", () => {
     )
   })
 
+  it("builds the For Groups hero video URL", async () => {
+    const { forGroupsHeroVideoUrl, FOR_GROUPS_HERO_VIDEO_PATH } =
+      await import("./marketingMedia")
+    expect(FOR_GROUPS_HERO_VIDEO_PATH).toBe("for-groups/hero.mp4")
+    expect(forGroupsHeroVideoUrl()).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/hero.mp4",
+    )
+  })
+
   it("builds the Home hero campaign video URL", async () => {
     const { homeHeroVideoUrl, HOME_HERO_VIDEO_PATH } =
       await import("./marketingMedia")

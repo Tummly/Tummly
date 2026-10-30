@@ -2,6 +2,7 @@ import { forGroupsHeroImage } from "@/assets/for-groups-images"
 import laurel from "@/assets/svg/marketing/for-groups/laurel.svg"
 import { HeroSignupForm } from "@/components/home/HeroSignupForm"
 import { MarketingCertificationCarousel } from "@/components/marketing/MarketingCertificationCarousel"
+import { MarketingLoopVideo } from "@/components/marketing/MarketingLoopVideo"
 import {
   FOR_GROUPS_HERO,
   FOR_GROUPS_SECTION_INSET,
@@ -11,13 +12,14 @@ import { PRODUCT_EYEBROW } from "@/content/marketing/productPage"
 import { visibleTrustIndicators } from "@/content/marketing/publicTrustClaims"
 import { usePublicTrustIndicators } from "@/hooks/usePublicTrustIndicators"
 import { marketingHeroHeading } from "@/lib/marketing-layout"
+import { forGroupsHeroVideoUrl } from "@/lib/marketingMedia"
 import { cn } from "@/lib/utils"
 
 const heroBodyClass = "font-sans text-base font-normal leading-6 text-[#141414]"
 
 /**
  * Figma For Groups hero `5661:20525`.
- * Laurel eyebrow + title + body + Pilot signup + hero photo + trust carousel
+ * Laurel eyebrow + title + body + Pilot signup + hero loop + trust carousel
  * (omitted unless the release gate is open and the indicators are ready).
  */
 export function ForGroupsHero() {
@@ -94,18 +96,16 @@ export function ForGroupsHero() {
           />
         </div>
 
-        {/* Figma `6392:18184` is 1548×763. */}
-        <img
-          src={forGroupsHeroImage.src}
-          srcSet={forGroupsHeroImage.srcSet}
-          sizes="(min-width: 1024px) min(1548px, calc(100vw - 180px)), calc(100vw - 40px)"
-          alt=""
-          width={forGroupsHeroImage.width}
-          height={forGroupsHeroImage.height}
-          className="aspect-[1548/763] w-full rounded-[12px] bg-[#ebebeb] object-cover"
-          fetchPriority="high"
-          decoding="async"
-          aria-hidden
+        {/*
+          Figma `6392:18184` (1548×763): hero loop. Its first frame is the
+          Figma still, so that still is the poster and the reduced-motion image.
+        */}
+        <MarketingLoopVideo
+          src={forGroupsHeroVideoUrl()}
+          poster={forGroupsHeroImage.src}
+          preload="auto"
+          className="aspect-[1548/763] w-full rounded-[12px] bg-[#ebebeb]"
+          videoClassName="object-center"
         />
 
         {indicators.length > 0 ? (
