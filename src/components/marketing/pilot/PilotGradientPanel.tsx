@@ -13,6 +13,12 @@ type PilotGradientPanelProps = {
   /** Optional CTA row under the copy (Figma card gap 53px). */
   footer?: ReactNode
   className?: string
+  /** Merged onto the padded wrapper, e.g. `lg:pt-0` when the section above supplies the gap. */
+  innerClassName?: string
+  /** Gradient plate. Defaults to the Pilot panel plate (`panel-gradient.png`). */
+  backgroundSrc?: string
+  /** Merged onto the centred copy block. Default caps it at 615px. */
+  copyClassName?: string
 }
 
 /**
@@ -24,6 +30,9 @@ export function PilotGradientPanel({
   children,
   footer,
   className,
+  innerClassName,
+  backgroundSrc = panelGradientImage,
+  copyClassName,
 }: PilotGradientPanelProps) {
   return (
     <section
@@ -35,11 +44,12 @@ export function PilotGradientPanel({
           "flex w-full flex-col items-stretch",
           PILOT_SECTION_INSET,
           PILOT_SECTION_Y,
+          innerClassName,
         )}
       >
         <div className="relative flex w-full items-center justify-center overflow-hidden rounded-[12px] p-6 sm:p-10">
           <img
-            src={panelGradientImage}
+            src={backgroundSrc}
             alt=""
             width={3840}
             height={1600}
@@ -53,7 +63,12 @@ export function PilotGradientPanel({
               footer != null && "gap-[53px]",
             )}
           >
-            <div className="flex w-full max-w-[615px] flex-col items-center justify-center gap-[18px] text-center">
+            <div
+              className={cn(
+                "flex w-full max-w-[615px] flex-col items-center justify-center gap-[18px] text-center",
+                copyClassName,
+              )}
+            >
               {children}
             </div>
             {footer}

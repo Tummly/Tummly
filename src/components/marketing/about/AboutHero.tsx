@@ -14,6 +14,9 @@ import {
 import { remoteSimpleImg } from "@/lib/marketingMediaPictures"
 import { cn } from "@/lib/utils"
 
+/** Figma About hero buttons `6610:33200` / `6610:33208` are 8px radius (shared button default is 4px). */
+const ABOUT_HERO_BUTTON = "rounded-[8px]"
+
 const heroBandImage = remoteSimpleImg("about/hero-band")
 
 /**
@@ -47,12 +50,20 @@ export function AboutHero() {
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-[22px]">
-          <MarketingButton asChild variant="primary">
+          <MarketingButton
+            asChild
+            variant="primary"
+            className={ABOUT_HERO_BUTTON}
+          >
             <RequestTrialLink planIntent={{ plan: "Pilot" }}>
               {ABOUT_HERO.primaryLabel}
             </RequestTrialLink>
           </MarketingButton>
-          <MarketingButton asChild variant="secondary">
+          <MarketingButton
+            asChild
+            variant="secondary"
+            className={ABOUT_HERO_BUTTON}
+          >
             <Link to={MARKETING_HOW_IT_WORKS_PATH}>
               {ABOUT_HERO.secondaryLabel}
             </Link>

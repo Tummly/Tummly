@@ -21,78 +21,40 @@ export const FOR_GROUPS_SECTION_BODY =
 export const FOR_GROUPS_SECTION_HEADING =
   "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[46px] lg:leading-[52px]"
 
-/** Figma For Groups hero `5661:20525`. Hero visual is video on Blob. */
+/** Figma For Groups hero `5661:20525`. Hero photo is a local webp (`for-groups-images.ts`). */
 export const FOR_GROUPS_HERO = {
-  eyebrow: "FOR RESTAURANT GROUPS",
-  title: "One Guest Loop across every Location.",
-  body: "Bring your restaurants together with Tummly. Understand guest experiences across Locations, build stronger guest relationships and create more opportunities for repeat visits, with central visibility and local control.",
+  eyebrow: "Tummly for restaurant groups",
+  title: "See where your restaurant group needs attention.",
+  body: "Spot recurring service issues without losing sight of the restaurant behind them. Give local managers a focused view of their customers, then review feedback and promotional response together across your group.",
   primaryLabel: "Get started",
   emailPlaceholder: "Work email",
   planIntent: { plan: "Pilot" as const },
+  /** Trust strip under the hero visual (Figma `6424:16986`). Indicators: published, via `usePublicTrustIndicators`. */
+  trustTitle: "Built with trust at the heart of Tummly.",
 } as const
 
-export type ForGroupsHeroTrustBadgeId =
-  | "iso-27001"
-  | "cyber-essentials-plus"
-  | "ico-dpe"
-  | "ico-data"
-  | "cyber-essentials"
-  | "iasme-level-1"
-  | "good-business-charter"
-  | "iso-27701"
-
-export type ForGroupsHeroTrustBadge = {
-  id: ForGroupsHeroTrustBadgeId
-  label: string
-  /** Media id under `for-groups/trust-*` in marketingMediaMeta. */
-  mediaId: `for-groups/trust-${ForGroupsHeroTrustBadgeId}`
-}
-
-/** Trust strip under the hero editorial (Figma `6424:16986`). */
-export const FOR_GROUPS_HERO_TRUST = {
-  title: "Built with trust at the heart of Tummly.",
-  badges: [
+/** Figma For Groups Managing multiple restaurants `5661:20535`. */
+export const FOR_GROUPS_MANAGING = {
+  eyebrow: "MANAGING MULTIPLE RESTAURANTS",
+  title: "A group view with the local detail that matters.",
+  body: "Spot patterns in customer feedback across your restaurants, keep local managers focused and expand your group at your own pace.",
+  cards: [
     {
-      id: "iso-27001",
-      label: "ISO/IEC 27001",
-      mediaId: "for-groups/trust-iso-27001",
+      id: "spot-recurring-issues",
+      title: "Spot recurring issues",
+      body: "Identify common concerns across your restaurants and explore the customer feedback behind them.",
     },
     {
-      id: "cyber-essentials-plus",
-      label: "Cyber Essentials Plus",
-      mediaId: "for-groups/trust-cyber-essentials-plus",
+      id: "keep-managers-focused",
+      title: "Keep managers focused",
+      body: "Give each manager access to the restaurants they're responsible for.",
     },
     {
-      id: "ico-dpe",
-      label: "ICO Data Protection Essentials",
-      mediaId: "for-groups/trust-ico-dpe",
+      id: "grow-at-your-own-pace",
+      title: "Grow at your own pace",
+      body: "Start with one restaurant, then add more Locations whenever you're ready.",
     },
-    {
-      id: "ico-data",
-      label: "ICO Data Protection Registration",
-      mediaId: "for-groups/trust-ico-data",
-    },
-    {
-      id: "cyber-essentials",
-      label: "Cyber Essentials",
-      mediaId: "for-groups/trust-cyber-essentials",
-    },
-    {
-      id: "iasme-level-1",
-      label: "IASME Cyber Assurance Level One",
-      mediaId: "for-groups/trust-iasme-level-1",
-    },
-    {
-      id: "good-business-charter",
-      label: "Good Business Charter",
-      mediaId: "for-groups/trust-good-business-charter",
-    },
-    {
-      id: "iso-27701",
-      label: "ISO/IEC 27701:2025",
-      mediaId: "for-groups/trust-iso-27701",
-    },
-  ] satisfies ForGroupsHeroTrustBadge[],
+  ],
 } as const
 
 export type ForGroupsProductCardId =
@@ -105,16 +67,24 @@ export type ForGroupsProductCard = {
   id: ForGroupsProductCardId
   title: string
   body: string
+  /** Figma body text box width (px) — sets where the 14/20 copy wraps. */
+  bodyWidth: number
+  /**
+   * Share of the card height (%) the loop video moves up. The UI card in each
+   * clip sits lower than in the Figma still (Figma: 19% from the top); the
+   * value is the clip's measured card top minus 19%.
+   */
+  videoShiftPct: number
 }
 
 /**
- * Figma For Groups Product `6405:36122`.
- * Four equal cards with Blob product-loop videos + centred CTA.
+ * Figma For Groups Keep the Guest Loop working `6405:36122`.
+ * Four equal cards with Blob product-loop videos (same scenes as the Figma
+ * stills) + centred CTA.
  */
 export const FOR_GROUPS_PRODUCT = {
-  eyebrow: "ONE CONNECTED GUEST LOOP",
-  title: "Everything your restaurants need, working together.",
-  body: "From private Feedback to relevant guest engagement, Tummly connects the everyday interactions that help your restaurants build stronger relationships.",
+  title: "Keep the Guest Loop working across your restaurants.",
+  body: "Bring customer feedback, thoughtful follow-up and relevant offers together, with a clearer view of activity across your group.",
   ctaLabel: "Explore product features",
   ctaTo: MARKETING_PRODUCT_PATH,
   /** Fallback fill under looping card videos. */
@@ -122,23 +92,31 @@ export const FOR_GROUPS_PRODUCT = {
   cards: [
     {
       id: "hear-from-guests",
-      title: "Hear directly from guests",
-      body: "Collect private Feedback at every Location and understand what matters to your guests.",
+      title: "Local feedback",
+      body: "Know which restaurant a customer is talking about.",
+      bodyWidth: 273,
+      videoShiftPct: 14.04,
     },
     {
       id: "guest-relationships",
-      title: "Build lasting guest relationships",
-      body: "Grow guest lists through everyday interactions and stay connected with guests who choose to hear from you.",
+      title: "Considered follow-up",
+      body: "Give the responsible manager the context to reply.",
+      bodyWidth: 209,
+      videoShiftPct: 15.22,
     },
     {
       id: "reasons-to-return",
-      title: "Give guests reasons to return",
-      body: "Create relevant Offers and Campaigns for eligible guests across your authorised Locations.",
+      title: "Relevant invitations",
+      body: "Prepare offers and updates for the right restaurant audience.",
+      bodyWidth: 261,
+      videoShiftPct: 6.41,
     },
     {
       id: "whats-working",
-      title: "Understand what's working",
-      body: "Review Feedback, guest engagement and Offer performance across your restaurants.",
+      title: "Shared visibility",
+      body: "Bring feedback and engagement into a consistent group review.",
+      bodyWidth: 273,
+      videoShiftPct: 10.41,
     },
   ] satisfies ForGroupsProductCard[],
 } as const
@@ -146,49 +124,49 @@ export const FOR_GROUPS_PRODUCT = {
 /** Figma For Groups Group-wide visibility `5661:20730` — media left. */
 export const FOR_GROUPS_REPORTING = {
   eyebrow: "GROUP-WIDE VISIBILITY",
-  title: "See the whole group. Then look closer.",
-  body: "Understand what's happening across your restaurants. Compare private Feedback, QR activity and Campaign and Offer engagement, then explore individual Locations to see where attention may be needed.",
+  title: "Know where to look closer.",
+  body: "Compare customer feedback, campaign engagement and confirmed offer redemptions across your restaurants. Explore a Location to understand what changed and what the team should discuss.",
   points: [
     {
-      id: "compare-activity",
-      title: "Compare restaurant activity",
-      body: "Review supported Guest Loop results across authorised Locations.",
+      id: "compare-restaurants",
+      title: "Compare restaurants",
+      body: "Review customer feedback and engagement for the same period.",
     },
     {
-      id: "recurring-concerns",
-      title: "Identify recurring concerns",
-      body: "Understand where similar guest issues are appearing across your group.",
+      id: "look-behind-change",
+      title: "Look behind a change",
+      body: "Open the local comments and activity.",
     },
     {
-      id: "guest-engagement",
-      title: "Review guest engagement",
-      body: "See how guests respond to Campaigns and Offers, including recorded Claims and Redemptions.",
+      id: "focus-review",
+      title: "Focus the review",
+      body: "Bring the evidence to the manager responsible.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
     "Group reporting dashboard showing guest capture, Feedback and Offer metrics across Locations",
 } as const
 
-/** Figma For Groups Location management `5661:21077` — copy left, media right. */
+/** Figma For Groups Adding your restaurants `5661:21077` — copy left, media right. */
 export const FOR_GROUPS_LOCATION_MANAGEMENT = {
-  eyebrow: "LOCATION MANAGEMENT",
-  title: "Add new Locations. Keep everything connected.",
-  body: "Bring new restaurants into your existing Tummly group. Set up each Location with its own Guest Form and QR placements, assign the right team access and maintain central visibility as your group grows.",
+  eyebrow: "ADDING YOUR RESTAURANTS",
+  title: "Bring your restaurants\ntogether, one at a time.",
+  body: "Set up and verify your first UK restaurant, then add other Locations individually or import a CSV within your paid plan. If the details are not ready, finish later in Settings. Each restaurant completes its own verification and activation.",
   points: [
     {
-      id: "connected-group",
-      title: "One connected group",
-      body: "Manage your restaurants within one Tummly account, with each Location clearly identified.",
+      id: "start-with-one",
+      title: "Start with one restaurant",
+      body: "Add your first restaurant's details and get started with Tummly.",
     },
     {
-      id: "set-up-restaurant",
-      title: "Set up each restaurant",
-      body: "Prepare Location-specific Guest Forms, QR placements and the relevant Guest Loop settings.",
+      id: "add-more",
+      title: "Add more when you're ready",
+      body: "Bring your other restaurants on board now or whenever it suits your team.",
     },
     {
-      id: "expand-control",
-      title: "Expand with control",
-      body: "Add Locations within your plan's capacity or arrange additional Location access as your group expands.",
+      id: "keep-distinct",
+      title: "Keep every restaurant distinct",
+      body: "Give customers the right feedback experience for each restaurant.",
     },
   ] satisfies ProductFeaturePoint[],
   ctaLabel: "Explore QR Materials",
@@ -197,84 +175,84 @@ export const FOR_GROUPS_LOCATION_MANAGEMENT = {
     "Private Feedback themes across Locations with a theme breakdown card for Service speed",
 } as const
 
-/** Figma For Groups Team Access `5661:21424` — media left. */
+/** Figma For Groups Team access `5661:21424` — media left. */
 export const FOR_GROUPS_TEAMS = {
   eyebrow: "TEAM ACCESS",
-  title: "Give each person the right level of access.",
-  body: "Keep your teams focused on the restaurants they manage. Assign permissions by role and Location, so authorised group users have wider visibility while local managers work within their assigned Locations.",
+  title: "Give people access that\nfits their responsibility.",
+  body: "Let managers work with their assigned restaurants, while staff check and confirm offer redemptions. Keep guest contact details masked in everyday views.",
   points: [
     {
-      id: "group-owners",
-      title: "Group owners and administrators",
-      body: "Oversee the group and manage authorised administrative settings.",
+      id: "assigned-restaurants",
+      title: "Assigned restaurants",
+      body: "Give each manager access for their responsibility.",
     },
     {
-      id: "area-managers",
-      title: "Area and regional managers",
-      body: "Review the Locations assigned to them and work within their approved responsibilities.",
+      id: "staff-task",
+      title: "A focused staff task",
+      body: "Keep offer checking and confirmation easy to reach.",
     },
     {
-      id: "location-managers",
-      title: "Location managers",
-      body: "Focus on their restaurant's Feedback, guest experience and permitted actions without unnecessary access to other Locations.",
+      id: "restricted-billing",
+      title: "Restricted billing",
+      body: "Keep subscription and payment controls with authorised people.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
     "Team access workspace showing Location-scoped roles for a restaurant group.",
 } as const
 
-/** Figma For Groups Offers & Campaigns `5661:21775` — copy left, media right. */
+/** Figma For Groups Offers & campaigns `5661:21775` — copy left, media right. */
 export const FOR_GROUPS_CAMPAIGNS = {
   eyebrow: "OFFERS & CAMPAIGNS",
-  title: "Give guests more reasons to return across your group.",
-  body: "Stay connected with guests who have chosen to hear from your restaurants. Create relevant Offers and coordinate Campaigns across authorised Locations to encourage repeat orders and visits.",
+  title: "Make the invitation fit the\nrestaurant.",
+  body: "Support repeat orders and visits with offers that fit each restaurant. Select customers with the appropriate email or text permission, then review the message, offer terms and timing before sending.",
   points: [
     {
-      id: "thank-recent",
-      title: "Thank recent guests",
-      body: "Keep your restaurant in mind after a positive visit with a relevant follow-up.",
+      id: "restaurant-scope",
+      title: "Choose the restaurant scope",
+      body: "Prepare work for the Locations you manage.",
     },
     {
-      id: "promote-new",
-      title: "Promote something new",
-      body: "Share new menu items, restaurant updates or special occasions with eligible guests.",
+      id: "match-audience",
+      title: "Match the audience",
+      body: "Use the appropriate permission for email or text.",
     },
     {
-      id: "understand-response",
-      title: "Understand the response",
-      body: "Review Campaign engagement and recorded Offer activity by the appropriate Location and scope.",
+      id: "confirm-details",
+      title: "Confirm the details",
+      body: "Review wording, offer terms, credits and timing.",
     },
   ] satisfies ProductFeaturePoint[],
   imageAlt:
     "Group Campaign draft showing send-from-each-Location controls and local send times.",
 } as const
 
-/** Figma For Groups AI Assistant `5661:22127` — media left. */
+/** Figma For Groups AI assistant `5661:22127` — media left. */
 export const FOR_GROUPS_AI = {
   eyebrow: "AI ASSISTANT",
-  title: "Ask about one Location. Or your whole group.",
-  body: "Use Tummly's AI Assistant to understand guest experiences across your authorised Locations. Summarise Feedback, identify recurring concerns and explore Campaign or Offer performance using available Guest Loop data.",
+  title: "Ask a group question. Get\ncloser to the detail.",
+  body: "Ask which customer concerns recur across your restaurants, compare a period or prepare a campaign draft. Check the source information and review the work before using it.",
   points: [
     {
-      id: "understand-feedback",
-      title: "Understand guest Feedback",
-      body: "Get useful summaries of what guests are saying across the selected period.",
+      id: "recurring-concern",
+      title: "Explore a recurring concern",
+      body: "Ask what customers have mentioned across your restaurants.",
     },
     {
-      id: "compare-locations",
-      title: "Compare your Locations",
-      body: "Explore supported differences between restaurants within your permitted group scope.",
+      id: "local-detail",
+      title: "Check the local detail",
+      body: "Review the sources and selected period.",
     },
     {
-      id: "prepare-campaigns",
-      title: "Prepare relevant Campaigns",
-      body: "Use AI to help draft Campaigns and Offers, with your team reviewing and confirming actions before execution.",
+      id: "prepare-follow-up",
+      title: "Prepare the follow-up",
+      body: "Create a draft for the responsible team to review.",
     },
   ] satisfies ProductFeaturePoint[],
   ctaLabel: "Explore Tummly AI",
   ctaTo: MARKETING_AI_ASSISTANT_PATH,
   imageAlt:
-    "Tummly AI Assistant greeting with group-scoped prompts for restaurant operators.",
+    "Tummly AI Assistant answering which Feedback keeps coming up across a group's restaurants, with a Campaign draft prompt.",
 } as const
 
 /**
@@ -283,8 +261,8 @@ export const FOR_GROUPS_AI = {
  */
 export const FOR_GROUPS_PRICING = {
   eyebrow: "GROUP PRICING",
-  title: "Group pricing that grows with your Locations.",
-  body: "Bring your restaurants together with group reporting, team access and coordinated guest engagement. Choose a plan that fits your current Locations and expand as your business grows.",
+  title: "Build a plan around your group.",
+  body: "Group includes five Locations. From six, add Locations at progressive rates up to 500. Adjust users, active offers, QR capacity and recurring credits separately, then review your total.",
   planName: "Group",
   planDescription:
     "For restaurant groups that need wider oversight, coordinated Campaigns and Location-based team access.",
@@ -299,7 +277,7 @@ export const FOR_GROUPS_PRICING = {
     { label: "Locations", value: "Up to 5" },
     { label: "Team users", value: "25" },
     { label: "Guest Form access", value: "Included" },
-    { label: "Active QR placements", value: "Up to 50 per Location" },
+    { label: "Active QR placements", value: "Up to 50 across your account" },
     { label: "Private Feedback & recovery", value: "Included" },
     { label: "Guest list & consent", value: "Included" },
     { label: "Campaigns", value: "Included" },
@@ -319,7 +297,7 @@ export const FOR_GROUPS_PRICING = {
   calculator: {
     eyebrow: "BUILD YOUR GROUP PLAN",
     title: "How many Locations do you have?",
-    body: "Group includes five Locations. From six, add Locations at progressive rates up to 500 online. Adjust users, active offers, QR capacity and recurring credits separately, then review your total.",
+    body: "Choose the number of restaurants you'd like to bring onto Tummly.",
     locationLabel: "Restaurant Locations",
     locationHint: "5 included in Group",
     estimateHeading: "YOUR ESTIMATED PLAN",
@@ -346,66 +324,67 @@ export const FOR_GROUPS_FAQS = {
   moreCtaTo: MARKETING_FAQS_PATH,
   items: [
     {
-      id: "locations-included",
-      question: "How many Locations are included in Group?",
+      id: "one-account",
+      question: "Can I manage all my restaurants in one account?",
       answer:
-        "Group includes up to 5 Locations. Additional Locations can be added at progressive per-Location rates, with self-service setup for up to 500 Locations online.",
+        "Yes. Growth includes up to three Locations and Group includes five, with the flexibility to add more as your business grows.",
     },
     {
-      id: "add-locations",
-      question: "Can I add more Locations later?",
+      id: "manager-access",
+      question: "Can managers see only the restaurants they're responsible for?",
       answer:
-        "Yes. You can add Locations as the group grows using the same governed setup flow rather than creating a new account.",
+        "Yes. Each manager's access is based on their role and the restaurants assigned to them.",
     },
     {
-      id: "same-guest-form",
-      question: "Do all Locations use the same Guest Form?",
+      id: "compare-feedback",
+      question: "Can I compare customer feedback across my restaurants?",
       answer:
-        "No. Each Location can keep the Guest Form and QR placement context it needs while group reporting consolidates activity without losing the underlying Location.",
+        "Yes. Compare customer feedback, campaign engagement and confirmed offer redemptions across your restaurants, then explore the details for each Location.",
     },
     {
-      id: "head-office-access",
-      question: "Can Head Office see every Location?",
+      id: "run-campaigns",
+      question: "Can I run campaigns across different restaurants?",
       answer:
-        "Authorised group users can access the Locations and consolidated views their role permits. Location teams do not automatically receive group-wide access.",
+        "Yes. Prepare campaigns for the restaurants you manage, reaching customers who have chosen to receive marketing through the relevant channel. Review and confirm each campaign before sending.",
     },
     {
-      id: "area-managers",
-      question: "Can area managers be limited to selected Locations?",
+      id: "own-feedback-form",
+      question: "Does each restaurant have its own feedback form?",
       answer:
-        "Yes, where the configured role model permits. Access can be scoped to the relevant authorised Locations rather than exposing the whole group.",
+        "Yes. Each restaurant has its own branded feedback form, so you can understand customer experiences at each Location while maintaining a group-wide view.",
     },
     {
-      id: "compare-locations",
-      question: "Can I compare Locations?",
+      id: "setup-help",
+      question: "Can I get help setting up Tummly for my group?",
       answer:
-        "Yes. Group reporting can compare authorised Locations using consistent metric definitions and period context, then drill into the underlying Location.",
+        "Yes. Contact our team to discuss your restaurant group and find the right setup for your needs.",
     },
     {
-      id: "multi-location-campaign",
-      question: "Can we run a Campaign across several Locations?",
+      id: "customer-concern",
+      question: "What happens when a customer raises a concern?",
       answer:
-        "Yes. Group Campaigns can be prepared for an authorised Location scope. Audience eligibility and contactability are revalidated before controlled sending.",
+        "Your team can review the feedback, identify what needs attention and prepare a personal response for the customer.",
     },
     {
-      id: "ai-across-group",
-      question: "Can Tummly AI work across the whole group?",
+      id: "offers-per-restaurant",
+      question: "Can I create different offers for each restaurant?",
       answer:
-        "Tummly AI can work within the group and Location scope the signed-in user is authorised to access, explain relevant changes and prepare governed Drafts for review.",
+        "Yes, you can create offers tailored to each restaurant, set their terms and expiry dates, and see when staff have confirmed they've been used.",
     },
     {
-      id: "over-30-locations",
-      question: "Can I set up more than 30 Locations online?",
+      id: "ai-assistant",
+      question: "How can Tummly's AI Assistant help my group?",
       answer:
-        "Yes. Configure up to 500 Locations online, review the new price and complete verification and activation for each restaurant.",
+        "You can ask questions about customer feedback across your restaurants, identify recurring concerns and prepare drafts for your team to review.",
     },
   ] satisfies ForGroupsFaqItem[],
 } as const
 
-/** Figma For Groups bottom Sign up `6405:36178` — editorial neon marble. */
+/** Figma For Groups bottom Sign up `6405:36178` — editorial heat-map plate, "read" legal note. */
 export const FOR_GROUPS_SIGN_UP_CTA: MarketingSignUpCtaContent = {
-  title: "Bring Tummly to your restaurant group.",
-  body: "Give each restaurant the tools to hear from guests, build stronger relationships and encourage repeat orders, with central visibility across your Locations.",
+  title: "Make customer experience part of your group routine.",
+  body: "Give local managers a clear view of today’s concerns and the next invitation. Build a group plan around the restaurants you run.",
   primaryLabel: "Get started",
   planIntent: { plan: "Group", cadence: "monthly" },
+  legalNote: "read",
 }

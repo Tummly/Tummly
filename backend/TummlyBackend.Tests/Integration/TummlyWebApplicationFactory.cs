@@ -10,6 +10,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
+using TummlyBackend.TrustIndicators;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -22,6 +23,9 @@ namespace TummlyBackend.Tests.Integration
 
         /// <summary>Guest reply lock gate. Set <see cref="GatedGuestReplyLock.RejectAll"/> to simulate a lock timeout.</summary>
         public GatedGuestReplyLock ReplyLock { get; } = new();
+
+        /// <summary>Evidence link checks never reach the network in tests. Set Results to fail a link.</summary>
+        public FakeTrustEvidenceLinkChecker EvidenceLinks { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -133,6 +137,9 @@ namespace TummlyBackend.Tests.Integration
 
                 services.RemoveAll<IGuestReplyLock>();
                 services.AddSingleton<IGuestReplyLock>(ReplyLock);
+
+                services.RemoveAll<ITrustEvidenceLinkChecker>();
+                services.AddSingleton<ITrustEvidenceLinkChecker>(EvidenceLinks);
             });
         }
     }

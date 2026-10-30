@@ -180,6 +180,31 @@ namespace TummlyBackend.Services
             var before = Snapshot(target);
             target.IsActive = false;
 
+            // A disabled admin loses the trust approver flag too. The revoke row commits with the disable.
+            if (target.CanApproveTrustIndicators)
+            {
+                target.CanApproveTrustIndicators = false;
+                _audit.Append(
+                    new AdminAuditAppendRequest(
+                        Action: AdminAuditActions.TrustApproverRevoke,
+                        ActorIdentity: await ActorIdentityAsync(actorAdminId, cancellationToken),
+                        TargetType: AdminAuditTargetTypes.StaffAccount,
+                        TargetId: target.Id.ToString(),
+                        ActorAdminUserId: actorAdminId,
+                        DetailJson: JsonSerializer.Serialize(
+                            new
+                            {
+                                email = target.Email,
+                                reason = cleanReason,
+                                cause = "disabled",
+                                before = true,
+                                after = false,
+                            }
+                        )
+                    )
+                );
+            }
+
             await SaveWithAuditAsync(
                 AdminAuditActions.StaffDisable,
                 actorAdminId,

@@ -7,15 +7,15 @@ import {
   type FormEvent,
 } from "react"
 import { CircleCheckBig } from "lucide-react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import signupEditorialBg from "@/assets/images/marketing/about/signup-cta-bg.jpg"
 import { signupCtaBgPicture } from "@/assets/marketing-images"
 import { AuthSocialContinueButtons } from "@/components/auth/AuthSocialContinueButtons"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { MarketingSignupLegalNote } from "@/components/marketing/MarketingSignupLegalNote"
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { Input } from "@/components/ui/input"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { PANORAMIC_BG_IMAGE_SIZES } from "@/lib/imagePresets"
 import { signUpCtaVideoUrl } from "@/lib/marketingMedia"
 import {
@@ -60,6 +60,12 @@ export type MarketingSignUpCtaContent = {
   badge?: string
   /** When set, primary CTA and OAuth open signup with this plan intent. */
   planIntent?: SignupPlanIntent | null
+  /**
+   * Line under the form. `agree` (default): "By signing up, I agree to…".
+   * `read`: Figma Sign up Type=Default `6788:42946` ("Read our Terms of Service
+   * and Privacy Notice…") with its 163px primary button.
+   */
+  legalNote?: "agree" | "read"
 }
 
 /** `media` = dark video CTA; `editorial` = light CTA on marble / photo (About, For Groups). */
@@ -70,7 +76,7 @@ type MarketingSignUpCtaProps = {
   variant?: MarketingSignUpCtaVariant
   /**
    * Editorial background image. Defaults to About green marble.
-   * For Groups uses neon lime marble (`6405:36178`).
+   * For Groups uses a heat-map plate (`6405:36178`).
    */
   editorialBackgroundSrc?: string
   editorialBackgroundSrcSet?: string
@@ -78,12 +84,31 @@ type MarketingSignUpCtaProps = {
   editorialBackgroundHeight?: number
   /** Desktop aspect for editorial plate. Defaults to About `1668/525`. */
   editorialAspectClass?: string
+  /** Merged onto the editorial background `<img>` (e.g. crop focus on mobile). */
+  editorialBackgroundClassName?: string
+  /** Editorial primary button. Defaults to `dark`; About Sign up `5661:24423` is green. */
+  editorialButtonVariant?: "dark" | "primary"
+  /** Editorial primary rest fill (About `5661:24423` = #14a946, not the #14a74a variant). */
+  editorialButtonColor?: string
+  /** Merged onto the Google / Microsoft buttons (About `5661:24423` is #fafafa, not white). */
+  socialButtonsClassName?: string
+  /** Merged onto the legal note (About `5661:24423` wraps at 348px, not 382px). */
+  legalNoteClassName?: string
+  /** Merged onto the title. QR materials `6942:25257` wraps at 536px. */
+  titleClassName?: string
+  /** Merged onto the body. QR materials `6942:25257` wraps at 403px. */
+  bodyClassName?: string
+  /** Merged onto the outer frame (How it works `6955:37020` has a 12px radius). */
+  frameClassName?: string
+  /** Merged onto the plate. For Groups `6405:36178` has 12px corners. */
+  plateClassName?: string
 }
 
 /**
  * Shared marketing bottom CTA.
  * - `media` — Figma `5661:14510` / `4151:3811` (dark + video)
  * - `editorial` — light type on marble (About `5661:24424`, For Groups `6405:36178`)
+ *   or a heat-map plate (QR materials `6942:25257`, with `legalNote: "read"`)
  */
 export function MarketingSignUpCta({
   content,
@@ -93,6 +118,15 @@ export function MarketingSignUpCta({
   editorialBackgroundWidth = 1920,
   editorialBackgroundHeight = 800,
   editorialAspectClass = "lg:aspect-[1668/525]",
+  editorialBackgroundClassName,
+  editorialButtonVariant = "dark",
+  editorialButtonColor,
+  socialButtonsClassName,
+  legalNoteClassName,
+  titleClassName,
+  plateClassName,
+  bodyClassName,
+  frameClassName,
 }: MarketingSignUpCtaProps) {
   const navigate = useNavigate()
   const emailFieldId = useId()
@@ -178,6 +212,7 @@ export function MarketingSignUpCta({
   } as CSSProperties
 
   const badge = content.badge
+  const isReadLegalNote = content.legalNote === "read"
 
   return (
     <section className="w-full pt-5">
@@ -188,20 +223,29 @@ export function MarketingSignUpCta({
       <div
         className={cn(
           "relative flex w-full flex-col overflow-hidden rounded-[8px]",
+          plateClassName,
           isEditorial
             ? cn("bg-[#eceae6] lg:block", editorialAspectClass)
-            : "bg-[#141414] lg:aspect-[1668/615] lg:block",
+            : cn(
+                "bg-[#141414] lg:block",
+                // Home Figma `6788:42946` is a FIXED 625px frame (other pages: 1668×615).
+                isReadLegalNote ? "lg:h-[625px]" : "lg:aspect-[1668/615]",
+              ),
+          frameClassName,
         )}
       >
         {isEditorial ? (
           <img
             src={editorialBackgroundSrc}
             srcSet={editorialBackgroundSrcSet}
-            sizes="(min-width: 1024px) 1668px, 100vw"
+            sizes="(min-width: 1728px) 1668px, (min-width: 1024px) calc(100vw - 60px), 100vw"
             alt=""
             width={editorialBackgroundWidth}
             height={editorialBackgroundHeight}
-            className="pointer-events-none absolute inset-0 size-full max-w-none object-cover object-center"
+            className={cn(
+              "pointer-events-none absolute inset-0 size-full max-w-none object-cover object-center",
+              editorialBackgroundClassName,
+            )}
             decoding="async"
             aria-hidden
           />
@@ -270,18 +314,25 @@ export function MarketingSignUpCta({
             <div className="flex flex-col gap-[18px]">
               <h2
                 className={cn(
-                  "m-0 max-w-md md:max-w-[544px]",
+                  "m-0 max-w-md",
+                  // Figma `6788:42946` title box is 544px; Jakarta renders slightly wider here.
+                  isReadLegalNote ? "md:max-w-[580px]" : "md:max-w-[544px]",
                   isEditorial ? SIGN_UP_TITLE_EDITORIAL : SIGN_UP_TITLE_MEDIA,
+                  // Figma `6942:25257` title uses line-height normal (~58) like `6788:42946`.
+                  isEditorial && isReadLegalNote && "lg:leading-[58px]",
+                  titleClassName,
                 )}
               >
                 {content.title}
               </h2>
               <p
                 className={cn(
-                  "m-0 max-w-sm md:max-w-[397px]",
+                  "m-0 max-w-sm",
+                  isReadLegalNote ? "md:max-w-[544px]" : "md:max-w-[397px]",
                   marketingHeroBody,
                   "font-normal lg:text-[18px] lg:leading-6",
                   isEditorial ? "text-[#141414]" : "text-white",
+                  bodyClassName,
                 )}
               >
                 {content.body}
@@ -328,10 +379,15 @@ export function MarketingSignUpCta({
                   />
                   <MarketingButton
                     type="submit"
-                    variant={isEditorial ? "dark" : "primary"}
+                    variant={isEditorial ? editorialButtonVariant : "primary"}
+                    restBackgroundColor={
+                      isEditorial ? editorialButtonColor : undefined
+                    }
                     className={cn(
                       "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
-                      isEditorial ? "sm:w-[163px]" : "sm:w-[176px]",
+                      isEditorial || isReadLegalNote
+                        ? "sm:w-[163px]"
+                        : "sm:w-[176px]",
                     )}
                   >
                     {content.primaryLabel}
@@ -351,38 +407,38 @@ export function MarketingSignUpCta({
                   tone={isEditorial ? "light" : "dark"}
                   returnPath={signupReturnPath}
                   onBeforeStart={persistPlanIntent}
-                  className={
-                    isEditorial
-                      ? "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)] hover:text-[#141414]"
-                      : undefined
-                  }
+                  className={cn(
+                    isEditorial &&
+                      cn(
+                        "h-[46px] min-h-[46px] gap-3 rounded-[8px] border-[#4e4e4e] hover:text-[#141414]",
+                        // Figma `6788:42946`: solid white buttons.
+                        isReadLegalNote
+                          ? "bg-white hover:bg-white/90"
+                          : "bg-[rgba(250,250,250,0.79)] hover:bg-[rgba(250,250,250,0.92)]",
+                      ),
+                    socialButtonsClassName,
+                  )}
                 />
               </div>
 
-              <p
-                className={cn(
-                  "m-0",
-                  isEditorial
-                    ? "text-xs leading-4 text-[#141414]"
-                    : "text-sm leading-[22px] text-white",
-                )}
-              >
-                By signing up, I agree to Tummly&apos;s{" "}
-                <Link
-                  to={LEGAL_ROUTES.terms}
-                  className="underline underline-offset-2"
-                >
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link
-                  to={LEGAL_ROUTES.privacy}
-                  className="underline underline-offset-2"
-                >
-                  Privacy Policy
-                </Link>
-                .
-              </p>
+              {isReadLegalNote ? (
+                <MarketingSignupLegalNote
+                  className={cn(
+                    "max-w-[382px] leading-4",
+                    isEditorial ? "text-[#141414]" : "text-[#7c7c7c]",
+                    legalNoteClassName,
+                  )}
+                />
+              ) : (
+                <MarketingSignupLegalNote
+                  variant="agree"
+                  className={
+                    isEditorial
+                      ? "leading-4 text-[#141414]"
+                      : "text-sm leading-[22px] text-white"
+                  }
+                />
+              )}
             </div>
           </div>
         </div>

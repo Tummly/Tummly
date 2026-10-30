@@ -64,7 +64,8 @@ function PlanFeatureRow({ row }: { row: PricingFeatureRow }) {
     <div
       className={cn(
         PRICING_PLAN_FEATURE_ROW_CLASS,
-        "max-lg:flex-wrap max-lg:whitespace-normal",
+        // Figma `5661:22463`: 14px text on an 18.2px line.
+        "leading-[18.228px] max-lg:flex-wrap max-lg:whitespace-normal",
       )}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -123,7 +124,7 @@ export function ForGroupsPricing() {
 
   return (
     <section
-      className="w-full overflow-hidden rounded-bl-[8px] rounded-br-[8px] bg-[#f0f0f0]"
+      className="w-full overflow-hidden bg-[#f0f0f0]"
       aria-labelledby="for-groups-pricing-heading"
     >
       <div
@@ -135,12 +136,15 @@ export function ForGroupsPricing() {
       >
         <header className="flex w-full max-w-[656px] flex-col items-center gap-[22px] text-center">
           <div className="flex w-full flex-col items-center gap-3.5">
-            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
+            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] text-black">
               {FOR_GROUPS_PRICING.eyebrow}
             </p>
             <h2
               id="for-groups-pricing-heading"
-              className={cn("m-0 text-black", FOR_GROUPS_SECTION_HEADING)}
+              className={cn(
+                "m-0 max-w-[464px] text-black",
+                FOR_GROUPS_SECTION_HEADING,
+              )}
             >
               {FOR_GROUPS_PRICING.title}
             </h2>
@@ -157,9 +161,9 @@ export function ForGroupsPricing() {
         </header>
 
         <div className="flex w-full flex-col items-start gap-[46px] lg:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-10 py-6">
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-10 py-6">
             <div className="flex flex-col gap-3">
-              <h3 className="m-0 font-jakarta text-[30px] font-semibold leading-none text-[#141414]">
+              <h3 className="m-0 font-jakarta text-[30px] font-semibold leading-[37.8px] text-[#141414]">
                 {FOR_GROUPS_PRICING.planName}
               </h3>
               <p className="m-0 max-w-[526px] font-sans text-base font-normal leading-[21px] text-[#141414]">
@@ -167,65 +171,78 @@ export function ForGroupsPricing() {
               </p>
             </div>
 
+            {/* Figma `5661:22463`: 40px under the title, 20px between price and rows. */}
             <div className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                {groupPrice != null ? (
-                  <p className="m-0 text-[#141414]">
-                    <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
-                      {groupPrice.monthly}
-                    </span>
-                    <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
-                      {FOR_GROUPS_PRICING.priceSuffix}
-                    </span>
-                  </p>
-                ) : (
-                  <PublicPlanPriceFallback status={pricesStatus} />
-                )}
-                {groupPrice != null ? (
-                  <p className={cn(PRICING_PLAN_PRICE_SUBLINE_CLASS, "min-h-0")}>
-                    {`${groupPrice.annual}/year`}
-                  </p>
-                ) : null}
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                  {groupPrice != null ? (
+                    <p className="m-0 min-h-[47px] text-[#141414]">
+                      <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
+                        {groupPrice.monthly}
+                      </span>
+                      <span
+                        className={cn(
+                          PRICING_PLAN_PRICE_SUFFIX_CLASS,
+                          "whitespace-nowrap",
+                        )}
+                      >
+                        {FOR_GROUPS_PRICING.priceSuffix}
+                      </span>
+                    </p>
+                  ) : (
+                    <PublicPlanPriceFallback status={pricesStatus} />
+                  )}
+                  {groupPrice != null ? (
+                    <p
+                      className={cn(
+                        PRICING_PLAN_PRICE_SUBLINE_CLASS,
+                        "min-h-0 leading-[18.228px]",
+                      )}
+                    >
+                      {`${groupPrice.annual}/year`}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex w-full flex-col gap-4">
+                  <MarketingButton asChild variant="primary" className="w-full">
+                    <RequestTrialLink
+                      planIntent={{ plan: "Group", cadence: "monthly" }}
+                    >
+                      {FOR_GROUPS_PRICING.ctaLabel}
+                    </RequestTrialLink>
+                  </MarketingButton>
+                  <MarketingButton asChild variant="secondary" className="w-full">
+                    <Link to={FOR_GROUPS_PRICING.compareTo}>
+                      {FOR_GROUPS_PRICING.compareLabel}
+                    </Link>
+                  </MarketingButton>
+                </div>
               </div>
 
-              <div className="flex w-full flex-col gap-4">
-                <MarketingButton asChild variant="primary" className="w-full">
-                  <RequestTrialLink
-                    planIntent={{ plan: "Group", cadence: "monthly" }}
-                  >
-                    {FOR_GROUPS_PRICING.ctaLabel}
-                  </RequestTrialLink>
-                </MarketingButton>
-                <MarketingButton asChild variant="secondary" className="w-full">
-                  <Link to={FOR_GROUPS_PRICING.compareTo}>
-                    {FOR_GROUPS_PRICING.compareLabel}
-                  </Link>
-                </MarketingButton>
+              <div className="flex flex-col gap-5.5">
+                {FOR_GROUPS_PRICING.coreFeatures.map((row) => (
+                  <PlanFeatureRow key={row.label} row={row} />
+                ))}
+                <hr className="m-0 border-[#e0e0e0]" />
+                {FOR_GROUPS_PRICING.allowanceFeatures.map((row) => (
+                  <PlanFeatureRow
+                    key={`${row.label}-${row.value}`}
+                    row={row}
+                  />
+                ))}
               </div>
-            </div>
-
-            <div className="flex flex-col gap-5.5">
-              {FOR_GROUPS_PRICING.coreFeatures.map((row) => (
-                <PlanFeatureRow key={row.label} row={row} />
-              ))}
-              <hr className="m-0 border-[#e0e0e0]" />
-              {FOR_GROUPS_PRICING.allowanceFeatures.map((row) => (
-                <PlanFeatureRow
-                  key={`${row.label}-${row.value}`}
-                  row={row}
-                />
-              ))}
             </div>
           </div>
 
-          <aside className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[12px]">
-            <div className="flex flex-col gap-8 rounded-tl-[8px] rounded-tr-[8px] bg-[#dfebe3] px-8 py-7">
+          <aside className="flex w-full min-w-0 flex-1 flex-col overflow-hidden rounded-[12px]">
+            <div className="flex flex-col gap-8 rounded-tl-[8px] rounded-tr-[8px] bg-[#dfebe3] px-5 py-7 sm:px-8">
               <div className="flex max-w-[548px] flex-col gap-[18px] text-black">
-                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
+                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal]">
                   {calculator.eyebrow}
                 </p>
                 <div className="flex flex-col gap-3.5">
-                  <h3 className="m-0 font-jakarta text-[28px] font-bold leading-none">
+                  <h3 className="m-0 font-jakarta text-[28px] font-bold leading-[normal]">
                     {calculator.title}
                   </h3>
                   <p className="m-0 max-w-[486px] font-sans text-base font-normal leading-[21px]">
@@ -234,9 +251,9 @@ export function ForGroupsPricing() {
                 </div>
               </div>
 
-              <div className="flex w-full items-center justify-between gap-4 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-[30px]">
+              <div className="flex w-full flex-col items-start gap-5 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-[30px] lg:max-[1320px]:flex-col lg:max-[1320px]:items-start">
                 <div className="flex min-w-0 flex-col gap-2">
-                  <p className="m-0 font-sans text-[26px] font-normal leading-none text-[#141414]">
+                  <p className="m-0 font-sans text-[22px] font-normal leading-none text-[#141414] sm:text-[26px]">
                     {calculator.locationLabel}
                   </p>
                   <p className="m-0 font-sans text-sm font-medium leading-[normal] text-[#7c7c7c]">
@@ -280,7 +297,7 @@ export function ForGroupsPricing() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-8 bg-[#e5e5e5] px-8 py-7">
+            <div className="flex flex-col gap-8 bg-[#e5e5e5] px-5 py-7 sm:px-8">
               <div
                 className="flex w-full items-center gap-2.5 rounded-[10px] border border-[rgba(38,38,38,0.21)] bg-[#f4f4f4] p-3"
                 role="group"
@@ -315,7 +332,7 @@ export function ForGroupsPricing() {
                   }}
                 >
                   {PRICING_CADENCE_COPY.annual}
-                  <span className="rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] font-medium leading-none text-white">
+                  <span className="rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] whitespace-nowrap font-medium leading-none text-white">
                     {PRICING_CADENCE_COPY.saveBadge}
                   </span>
                 </button>
@@ -360,7 +377,12 @@ export function ForGroupsPricing() {
                       <span className={PRICING_PLAN_PRICE_AMOUNT_CLASS}>
                         {formatPenceGbp(shown.periodNetPence)}
                       </span>
-                      <span className={PRICING_PLAN_PRICE_SUFFIX_CLASS}>
+                      <span
+                        className={cn(
+                          PRICING_PLAN_PRICE_SUFFIX_CLASS,
+                          "whitespace-nowrap",
+                        )}
+                      >
                         {totalSuffix}
                       </span>
                     </p>
@@ -380,7 +402,7 @@ export function ForGroupsPricing() {
                   <MarketingButton
                     asChild
                     variant="dark"
-                    className="w-full flex-1"
+                    className="h-[54px] min-h-[54px] w-full flex-1"
                   >
                     <RequestTrialLink planIntent={continueIntent}>
                       {calculator.continueLabel}
@@ -389,7 +411,7 @@ export function ForGroupsPricing() {
                 ) : (
                   <MarketingButton
                     variant="dark"
-                    className="w-full flex-1"
+                    className="h-[54px] min-h-[54px] w-full flex-1"
                     disabled
                   >
                     {calculator.continueLabel}
@@ -398,7 +420,7 @@ export function ForGroupsPricing() {
                 <MarketingButton
                   asChild
                   variant="secondary"
-                  className="w-full flex-1"
+                  className="h-[54px] min-h-[54px] w-full flex-1"
                 >
                   <Link to={calculator.contactTo}>
                     {calculator.contactLabel}

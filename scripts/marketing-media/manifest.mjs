@@ -89,55 +89,38 @@ export const PICTURE_ASSETS = [
 /** Plain <img> / email assets — one primary URL + optional extra formats. */
 /** @type {SimpleAsset[]} */
 export const SIMPLE_ASSETS = [
-  // Product page UI mocks — sources live in gitignored scratch; runtime via Blob.
-  // Hero collage (Figma `5838:27265`) — baseName distinct from retired
-  // `hero-dashboard` so immutable blob URLs cache-bust after visual swaps.
+  // Product page UI mock — source lives in gitignored scratch; runtime via Blob.
   // Product UI mocks display at max 766 CSS px → need ≥1532 master for 2×.
   // Until masters are replaced, publish skips 1532 and keeps 766 (see checklist).
   {
-    id: "product/hero-collage",
-    source: ".scratch/marketing-media-sources/product/hero-dashboard.png",
+    id: "product/feedback-phone",
+    source: ".scratch/marketing-media-sources/product/feedback-phone.png",
     blobDir: "images/product",
-    baseName: "hero-collage",
+    baseName: "feedback-phone",
     widths: [766, 1532],
     formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
     quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
-  ...[
-    "feedback-phone",
-    "feedback-recovery",
-    "guests",
-    "campaigns",
-    "reports",
-    "ai-assistant",
-  ].map((name) => ({
-    id: `product/${name}`,
-    source: `.scratch/marketing-media-sources/product/${name}.png`,
-    blobDir: "images/product",
-    baseName: name,
-    widths: [766, 1532],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 90,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  })),
   // Product Capture scroll-hijack media (Figma `6106:17567` … `6106:18055`)
   // Sources are often ~1100–1448; request 1500 so publish emits native max.
+  // `-v2` sources are the Figma frame crops (750×661); a new baseName keeps
+  // the immutable Blob cache from serving the old photos.
   ...[
-    "capture-guest-cards",
-    "capture-counter-display",
-    "capture-tray-liner",
+    "capture-guest-cards-v2",
+    "capture-counter-display-v2",
+    "capture-tray-liner-v2",
     "capture-table-tent",
-    "capture-table-talker",
-    "capture-window-sticker",
-    "capture-receipt-label",
-    "capture-delivery-bag-seal",
-    "capture-package-label",
-    "capture-drink-cup-seal",
-    "capture-pizza-box-label",
-    "capture-poster-club",
+    "capture-table-talker-v2",
+    "capture-window-sticker-v2",
+    "capture-receipt-label-v2",
+    "capture-delivery-bag-seal-v2",
+    "capture-package-label-v2",
+    "capture-drink-cup-seal-v2",
+    "capture-pizza-box-label-v2",
+    "capture-poster-club-v2",
   ].map((name) => ({
-    id: `product/${name}`,
+    id: `product/${name.replace(/-v\d+$/, "")}`,
     source: `.scratch/marketing-media-sources/product/${name}.png`,
     blobDir: "images/product",
     baseName: name,
@@ -255,6 +238,30 @@ export const SIMPLE_ASSETS = [
     quality: 100,
     primaryFormat: /** @type {"png"} */ ("png"),
   })),
+  // About Industries cards v2 (Figma `7183:10663`) — taller photo crops for the
+  // 374×476 cards; photo frame ~1.5–1.9× card width. Never overwrite the v1 baseNames.
+  ...["cafes", "takeaway", "casual", "groups"].map((name) => ({
+    id: `about/industry-${name}-v2`,
+    source: `.scratch/marketing-media-sources/about/industry-${name}-v2.png`,
+    blobDir: "images/about",
+    baseName: `industry-${name}-v2`,
+    widths: [640, 1280, 1672],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 95,
+    primaryFormat: /** @type {"webp"} */ ("webp"),
+  })),
+  // About Reality illustrations v2 (Figma `7183:10733` … `7183:10918`) —
+  // transparent PNG @4×, displayed at 1× (138–273 CSS px wide).
+  ...["visit", "attention", "invitation", "review"].map((name) => ({
+    id: `about/reality-v2-${name}`,
+    source: `.scratch/marketing-media-sources/about/reality-v2-${name}.png`,
+    blobDir: "images/about",
+    baseName: `reality-v2-${name}`,
+    widths: [273, 546, 1092],
+    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
+    quality: 100,
+    primaryFormat: /** @type {"png"} */ ("png"),
+  })),
   // How it works Guest Form phone mockups (Figma `5887:20625` … `5880:19826`)
   // Display ~392 CSS px → 784 master for 2×. quality 90 for UI chrome.
   ...[
@@ -368,37 +375,7 @@ export const SIMPLE_ASSETS = [
     quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   })),
-  // For Groups hero visual is video (`for-groups/hero.mp4`) — see marketingMedia.ts.
-  // Trust badges 172×152 CSS.
-  {
-    id: "for-groups/eyebrow-sparkle",
-    source: ".scratch/marketing-media-sources/for-groups/eyebrow-sparkle.png",
-    blobDir: "images/for-groups",
-    baseName: "eyebrow-sparkle",
-    widths: [22, 44],
-    formats: /** @type {Format[]} */ (["png"]),
-    quality: 100,
-    primaryFormat: /** @type {"png"} */ ("png"),
-  },
-  ...[
-    "iso-27001",
-    "cyber-essentials-plus",
-    "ico-dpe",
-    "ico-data",
-    "cyber-essentials",
-    "iasme-level-1",
-    "good-business-charter",
-    "iso-27701",
-  ].map((name) => ({
-    id: `for-groups/trust-${name}`,
-    source: `.scratch/marketing-media-sources/for-groups/trust-badges/${name}.png`,
-    blobDir: "images/for-groups/trust-badges",
-    baseName: name,
-    widths: [172, 344],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  })),
+  // For Groups hero photo lives in src/assets/images/marketing/for-groups/hero.webp.
   // For Groups Group-wide visibility (Figma `5661:20731`) — display 720 CSS px; 4× master.
   {
     id: "for-groups/feature-reporting",
@@ -444,28 +421,7 @@ export const SIMPLE_ASSETS = [
     quality: 100,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
-  // For Groups AI Assistant (Figma `5661:22128`) — display 720 CSS px; 4× master.
-  {
-    id: "for-groups/feature-ai",
-    source: ".scratch/marketing-media-sources/for-groups/feature-ai.png",
-    blobDir: "images/for-groups",
-    baseName: "feature-ai",
-    widths: [720, 1440, 2880],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  },
-  // For Groups Sign up CTA background (Figma `6405:36178`) — display 1668 CSS px.
-  {
-    id: "for-groups/signup-cta-bg",
-    source: ".scratch/marketing-media-sources/for-groups/signup-cta-bg.png",
-    blobDir: "images/for-groups",
-    baseName: "signup-cta-bg",
-    widths: [834, 1668],
-    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  },
+  // For Groups AI assistant and Sign up CTA plates live in src/assets/images/marketing/for-groups.
   {
     id: "signup/signup-modal-backdrop",
     source: "src/assets/images/signup-modal-backdrop.png",

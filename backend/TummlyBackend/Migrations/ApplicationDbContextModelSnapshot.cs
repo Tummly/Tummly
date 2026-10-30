@@ -64,6 +64,9 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("CanApproveTrustIndicators")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -5424,6 +5427,10 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CtaLabel")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
                     b.Property<string>("CtaTarget")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -5452,6 +5459,10 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("ImageRightsNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -5479,6 +5490,20 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)")
+                        .HasDefaultValue("QaPending");
+
+                    b.Property<string>("StatusLabel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)")
+                        .HasDefaultValue("");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -5505,6 +5530,10 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("int");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("LastEditedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -5516,6 +5545,10 @@ namespace TummlyBackend.Migrations
 
                     b.Property<int?>("SubmittedByAdminUserId")
                         .HasColumnType("int");
+
+                    b.Property<string>("SubmittedRevision")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.HasKey("Id");
 

@@ -8,8 +8,8 @@ describe("marketingMediaUrl", () => {
 
   it("uses the QA marketing container by default", async () => {
     const { marketingMediaUrl } = await import("./marketingMedia")
-    expect(marketingMediaUrl("cta/signup-cta.mp4")).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta.mp4",
+    expect(marketingMediaUrl("cta/signup-cta-feedback-form.mp4")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 
@@ -19,17 +19,17 @@ describe("marketingMediaUrl", () => {
       "https://cdn.example.com/marketing/",
     )
     const { marketingMediaUrl } = await import("./marketingMedia")
-    expect(marketingMediaUrl("/cta/signup-cta.mp4")).toBe(
-      "https://cdn.example.com/marketing/cta/signup-cta.mp4",
+    expect(marketingMediaUrl("/cta/signup-cta-feedback-form.mp4")).toBe(
+      "https://cdn.example.com/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 
   it("builds the Sign-up CTA video URL", async () => {
     const { signUpCtaVideoUrl, SIGN_UP_CTA_VIDEO_PATH } =
       await import("./marketingMedia")
-    expect(SIGN_UP_CTA_VIDEO_PATH).toBe("cta/signup-cta.mp4")
+    expect(SIGN_UP_CTA_VIDEO_PATH).toBe("cta/signup-cta-feedback-form.mp4")
     expect(signUpCtaVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta.mp4",
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/cta/signup-cta-feedback-form.mp4",
     )
   })
 
@@ -53,9 +53,16 @@ describe("marketingMediaUrl", () => {
   it("builds the Home hero campaign video URL", async () => {
     const { homeHeroVideoUrl, HOME_HERO_VIDEO_PATH } =
       await import("./marketingMedia")
-    expect(HOME_HERO_VIDEO_PATH).toBe("home/hero-campaign.mp4")
+    expect(HOME_HERO_VIDEO_PATH).toBe("home/hero-campaign-results-loop-1080.mp4")
     expect(homeHeroVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/home/hero-campaign.mp4",
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/home/hero-campaign-results-loop-1080.mp4",
+    )
+  })
+
+  it("builds the Home platform card video URLs (864px loops)", async () => {
+    const { homePlatformVideoUrl } = await import("./marketingMedia")
+    expect(homePlatformVideoUrl("reasons-to-return")).toBe(
+      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-e1dfdb-reasons-to-return-864.mp4",
     )
   })
 
@@ -77,17 +84,9 @@ describe("marketingMediaUrl", () => {
     )
   })
 
-  it("builds For Groups hero and product card video URLs", async () => {
-    const {
-      forGroupsHeroVideoUrl,
-      FOR_GROUPS_HERO_VIDEO_PATH,
-      forGroupsProductVideoUrl,
-      FOR_GROUPS_PRODUCT_VIDEO_PATHS,
-    } = await import("./marketingMedia")
-    expect(FOR_GROUPS_HERO_VIDEO_PATH).toBe("for-groups/hero.mp4")
-    expect(forGroupsHeroVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/hero.mp4",
-    )
+  it("builds For Groups product card video URLs", async () => {
+    const { forGroupsProductVideoUrl, FOR_GROUPS_PRODUCT_VIDEO_PATHS } =
+      await import("./marketingMedia")
     expect(FOR_GROUPS_PRODUCT_VIDEO_PATHS["hear-from-guests"]).toBe(
       "for-groups/product-e1dfdb-hear-from-guests.mp4",
     )
@@ -95,5 +94,4 @@ describe("marketingMediaUrl", () => {
       "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-e1dfdb-whats-working.mp4",
     )
   })
-
 })

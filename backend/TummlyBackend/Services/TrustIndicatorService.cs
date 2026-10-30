@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +14,10 @@ namespace TummlyBackend.Services
     public sealed class TrustIndicatorService : ITrustIndicatorService
     {
         private const int MaxIdempotencyKeyLength = 128;
+        private const string PublicStatusVerified = "Verified";
+        private const string PublicStatusRoadmap = "Roadmap";
+        private const string PublicStatusUnderReview = "UnderReview";
+        private const string PublicStatusUnderReviewLabel = "Under review";
 
         private static readonly JsonSerializerOptions SnapshotOptions = new(
             JsonSerializerDefaults.Web
@@ -20,19 +26,23 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IAdminAuditService _audit;
         private readonly TimeProvider _clock;
+        private readonly ITrustEvidenceLinkChecker _evidenceLinks;
 
         public TrustIndicatorService(
             ApplicationDbContext context,
             IAdminAuditService audit,
-            TimeProvider clock
+            TimeProvider clock,
+            ITrustEvidenceLinkChecker evidenceLinks
         )
         {
             _context = context;
             _audit = audit;
             _clock = clock;
+            _evidenceLinks = evidenceLinks;
         }
 
         public async Task<AdminTrustIndicatorsViewDto> GetAdminViewAsync(
+            int actorAdminUserId,
             CancellationToken cancellationToken = default
         )
         {
@@ -51,10 +61,13 @@ namespace TummlyBackend.Services
                 .OrderByDescending(row => row.Version)
                 .FirstOrDefaultAsync(cancellationToken);
 
+            var canApprove = await IsApproverAsync(actorAdminUserId, cancellationToken);
+
             return new AdminTrustIndicatorsViewDto(
                 rows.Select(ToItemDto).ToList(),
                 ToReviewDto(state),
-                publication == null ? null : ToPublicationDto(publication)
+                publication == null ? null : ToPublicationDto(publication),
+                new TrustIndicatorViewerDto(actorAdminUserId, canApprove)
             );
         }
 
@@ -78,7 +91,7 @@ namespace TummlyBackend.Services
             }
 
             var errors = new List<string>();
-            var normalized = TrustIndicatorRules.Normalize(request, errors);
+            var normalized = TrustIndicatorRules.Normalize(row.EvidenceClass, request, errors);
             if (errors.Count > 0)
             {
                 return await RefuseAsync<TrustIndicatorItemDto>(
@@ -100,38 +113,75 @@ namespace TummlyBackend.Services
             }
 
             var now = _clock.GetUtcNow().UtcDateTime;
-            TrustIndicatorRules.Apply(row, normalized);
-            row.LastEditedByAdminUserId = actorAdminUserId;
-            row.LastEditedAtUtc = now;
-            row.UpdatedAtUtc = now;
-
             var state = await LoadOrCreateStateAsync(cancellationToken);
             var submissionCleared = state.SubmittedByAdminUserId != null;
+            state.ConcurrencyStamp = Guid.NewGuid();
             state.LastEditedByAdminUserId = actorAdminUserId;
             state.LastEditedAtUtc = now;
             state.SubmittedByAdminUserId = null;
             state.SubmittedAtUtc = null;
+            state.SubmittedRevision = null;
 
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorDraftEdit,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorItem,
-                    TargetId: itemNumber.ToString(),
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new
-                        {
-                            itemNumber,
-                            before,
-                            after = normalized,
-                            submissionCleared,
-                        }
-                    )
-                )
-            );
+            // The draft state is saved first, so a stamp conflict stages nothing else. The item and its audit row
+            // follow. On SQL Server both saves share one transaction.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
+            {
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    TrustIndicatorRules.Apply(row, normalized);
+                    row.LastEditedByAdminUserId = actorAdminUserId;
+                    row.LastEditedAtUtc = now;
+                    row.UpdatedAtUtc = now;
+                    _audit.Append(
+                        new AdminAuditAppendRequest(
+                            Action: AdminAuditActions.TrustIndicatorDraftEdit,
+                            ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                            TargetType: AdminAuditTargetTypes.TrustIndicatorItem,
+                            TargetId: itemNumber.ToString(),
+                            ActorAdminUserId: actorAdminUserId,
+                            DetailJson: JsonSerializer.Serialize(
+                                new
+                                {
+                                    itemNumber,
+                                    before,
+                                    after = normalized,
+                                    submissionCleared,
+                                }
+                            )
+                        )
+                    );
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+            }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            if (conflict)
+            {
+                // Another write changed the draft after this edit read it. Nothing from this edit was saved.
+                _context.ChangeTracker.Clear();
+                return await RefuseAsync<TrustIndicatorItemDto>(
+                    actorAdminUserId,
+                    "draft_edit",
+                    "draft_conflict",
+                    "The draft changed while you were saving. Reload and try again.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorItem,
+                    itemNumber.ToString(),
+                    cancellationToken
+                );
+            }
+
             return new(ToItemDto(row));
         }
 
@@ -154,24 +204,68 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var rows = await _context.TrustIndicators
+                .OrderBy(row => row.ItemNumber)
+                .ToListAsync(cancellationToken);
+            var revision = DraftRevisionOf(rows);
             var now = _clock.GetUtcNow().UtcDateTime;
+            state.ConcurrencyStamp = Guid.NewGuid();
             state.SubmittedByAdminUserId = actorAdminUserId;
             state.SubmittedAtUtc = now;
-
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorSubmit,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorDraft,
-                    TargetId: "draft",
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new { lastEditedByAdminUserId = state.LastEditedByAdminUserId }
-                    )
+            state.SubmittedRevision = revision;
+            var audit = new AdminAuditAppendRequest(
+                Action: AdminAuditActions.TrustIndicatorSubmit,
+                ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                TargetType: AdminAuditTargetTypes.TrustIndicatorDraft,
+                TargetId: "draft",
+                ActorAdminUserId: actorAdminUserId,
+                DetailJson: JsonSerializer.Serialize(
+                    new
+                    {
+                        lastEditedByAdminUserId = state.LastEditedByAdminUserId,
+                        draftRevision = revision,
+                    }
                 )
             );
 
-            await _context.SaveChangesAsync(cancellationToken);
+            // The draft state is saved first, so a stamp conflict stages no audit row. On SQL Server both saves
+            // share one transaction.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
+            {
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _audit.Append(audit);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+            }
+
+            if (conflict)
+            {
+                _context.ChangeTracker.Clear();
+                return await RefuseAsync<TrustIndicatorReviewDto>(
+                    actorAdminUserId,
+                    "submit",
+                    "draft_conflict",
+                    "The draft changed while you were submitting. Reload and try again.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
             return new(ToReviewDto(state));
         }
 
@@ -183,6 +277,7 @@ namespace TummlyBackend.Services
             int actorAdminUserId,
             string? idempotencyKey,
             string? reason,
+            string? draftRevision,
             CancellationToken cancellationToken = default
         )
         {
@@ -209,7 +304,36 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(row => row.IdempotencyKey == key, cancellationToken);
             if (replay != null)
             {
+                // A key belongs to the admin who made the publication. Another admin's replay is refused.
+                if (replay.PublishedByAdminUserId != actorAdminUserId)
+                {
+                    return await RefuseAsync<TrustIndicatorPublicationDto>(
+                        actorAdminUserId,
+                        "publish",
+                        "idempotency_key_reused",
+                        "This Idempotency-Key was used for a publish by another admin.",
+                        null,
+                        AdminAuditTargetTypes.TrustIndicatorPublication,
+                        replay.Version.ToString(),
+                        cancellationToken
+                    );
+                }
+
                 return new(ToPublicationDto(replay));
+            }
+
+            if (!await IsApproverAsync(actorAdminUserId, cancellationToken))
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "approver_required",
+                    "Only a trust indicator approver can publish.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
             }
 
             var trimmedReason = reason?.Trim() ?? string.Empty;
@@ -265,10 +389,26 @@ namespace TummlyBackend.Services
                 );
             }
 
-            // Four-eyes (ADM-15-03): the publisher must not be the submitter or the last draft editor.
+            // Four-eyes (ADM-15-03, CONTRACT §6): the publisher must not be the submitter, and must not have
+            // edited any item since the latest publication (all time when nothing is published yet).
+            var latestPublishedAtUtc = await _context.TrustIndicatorPublications
+                .AsNoTracking()
+                .OrderByDescending(row => row.Version)
+                .Select(row => (DateTime?)row.PublishedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            var editedSinceLastPublish = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .AnyAsync(
+                    row => row.Action == AdminAuditActions.TrustIndicatorDraftEdit
+                        && row.ActorAdminUserId == actorAdminUserId
+                        && row.Succeeded
+                        && (latestPublishedAtUtc == null || row.OccurredAtUtc > latestPublishedAtUtc),
+                    cancellationToken
+                );
             if (
                 actorAdminUserId == submittedBy
                 || actorAdminUserId == state.LastEditedByAdminUserId
+                || editedSinceLastPublish
             )
             {
                 return await RefuseAsync<TrustIndicatorPublicationDto>(
@@ -276,6 +416,29 @@ namespace TummlyBackend.Services
                     "publish",
                     "self_approval_denied",
                     "A second admin must publish a draft you submitted or edited.",
+                    null,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
+            // The reviewer must have seen the submitted rows: the body revision, the stored revision and the
+            // rows read now must all agree (CONTRACT §6). Any other case is a stale view or an out-of-band change.
+            var currentRevision = DraftRevisionOf(rows);
+            var storedRevision = state.SubmittedRevision;
+            if (
+                string.IsNullOrWhiteSpace(draftRevision)
+                || storedRevision == null
+                || !string.Equals(draftRevision.Trim(), storedRevision, StringComparison.Ordinal)
+                || !string.Equals(storedRevision, currentRevision, StringComparison.Ordinal)
+            )
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "draft_changed",
+                    "The draft changed after it was submitted. Reload it and review it again.",
                     null,
                     AdminAuditTargetTypes.TrustIndicatorDraft,
                     "draft",
@@ -293,6 +456,22 @@ namespace TummlyBackend.Services
                     "publish_gate_failed",
                     "The draft has items that cannot be published.",
                     gateErrors,
+                    AdminAuditTargetTypes.TrustIndicatorDraft,
+                    "draft",
+                    cancellationToken
+                );
+            }
+
+            // CONTRACT §5 item 6: only after the rule gate passes, and before the no-change check.
+            var linkErrors = await EvidenceLinkErrorsAsync(rows, cancellationToken);
+            if (linkErrors.Count > 0)
+            {
+                return await RefuseAsync<TrustIndicatorPublicationDto>(
+                    actorAdminUserId,
+                    "publish",
+                    "publish_gate_failed",
+                    "The draft has items that cannot be published.",
+                    linkErrors,
                     AdminAuditTargetTypes.TrustIndicatorDraft,
                     "draft",
                     cancellationToken
@@ -338,49 +517,74 @@ namespace TummlyBackend.Services
                     SnapshotOptions
                 ),
             };
-            _context.TrustIndicatorPublications.Add(publication);
-
-            state.SubmittedByAdminUserId = null;
-            state.SubmittedAtUtc = null;
-
-            _audit.Append(
-                new AdminAuditAppendRequest(
-                    Action: AdminAuditActions.TrustIndicatorPublish,
-                    ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
-                    TargetType: AdminAuditTargetTypes.TrustIndicatorPublication,
-                    TargetId: version.ToString(),
-                    ActorAdminUserId: actorAdminUserId,
-                    DetailJson: JsonSerializer.Serialize(
-                        new
-                        {
-                            version,
-                            previousVersion,
-                            submittedByAdminUserId = submittedBy,
-                            reason = trimmedReason,
-                        }
-                    )
+            var audit = new AdminAuditAppendRequest(
+                Action: AdminAuditActions.TrustIndicatorPublish,
+                ActorIdentity: await ActorIdentityAsync(actorAdminUserId, cancellationToken),
+                TargetType: AdminAuditTargetTypes.TrustIndicatorPublication,
+                TargetId: version.ToString(),
+                ActorAdminUserId: actorAdminUserId,
+                DetailJson: JsonSerializer.Serialize(
+                    new
+                    {
+                        version,
+                        previousVersion,
+                        submittedByAdminUserId = submittedBy,
+                        draftRevision = currentRevision,
+                        reason = trimmedReason,
+                    }
                 )
             );
 
-            try
+            state.ConcurrencyStamp = Guid.NewGuid();
+            state.SubmittedByAdminUserId = null;
+            state.SubmittedAtUtc = null;
+            state.SubmittedRevision = null;
+
+            // The draft state is saved first. Its stamp check fails when another write committed after this publish
+            // read the draft, and nothing else from this publish is staged yet. On SQL Server both saves share one
+            // transaction, so a failure in the second rolls back the first.
+            var conflict = false;
+            await using (var transaction = _context.Database.IsRelational()
+                ? await _context.Database.BeginTransactionAsync(cancellationToken)
+                : null)
             {
-                await _context.SaveChangesAsync(cancellationToken);
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _context.TrustIndicatorPublications.Add(publication);
+                    _audit.Append(audit);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                    }
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    conflict = true;
+                }
+                catch (DbUpdateException ex) when (
+                    ex.InnerException is SqlException { Number: 2601 or 2627 }
+                )
+                {
+                    // Another publish took the version or key first.
+                    conflict = true;
+                }
             }
-            catch (DbUpdateException ex) when (
-                ex.InnerException is SqlException { Number: 2601 or 2627 }
-            )
+
+            if (conflict)
             {
-                // Another publish took the version or key first. Nothing from this attempt was saved.
                 _context.ChangeTracker.Clear();
-                return TrustIndicatorOutcome<TrustIndicatorPublicationDto>.Fail(
-                    "publish_conflict",
-                    "The draft could not be published. Reload and try again."
-                );
+                return await PublishConflictAsync(actorAdminUserId, cancellationToken);
             }
 
             return new(ToPublicationDto(publication));
         }
 
+        /// <summary>
+        /// Public read (CONTRACT §8). Reads the latest snapshot only and applies §2 and §3 to each item.
+        /// A bad item is omitted; a bad CTA is dropped. An unreadable snapshot publishes nothing.
+        /// </summary>
         public async Task<IReadOnlyList<PublicTrustIndicatorDto>> GetPublicAsync(
             CancellationToken cancellationToken = default
         )
@@ -395,22 +599,85 @@ namespace TummlyBackend.Services
                 return [];
             }
 
-            var today = TrustIndicatorRules.LondonToday(_clock.GetUtcNow().UtcDateTime);
-            var items = JsonSerializer.Deserialize<List<TrustIndicatorItemDto>>(
-                snapshot,
-                SnapshotOptions
-            ) ?? [];
+            List<TrustIndicatorItemDto>? items;
+            try
+            {
+                items = JsonSerializer.Deserialize<List<TrustIndicatorItemDto>>(
+                    snapshot,
+                    SnapshotOptions
+                );
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
 
-            return items
-                .Where(item => TrustIndicatorRules.IsLive(
-                    item.Values.Enabled,
-                    item.Values.ExpiresOn,
-                    today
-                ))
+            var today = TrustIndicatorRules.LondonToday(_clock.GetUtcNow().UtcDateTime);
+            return (items ?? [])
+                .Where(item => item?.Values != null
+                    && TrustIndicatorRules.IsLive(item.Values.Enabled, item.Values.ExpiresOn, today))
                 .OrderBy(item => item.ItemNumber)
                 .Select(ToPublicDto)
+                .OfType<PublicTrustIndicatorDto>()
                 .ToList();
         }
+
+        /// <summary>
+        /// Checks the evidence link of each enabled item in scope, in item order. Returns one line per failed
+        /// item. An unparseable link cannot be fetched, so it fails like a network error.
+        /// </summary>
+        private async Task<List<string>> EvidenceLinkErrorsAsync(
+            IEnumerable<TrustIndicator> rows,
+            CancellationToken cancellationToken
+        )
+        {
+            var errors = new List<string>();
+            foreach (var row in rows.OrderBy(item => item.ItemNumber))
+            {
+                if (!row.Enabled || string.IsNullOrWhiteSpace(row.EvidenceUrl) || !InLinkCheckScope(row))
+                {
+                    continue;
+                }
+
+                var label = $"Item {row.ItemNumber:D2}";
+                if (!Uri.TryCreate(row.EvidenceUrl.Trim(), UriKind.Absolute, out var uri))
+                {
+                    errors.Add($"{label}: evidence link failed (network error).");
+                    continue;
+                }
+
+                var result = await _evidenceLinks.CheckAsync(uri, cancellationToken);
+                if (!result.Ok)
+                {
+                    errors.Add($"{label}: evidence link failed ({result.Detail}).");
+                }
+            }
+
+            return errors;
+        }
+
+        /// <summary>
+        /// CONTRACT §5.6: the link is checked for an item public as Verified, and for every self-assessment.
+        /// A Roadmap, QaPending or UnderReview item is not checked.
+        /// </summary>
+        private static bool InLinkCheckScope(TrustIndicator row) =>
+            TrustIndicatorRules.PublicStatus(row.EvidenceClass, row.Status.ToString()) == PublicStatusVerified
+            || row.EvidenceClass == TrustEvidenceClass.VerifiedSelfAssessment;
+
+        private async Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishConflictAsync(
+            int actorAdminUserId,
+            CancellationToken cancellationToken
+        ) =>
+            await RefuseAsync<TrustIndicatorPublicationDto>(
+                actorAdminUserId,
+                "publish",
+                "publish_conflict",
+                "The draft could not be published. Reload and try again.",
+                null,
+                AdminAuditTargetTypes.TrustIndicatorDraft,
+                "draft",
+                cancellationToken
+            );
 
         private async Task<TrustIndicatorOutcome<T>> RefuseAsync<T>(
             int actorAdminUserId,
@@ -488,6 +755,58 @@ namespace TummlyBackend.Services
                 );
         }
 
+        /// <summary>
+        /// CONTRACT §6 draft revision: lowercase hex SHA-256 of the editable values of the rows, in item order,
+        /// serialized with the snapshot options.
+        /// </summary>
+        private static string DraftRevisionOf(IEnumerable<TrustIndicator> rows)
+        {
+            var canonical = JsonSerializer.Serialize(
+                rows.OrderBy(row => row.ItemNumber).Select(TrustIndicatorRules.ToValues).ToList(),
+                SnapshotOptions
+            );
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+                .ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// True only for a usable Admin-role row (Role Admin, active, not locked) whose approver flag is set
+        /// and whose latest trust.approver_grant / trust.approver_revoke audit row is a grant (CONTRACT §6).
+        /// A flag with no grant row behind it, or with a later revoke, is not an approver. An unknown id is not
+        /// an approver. The usability rule is the same as AdminStaffService.
+        /// </summary>
+        private async Task<bool> IsApproverAsync(
+            int adminUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var usable = await _context.Admins
+                .AsNoTracking()
+                .AnyAsync(
+                    row => row.Id == adminUserId
+                        && row.Role == "Admin"
+                        && row.IsActive
+                        && !row.IsLocked
+                        && row.CanApproveTrustIndicators,
+                    cancellationToken
+                );
+            if (!usable)
+            {
+                return false;
+            }
+
+            var targetId = adminUserId.ToString();
+            var latestAction = await _context.AdminAuditEvents
+                .AsNoTracking()
+                .Where(row => row.TargetId == targetId
+                    && (row.Action == AdminAuditActions.TrustApproverGrant
+                        || row.Action == AdminAuditActions.TrustApproverRevoke))
+                .OrderByDescending(row => row.OccurredAtUtc)
+                .Select(row => row.Action)
+                .FirstOrDefaultAsync(cancellationToken);
+            return latestAction == AdminAuditActions.TrustApproverGrant;
+        }
+
         private async Task<string> ActorIdentityAsync(
             int adminUserId,
             CancellationToken cancellationToken
@@ -507,7 +826,9 @@ namespace TummlyBackend.Services
                 state?.LastEditedByAdminUserId,
                 state?.LastEditedAtUtc,
                 state?.SubmittedByAdminUserId,
-                state?.SubmittedAtUtc
+                state?.SubmittedAtUtc,
+                // A revision means something only while a submission stands.
+                state?.SubmittedByAdminUserId == null ? null : state.SubmittedRevision
             );
 
         private static TrustIndicatorPublicationDto ToPublicationDto(
@@ -530,22 +851,62 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static PublicTrustIndicatorDto ToPublicDto(TrustIndicatorItemDto item) =>
-            new(
+        /// <summary>
+        /// CONTRACT §2 and §3 for one live item. Null when the item must be omitted: an unknown class,
+        /// a status that is missing or not allowed for the class, or a blank status label.
+        /// </summary>
+        private static PublicTrustIndicatorDto? ToPublicDto(TrustIndicatorItemDto item)
+        {
+            var values = item.Values;
+            if (
+                string.IsNullOrWhiteSpace(item.Title)
+                || !TrustIndicatorRules.TryParseEvidenceClass(item.EvidenceClass, out var evidenceClass)
+            )
+            {
+                return null;
+            }
+
+            var status = TrustIndicatorRules.PublicStatus(evidenceClass, values.Status);
+            if (status == null)
+            {
+                return null;
+            }
+
+            var statusLabel = status == PublicStatusUnderReview
+                ? PublicStatusUnderReviewLabel
+                : values.StatusLabel?.Trim();
+            if (string.IsNullOrEmpty(statusLabel))
+            {
+                return null;
+            }
+
+            var cta = status == PublicStatusVerified
+                && TrustIndicatorRules.PublicCtaAllowed(evidenceClass, values)
+                    ? ToPublicCta(values)
+                    : null;
+
+            return new PublicTrustIndicatorDto(
                 item.ItemNumber,
                 item.Title,
-                item.EvidenceClass,
-                item.Values.IconKey,
-                item.Values.ImageUrl,
-                item.Values.AltText ?? string.Empty,
-                item.Values.Tooltip ?? string.Empty,
-                item.Values.CtaType ?? nameof(TrustCtaType.None),
-                item.Values.CtaTarget,
-                item.Values.EvidenceUrl,
-                item.Values.Issuer,
-                item.Values.IssuedOn,
-                item.Values.ExpiresOn,
-                item.Values.Scope
+                status,
+                statusLabel,
+                values.IconKey,
+                status == PublicStatusRoadmap ? null : values.ImageUrl,
+                values.AltText ?? string.Empty,
+                values.Tooltip ?? string.Empty,
+                cta
             );
+        }
+
+        /// <summary>Only called after PublicCtaAllowed, so the type and label are present and exact.</summary>
+        private static PublicTrustCtaDto ToPublicCta(TrustIndicatorEditableValues values)
+        {
+            var type = values.CtaType!.Trim();
+            return new PublicTrustCtaDto(
+                type,
+                values.CtaLabel!.Trim(),
+                type == nameof(TrustCtaType.CookieSettings) ? null : values.CtaTarget
+            );
+        }
     }
 }

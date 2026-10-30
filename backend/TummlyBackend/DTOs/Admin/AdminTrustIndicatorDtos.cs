@@ -22,6 +22,14 @@ namespace TummlyBackend.DTOs.Admin
 
         public string? Tooltip { get; init; }
 
+        public string? Status { get; init; }
+
+        public string? StatusLabel { get; init; }
+
+        public string? CtaLabel { get; init; }
+
+        public string? ImageRightsNote { get; init; }
+
         public string? Issuer { get; init; }
 
         public string? Scope { get; init; }
@@ -46,7 +54,8 @@ namespace TummlyBackend.DTOs.Admin
         int? LastEditedByAdminUserId,
         DateTime? LastEditedAtUtc,
         int? SubmittedByAdminUserId,
-        DateTime? SubmittedAtUtc
+        DateTime? SubmittedAtUtc,
+        string? DraftRevision
     );
 
     public sealed record TrustIndicatorPublicationDto(
@@ -60,32 +69,43 @@ namespace TummlyBackend.DTOs.Admin
         IReadOnlyList<TrustIndicatorItemDto> Items
     );
 
+    /// <summary>The viewing admin and whether they may publish. Drives the publish control.</summary>
+    public sealed record TrustIndicatorViewerDto(int AdminUserId, bool CanApprove);
+
     public sealed record AdminTrustIndicatorsViewDto(
         IReadOnlyList<TrustIndicatorItemDto> Draft,
         TrustIndicatorReviewDto Review,
-        TrustIndicatorPublicationDto? Published
+        TrustIndicatorPublicationDto? Published,
+        TrustIndicatorViewerDto Viewer
     );
 
     public sealed class AdminTrustIndicatorPublishRequest
     {
         public string? Reason { get; set; }
+
+        /// <summary>The draft revision the reviewer read (review.draftRevision from GET).</summary>
+        public string? DraftRevision { get; set; }
     }
 
-    /// <summary>Public read model. Evidence fields are shown only when published and live.</summary>
+    /// <summary>
+    /// Public read model (CONTRACT §8). No evidence, issuer, date or internal status fields.
+    /// Status is the public status (Verified, Roadmap, UnderReview), never the stored one.
+    /// </summary>
     public sealed record PublicTrustIndicatorDto(
         int ItemNumber,
         string Title,
-        string EvidenceClass,
+        string Status,
+        string StatusLabel,
         string? IconKey,
         string? ImageUrl,
         string AltText,
         string Tooltip,
-        string CtaType,
-        string? CtaTarget,
-        string? EvidenceUrl,
-        string? Issuer,
-        DateOnly? IssuedOn,
-        DateOnly? ExpiresOn,
-        string? Scope
+        PublicTrustCtaDto? Cta
     );
+
+    /// <summary>
+    /// Public call to action. Type is the enum name. Href is null for CookieSettings, which opens the
+    /// site cookie preferences manager.
+    /// </summary>
+    public sealed record PublicTrustCtaDto(string Type, string Label, string? Href);
 }

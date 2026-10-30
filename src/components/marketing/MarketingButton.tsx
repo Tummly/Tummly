@@ -8,61 +8,71 @@ import {
   type ComponentPropsWithoutRef,
   type ReactElement,
   type ReactNode,
-} from "react"
-import { animate, motion, useReducedMotion } from "framer-motion"
-import { Slot } from "radix-ui"
+} from "react";
+import { animate, motion, useReducedMotion } from "framer-motion";
+import { Slot } from "radix-ui";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 /**
  * Figma Button hover (`5661:14507` / Primary `4128:13978` → `4128:13980`,
  * Secondary `4129:14593` → `4129:14592`): SMART_ANIMATE, ease-out, 300ms.
  * Width stays at the hover size; label shifts left and the arrow fades in.
  */
-const HOVER_MS = 0.3
-const ARROW_W = 15
+const HOVER_MS = 0.3;
+const ARROW_W = 15;
 
 type MarketingButtonVariant =
-  | "primary"
-  | "dark"
-  | "secondary"
-  | "secondary-inverse"
+  "primary" | "dark" | "secondary" | "secondary-inverse";
 
-type MarketingButtonDensity = "default" | "compact"
+/** `header`: Figma Header `5700:25213` buttons are 42px (10px vertical padding). */
+type MarketingButtonDensity = "default" | "compact" | "header";
 
 type MarketingButtonProps = Omit<
   ComponentPropsWithoutRef<"button">,
   "children"
 > & {
-  children: ReactNode
-  variant?: MarketingButtonVariant
-  asChild?: boolean
+  children: ReactNode;
+  variant?: MarketingButtonVariant;
+  asChild?: boolean;
   /** Figma arrow reveal on hover. Default true. */
-  showArrow?: boolean
+  showArrow?: boolean;
   /** Tighter padding for dense chrome (e.g. mobile header). */
-  density?: MarketingButtonDensity
-}
+  density?: MarketingButtonDensity;
+  /** Rest fill override when a Figma frame differs from the variant (hover fill stays). */
+  restBackgroundColor?: string;
+};
 
 const baseClass =
-  "inline-flex h-auto min-h-0 cursor-pointer items-center justify-center rounded-[4px] border text-sm font-inter font-medium whitespace-nowrap no-underline shadow-none outline-none select-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 disabled:pointer-events-none disabled:opacity-50"
+  "inline-flex h-auto min-h-0 cursor-pointer items-center justify-center rounded-[4px] border text-sm font-inter font-medium whitespace-nowrap no-underline shadow-none outline-none select-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 disabled:pointer-events-none disabled:opacity-50";
 
+/** Figma buttons are 46px: Primary `4128:13977` = 22px label, no border; Secondary `4129:14588` = 20px label + 1px border. */
 const variantClass: Record<MarketingButtonVariant, string> = {
-  primary: "border-transparent text-white",
-  dark: "border-transparent text-white",
-  secondary: "border-[#4e4e4e] text-[#141414]",
-  "secondary-inverse": "border-[#4e4e4e] text-white",
-}
+  primary: "border-0 text-white leading-[22px]",
+  dark: "border-0 text-white leading-[22px]",
+  secondary: "border-[#4e4e4e] text-[#141414] leading-5",
+  "secondary-inverse": "border-[#4e4e4e] text-white leading-5",
+};
 
 type SurfaceStyle = {
-  backgroundColor: string
-  paddingLeft: number
-  paddingRight: number
-  paddingTop: number
-  paddingBottom: number
-  gap: number
-}
+  backgroundColor: string;
+  paddingLeft: number;
+  paddingRight: number;
+  paddingTop: number;
+  paddingBottom: number;
+  gap: number;
+};
 
 function restSurface(
+  variant: MarketingButtonVariant,
+  density: MarketingButtonDensity,
+  backgroundColor?: string,
+): SurfaceStyle {
+  const surface = restSurfaceBase(variant, density);
+  return backgroundColor == null ? surface : { ...surface, backgroundColor };
+}
+
+function restSurfaceBase(
   variant: MarketingButtonVariant,
   density: MarketingButtonDensity,
 ): SurfaceStyle {
@@ -78,19 +88,19 @@ function restSurface(
       : {
           paddingLeft: 18,
           paddingRight: 18,
-          paddingTop: 12,
-          paddingBottom: 12,
+          paddingTop: density === "header" ? 10 : 12,
+          paddingBottom: density === "header" ? 10 : 12,
           gap: 6,
-        }
+        };
   switch (variant) {
     case "primary":
-      return { ...shared, backgroundColor: "#14a74a" }
+      return { ...shared, backgroundColor: "#14a74a" };
     case "dark":
-      return { ...shared, backgroundColor: "#141414" }
+      return { ...shared, backgroundColor: "#141414" };
     case "secondary":
-      return { ...shared, backgroundColor: "rgba(241, 241, 241, 0)" }
+      return { ...shared, backgroundColor: "rgba(241, 241, 241, 0)" };
     case "secondary-inverse":
-      return { ...shared, backgroundColor: "rgba(255, 255, 255, 0)" }
+      return { ...shared, backgroundColor: "rgba(255, 255, 255, 0)" };
   }
 }
 
@@ -110,19 +120,19 @@ function hoverSurface(
       : {
           paddingLeft: 16,
           paddingRight: 16,
-          paddingTop: 12,
-          paddingBottom: 12,
+          paddingTop: density === "header" ? 10 : 12,
+          paddingBottom: density === "header" ? 10 : 12,
           gap: 4,
-        }
+        };
   switch (variant) {
     case "primary":
-      return { ...shared, backgroundColor: "#28bb5e" }
+      return { ...shared, backgroundColor: "#28bb5e" };
     case "dark":
-      return { ...shared, backgroundColor: "#2e2e2e" }
+      return { ...shared, backgroundColor: "#2e2e2e" };
     case "secondary":
-      return { ...shared, backgroundColor: "#f1f1f1" }
+      return { ...shared, backgroundColor: "#f1f1f1" };
     case "secondary-inverse":
-      return { ...shared, backgroundColor: "rgba(255, 255, 255, 0.08)" }
+      return { ...shared, backgroundColor: "rgba(255, 255, 255, 0.08)" };
   }
 }
 
@@ -131,7 +141,7 @@ function arrowStroke(variant: MarketingButtonVariant) {
     variant === "dark" ||
     variant === "secondary-inverse"
     ? "#fafafa"
-    : "#141414"
+    : "#141414";
 }
 
 function MarketingButtonArrow({
@@ -139,11 +149,11 @@ function MarketingButtonArrow({
   hovered,
   reduceMotion,
 }: {
-  variant: MarketingButtonVariant
-  hovered: boolean
-  reduceMotion: boolean | null
+  variant: MarketingButtonVariant;
+  hovered: boolean;
+  reduceMotion: boolean | null;
 }) {
-  const stroke = arrowStroke(variant)
+  const stroke = arrowStroke(variant);
 
   return (
     <motion.span
@@ -172,14 +182,10 @@ function MarketingButtonArrow({
           stroke={stroke}
           strokeWidth="1.16667"
         />
-        <path
-          d="M12.2086 5L1.51855 5"
-          stroke={stroke}
-          strokeWidth="1.16667"
-        />
+        <path d="M12.2086 5L1.51855 5" stroke={stroke} strokeWidth="1.16667" />
       </svg>
     </motion.span>
-  )
+  );
 }
 
 /**
@@ -193,27 +199,28 @@ export function MarketingButton({
   asChild = false,
   showArrow = true,
   density = "default",
+  restBackgroundColor,
   type = "button",
   disabled,
   onMouseEnter,
   onMouseLeave,
   ...props
 }: MarketingButtonProps) {
-  const reduceMotion = useReducedMotion()
-  const [hovered, setHovered] = useState(false)
-  const surfaceRef = useRef<HTMLElement | null>(null)
-  const rest = restSurface(variant, density)
-  const hover = hoverSurface(variant, density)
-  const active = !disabled && hovered
+  const reduceMotion = useReducedMotion();
+  const [hovered, setHovered] = useState(false);
+  const surfaceRef = useRef<HTMLElement | null>(null);
+  const rest = restSurface(variant, density, restBackgroundColor);
+  const hover = hoverSurface(variant, density);
+  const active = !disabled && hovered;
   /** Hover layout locks width; rest only changes fill color + label/arrow motion. */
-  const layout = showArrow ? hover : rest
-  const labelShift = showArrow ? (ARROW_W + hover.gap) / 2 : 0
+  const layout = showArrow ? hover : rest;
+  const labelShift = showArrow ? (ARROW_W + hover.gap) / 2 : 0;
 
   useEffect(() => {
-    const el = surfaceRef.current
-    if (el == null) return
+    const el = surfaceRef.current;
+    if (el == null) return;
 
-    const to = active ? hover : rest
+    const to = active ? hover : rest;
     const controls = animate(
       el,
       showArrow
@@ -230,25 +237,25 @@ export function MarketingButton({
         duration: reduceMotion ? 0 : HOVER_MS,
         ease: "easeOut",
       },
-    )
+    );
 
     return () => {
-      controls.stop()
-    }
-  }, [active, hover, rest, reduceMotion, showArrow])
+      controls.stop();
+    };
+  }, [active, hover, rest, reduceMotion, showArrow]);
 
-  const composedClass = cn(baseClass, variantClass[variant], className)
+  const composedClass = cn(baseClass, variantClass[variant], className);
   const surfaceStyle = showArrow
     ? {
         ...layout,
         backgroundColor: rest.backgroundColor,
       }
-    : rest
+    : rest;
 
   const setHover = (next: boolean) => {
-    if (disabled) return
-    setHovered(next)
-  }
+    if (disabled) return;
+    setHovered(next);
+  };
 
   const arrow = showArrow ? (
     <MarketingButtonArrow
@@ -256,7 +263,7 @@ export function MarketingButton({
       hovered={active}
       reduceMotion={reduceMotion}
     />
-  ) : null
+  ) : null;
 
   const inner = (label: ReactNode) =>
     showArrow ? (
@@ -278,18 +285,18 @@ export function MarketingButton({
         {label}
         {arrow}
       </>
-    )
+    );
 
   if (asChild) {
-    const child = Children.only(children)
+    const child = Children.only(children);
     if (!isValidElement(child)) {
-      return null
+      return null;
     }
 
     const element = child as ReactElement<{
-      children?: ReactNode
-      className?: string
-    }>
+      children?: ReactNode;
+      className?: string;
+    }>;
 
     return (
       <Slot.Root
@@ -299,12 +306,12 @@ export function MarketingButton({
         className={cn(composedClass, element.props.className)}
         style={surfaceStyle}
         onMouseEnter={(event) => {
-          setHover(true)
-          onMouseEnter?.(event as never)
+          setHover(true);
+          onMouseEnter?.(event as never);
         }}
         onMouseLeave={(event) => {
-          setHover(false)
-          onMouseLeave?.(event as never)
+          setHover(false);
+          onMouseLeave?.(event as never);
         }}
         {...props}
       >
@@ -313,7 +320,7 @@ export function MarketingButton({
           children: inner(element.props.children),
         })}
       </Slot.Root>
-    )
+    );
   }
 
   return (
@@ -326,18 +333,18 @@ export function MarketingButton({
       className={composedClass}
       style={surfaceStyle}
       onMouseEnter={(event) => {
-        setHover(true)
-        onMouseEnter?.(event)
+        setHover(true);
+        onMouseEnter?.(event);
       }}
       onMouseLeave={(event) => {
-        setHover(false)
-        onMouseLeave?.(event)
+        setHover(false);
+        onMouseLeave?.(event);
       }}
       {...props}
     >
       {inner(children)}
     </button>
-  )
+  );
 }
 
-export type { MarketingButtonProps, MarketingButtonVariant }
+export type { MarketingButtonProps, MarketingButtonVariant };

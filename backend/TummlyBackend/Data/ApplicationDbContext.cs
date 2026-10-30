@@ -3011,6 +3011,16 @@ namespace TummlyBackend.Data
                 e.Property(row => row.Title).HasMaxLength(200).IsRequired();
                 e.Property(row => row.AltText).HasMaxLength(300).IsRequired();
                 e.Property(row => row.Tooltip).HasMaxLength(300).IsRequired();
+                // The sentinel stops EF from treating the CLR default (VerifiedPublicRecord) as "use the database default".
+                e.Property(row => row.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(40)
+                    .IsRequired()
+                    .HasDefaultValue(TrustIndicatorStatus.QaPending)
+                    .HasSentinel(TrustIndicatorStatus.QaPending);
+                e.Property(row => row.StatusLabel).HasMaxLength(60).IsRequired().HasDefaultValue(string.Empty);
+                e.Property(row => row.CtaLabel).HasMaxLength(60);
+                e.Property(row => row.ImageRightsNote).HasMaxLength(300);
             });
 
             modelBuilder.Entity<TrustIndicatorDraftState>(e =>

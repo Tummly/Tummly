@@ -1,11 +1,11 @@
 import { CircleCheckBig } from "lucide-react"
 import { type FormEvent, useId, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import { AuthSocialContinueButtons } from "@/components/auth/AuthSocialContinueButtons"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
+import { MarketingSignupLegalNote } from "@/components/marketing/MarketingSignupLegalNote"
 import { Input } from "@/components/ui/input"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { HOME_HERO } from "@/content/marketing/homePage"
 import {
   buildSignupPath,
@@ -23,6 +23,15 @@ export type HeroSignupFormProps = {
   planIntent?: SignupPlanIntent
   /** Centered (home / groups) or start-aligned (Pilot split hero). */
   align?: "center" | "start"
+  /**
+   * `agree` (default): "By signing up, I agree to…". `read`: Figma home hero
+   * "Read our Terms of Service and Privacy Notice…".
+   */
+  legalNote?: "agree" | "read"
+  /** Merged onto the primary button. Default keeps the 176px Figma width. */
+  primaryButtonClassName?: string
+  /** Merged onto the legal note only (e.g. a wider max width). */
+  legalNoteClassName?: string
   className?: string
 }
 
@@ -37,6 +46,9 @@ export function HeroSignupForm({
   primaryLabel = HOME_HERO.primaryLabel,
   planIntent = HOME_HERO.planIntent,
   align = "center",
+  legalNote = "agree",
+  primaryButtonClassName = "sm:w-[176px]",
+  legalNoteClassName,
   className,
 }: HeroSignupFormProps) {
   const navigate = useNavigate()
@@ -106,7 +118,10 @@ export function HeroSignupForm({
           <MarketingButton
             type="submit"
             variant="primary"
-            className="h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px] sm:w-[176px]"
+            className={cn(
+              "h-[46px] min-h-[46px] w-full shrink-0 rounded-[8px]",
+              primaryButtonClassName,
+            )}
           >
             {primaryLabel}
           </MarketingButton>
@@ -125,29 +140,29 @@ export function HeroSignupForm({
           tone="light"
           returnPath={signupReturnPath}
           onBeforeStart={persistPlanIntent}
-          className="rounded-[8px]"
+          className="h-[46px] min-h-[46px] rounded-[8px]"
         />
       </div>
 
-      <p
-        className={cn(
-          "m-0 w-full text-xs leading-4 text-[#141414]",
-          align === "center" ? "text-center leading-[18px]" : "text-left",
-        )}
-      >
-        By signing up, I agree to Tummly&apos;s{" "}
-        <Link to={LEGAL_ROUTES.terms} className="underline underline-offset-2">
-          Terms of Service
-        </Link>{" "}
-        and{" "}
-        <Link
-          to={LEGAL_ROUTES.privacy}
-          className="underline underline-offset-2"
-        >
-          Privacy Policy
-        </Link>
-        .
-      </p>
+      {legalNote === "read" ? (
+        <MarketingSignupLegalNote
+          className={cn(
+            "w-full leading-[18px] text-[#141414]",
+            // Start-aligned (How it works `5661:19524`): breaks after "accept".
+            align === "center" ? "max-w-[353px] text-center" : "max-w-[400px] text-left",
+            legalNoteClassName,
+          )}
+        />
+      ) : (
+        <MarketingSignupLegalNote
+          variant="agree"
+          className={cn(
+            "w-full leading-4 text-[#141414]",
+            align === "center" ? "text-center leading-[18px]" : "text-left",
+            legalNoteClassName,
+          )}
+        />
+      )}
     </div>
   )
 }

@@ -29,25 +29,21 @@ export function marketingMediaUrl(path: string): string {
   return `${marketingMediaBaseUrl()}/${clean}`
 }
 
-/** Looping Sign-up CTA background video (`marketing/cta/signup-cta.mp4`). */
-export const SIGN_UP_CTA_VIDEO_PATH = "cta/signup-cta.mp4"
+/** Looping Sign-up CTA background video (`marketing/cta/signup-cta-feedback-form.mp4`). */
+export const SIGN_UP_CTA_VIDEO_PATH = "cta/signup-cta-feedback-form.mp4"
 
 export function signUpCtaVideoUrl(): string {
   return marketingMediaUrl(SIGN_UP_CTA_VIDEO_PATH)
 }
 
-/** Home hero campaign visual (`marketing/home/hero-campaign.mp4`). */
-export const HOME_HERO_VIDEO_PATH = "home/hero-campaign.mp4"
+/**
+ * Home hero campaign results loop, 1920×1080 web copy of the 4K master.
+ * The older `home/hero-campaign.mp4` stays on Blob for cached pages.
+ */
+export const HOME_HERO_VIDEO_PATH = "home/hero-campaign-results-loop-1080.mp4"
 
 export function homeHeroVideoUrl(): string {
   return marketingMediaUrl(HOME_HERO_VIDEO_PATH)
-}
-
-/** For Groups hero visual (`marketing/for-groups/hero.mp4`). */
-export const FOR_GROUPS_HERO_VIDEO_PATH = "for-groups/hero.mp4"
-
-export function forGroupsHeroVideoUrl(): string {
-  return marketingMediaUrl(FOR_GROUPS_HERO_VIDEO_PATH)
 }
 
 /**
@@ -65,6 +61,23 @@ export type ForGroupsProductVideoKey = keyof typeof FOR_GROUPS_PRODUCT_VIDEO_PAT
 
 export function forGroupsProductVideoUrl(key: ForGroupsProductVideoKey): string {
   return marketingMediaUrl(FOR_GROUPS_PRODUCT_VIDEO_PATHS[key])
+}
+
+/**
+ * Home platform card loops: the same For Groups loops, re-encoded to 864×1080
+ * (`*-864.mp4`). The 2160×2700 masters decode about 6.5× slower and made the
+ * three cards stutter; the cards draw them at about 400×500px.
+ */
+export const HOME_PLATFORM_VIDEO_PATHS = {
+  "guest-relationships": "for-groups/product-e1dfdb-guest-relationships-864.mp4",
+  "reasons-to-return": "for-groups/product-e1dfdb-reasons-to-return-864.mp4",
+  "whats-working": "for-groups/product-e1dfdb-whats-working-864.mp4",
+} as const
+
+export type HomePlatformVideoKey = keyof typeof HOME_PLATFORM_VIDEO_PATHS
+
+export function homePlatformVideoUrl(key: HomePlatformVideoKey): string {
+  return marketingMediaUrl(HOME_PLATFORM_VIDEO_PATHS[key])
 }
 
 /** AI Assistant marketing page videos (`marketing/ai-assistant/*`). */

@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -16,6 +19,9 @@ namespace TummlyBackend.Tests.Services
         private const int EditorId = 11;
         private const int PublisherId = 22;
         private const int ThirdAdminId = 33;
+        private const int NonApproverId = 44;
+        private const int InactiveApproverId = 55;
+        private const int LockedApproverId = 66;
 
         private static readonly string[] CanonicalTitles =
         [
@@ -34,6 +40,44 @@ namespace TummlyBackend.Tests.Services
             "UK Registered Company",
             "Encrypted HTTPS Connections",
             "Human-Controlled AI",
+        ];
+
+        private static readonly string[] CanonicalStatuses =
+        [
+            "VerifiedPublicRecord",
+            "VerifiedCredential",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "Roadmap",
+            "QaPending",
+            "QaPending",
+            "QaPending",
+            "QaPending",
+            "VerifiedPublicRecord",
+            "QaPending",
+            "QaPending",
+        ];
+
+        private static readonly string[] CanonicalStatusLabels =
+        [
+            "Registered",
+            "Self-assessment completed",
+            "On our roadmap",
+            "On our roadmap",
+            "On our roadmap",
+            "On our roadmap",
+            "Application planned",
+            "On our roadmap",
+            "Under review",
+            "Under review",
+            "Under review",
+            "Under review",
+            "Verified public record",
+            "Under review",
+            "Under review",
         ];
 
         private static readonly string[] CanonicalClasses =
@@ -55,55 +99,139 @@ namespace TummlyBackend.Tests.Services
             "OwnControlQaPending",
         ];
 
+        private readonly string _databaseName = Guid.NewGuid().ToString();
         private readonly ApplicationDbContext _context;
         private readonly AdjustableTimeProvider _clock;
+        private readonly FakeTrustEvidenceLinkChecker _evidenceLinks = new();
         private readonly TrustIndicatorService _sut;
 
         public TrustIndicatorServiceTests()
         {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
-                .Options;
-            _context = new ApplicationDbContext(options);
+            _context = NewContext();
             _clock = new AdjustableTimeProvider(new DateTimeOffset(2026, 10, 28, 9, 0, 0, TimeSpan.Zero));
             _sut = new TrustIndicatorService(
                 _context,
                 new AdminAuditService(_context, _clock),
-                _clock
+                _clock,
+                _evidenceLinks
             );
             TrustIndicatorCatalogSeed.EnsureSeededAsync(_context).GetAwaiter().GetResult();
+            _context.Admins.AddRange(
+                NewAdmin(EditorId, canApprove: true),
+                NewAdmin(PublisherId, canApprove: true),
+                NewAdmin(ThirdAdminId, canApprove: true),
+                NewAdmin(NonApproverId, canApprove: false),
+                NewAdmin(InactiveApproverId, canApprove: true, isActive: false),
+                NewAdmin(LockedApproverId, canApprove: true, isLocked: true)
+            );
+            _context.SaveChanges();
+            // The flag only counts with a grant row behind it: every approver here was granted by the script.
+            foreach (var id in new[] { EditorId, PublisherId, ThirdAdminId, InactiveApproverId, LockedApproverId })
+            {
+                WriteApproverAudit(id, AdminAuditActions.TrustApproverGrant);
+            }
         }
 
         [Fact]
-        public async Task Seed_CreatesFifteenCanonicalItems_AllDisabledWithoutEvidence()
+        public async Task Seed_Creates15InOrderAllOff()
         {
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
 
             Assert.Equal(Enumerable.Range(1, 15).ToList(), view.Draft.Select(i => i.ItemNumber).ToList());
             Assert.Equal(CanonicalTitles.ToList(), view.Draft.Select(i => i.Title).ToList());
             Assert.Equal(CanonicalClasses.ToList(), view.Draft.Select(i => i.EvidenceClass).ToList());
+            Assert.Equal(CanonicalStatuses.ToList(), view.Draft.Select(i => i.Values.Status).ToList());
+            Assert.Equal(CanonicalStatusLabels.ToList(), view.Draft.Select(i => i.Values.StatusLabel).ToList());
             Assert.All(view.Draft, item =>
             {
                 Assert.False(item.Values.Enabled);
                 Assert.Equal("None", item.Values.CtaType);
                 Assert.Null(item.Values.CtaTarget);
-                Assert.Null(item.Values.EvidenceUrl);
             });
             Assert.Null(view.Published);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
         }
 
         [Fact]
+        public async Task Seed_BackfillsOnlyBlankRows()
+        {
+            // A row nobody edited: blank copy, defaulted status, and switched on by an earlier admin.
+            var blank = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 3);
+            blank.Status = TrustIndicatorStatus.QaPending;
+            blank.StatusLabel = string.Empty;
+            blank.Tooltip = string.Empty;
+            blank.IconKey = null;
+            blank.AltText = string.Empty;
+            blank.Enabled = true;
+            blank.CtaType = TrustCtaType.InternalPage;
+            // A row an admin wrote by hand: its copy must survive the seed.
+            var edited = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 4);
+            edited.Status = TrustIndicatorStatus.QaPending;
+            edited.StatusLabel = string.Empty;
+            edited.Tooltip = "Our own note";
+            await _context.SaveChangesAsync();
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            var view = await _sut.GetAdminViewAsync(EditorId);
+            var backfilled = view.Draft[2];
+            Assert.Equal("Roadmap", backfilled.Values.Status);
+            Assert.Equal("On our roadmap", backfilled.Values.StatusLabel);
+            Assert.Equal("roadmap-cyber-essentials", backfilled.Values.IconKey);
+            Assert.Equal("Cyber Essentials", backfilled.Values.AltText);
+            Assert.True(backfilled.Values.Enabled);
+            Assert.Equal("InternalPage", backfilled.Values.CtaType);
+            var kept = view.Draft[3];
+            Assert.Equal("QaPending", kept.Values.Status);
+            Assert.Equal(string.Empty, kept.Values.StatusLabel);
+            Assert.Equal("Our own note", kept.Values.Tooltip);
+        }
+
+        [Fact]
+        public async Task Seed_DoesNotBackfillAdminEditedBlankRow()
+        {
+            // Blank copy, but an admin edited it (for example to set an evidence link): the seed leaves it alone.
+            var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 5);
+            row.Status = TrustIndicatorStatus.QaPending;
+            row.StatusLabel = string.Empty;
+            row.Tooltip = string.Empty;
+            row.EvidenceUrl = "https://custom.example/iso-27001";
+            row.LastEditedByAdminUserId = EditorId;
+            await _context.SaveChangesAsync();
+            var before = TrustIndicatorRules.ToValues(row);
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.Equal(before, TrustIndicatorRules.ToValues(row));
+            Assert.Equal(EditorId, row.LastEditedByAdminUserId);
+            Assert.Equal(TrustIndicatorStatus.QaPending, row.Status);
+            Assert.Equal("https://custom.example/iso-27001", row.EvidenceUrl);
+        }
+
+        [Fact]
+        public async Task Seed_IsIdempotent()
+        {
+            var before = (await _sut.GetAdminViewAsync(EditorId)).Draft;
+
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+            await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
+
+            Assert.Equal(15, await _context.TrustIndicators.CountAsync());
+            Assert.Equal(1, await _context.TrustIndicatorDraftStates.CountAsync());
+            Assert.Equal(before, (await _sut.GetAdminViewAsync(EditorId)).Draft);
+        }
+
+        [Fact]
         public async Task Seed_InsertsOnlyMissingItems_AndKeepsEdits()
         {
-            Succeeded(await EditAsync(3, Plain() with { Tooltip = "Working towards Cyber Essentials" }));
+            Succeeded(await EditAsync(3, Seeded(3) with { Tooltip = "Working towards Cyber Essentials" }));
             var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 7);
             _context.TrustIndicators.Remove(row);
             await _context.SaveChangesAsync();
 
             await TrustIndicatorCatalogSeed.EnsureSeededAsync(_context);
 
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
             Assert.Equal(15, view.Draft.Count);
             Assert.Equal("Good Business Charter", view.Draft[6].Title);
             Assert.Equal("Working towards Cyber Essentials", view.Draft[2].Values.Tooltip);
@@ -125,13 +253,15 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("\"Enabled\":false", audit.DetailJson);
             Assert.Contains("\"Enabled\":true", audit.DetailJson);
             Assert.Contains("https://ico.example/proof", audit.DetailJson);
-            Assert.Null((await _sut.GetAdminViewAsync()).Published);
+            Assert.Null((await _sut.GetAdminViewAsync(EditorId)).Published);
         }
 
         [Fact]
         public async Task DraftEdit_WithNoChange_WritesNoAuditRow()
         {
-            var item = Succeeded(await EditAsync(1, Plain()));
+            var current = (await _sut.GetAdminViewAsync(EditorId)).Draft[0].Values;
+
+            var item = Succeeded(await EditAsync(1, current));
 
             Assert.Null(item.LastEditedByAdminUserId);
             Assert.Empty(await AuditAsync(AdminAuditActions.TrustIndicatorDraftEdit));
@@ -145,7 +275,7 @@ namespace TummlyBackend.Tests.Services
             Assert.False(outcome.Succeeded);
             Assert.Equal("validation_failed", outcome.Code);
             Assert.Contains("External proof CTA needs an https link.", outcome.Details!);
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
             Assert.False(view.Draft[0].Values.Enabled);
             Assert.Empty(await AuditAsync(AdminAuditActions.TrustIndicatorDraftEdit));
             Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
@@ -156,15 +286,15 @@ namespace TummlyBackend.Tests.Services
         {
             await PublishValidAsync();
 
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
 
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
             Assert.False(view.Draft[0].Values.Enabled);
             Assert.True(view.Published!.Items[0].Values.Enabled);
             var publicItems = await _sut.GetPublicAsync();
             var registration = Assert.Single(publicItems);
             Assert.Equal(1, registration.ItemNumber);
-            Assert.Equal("https://ico.example/proof", registration.CtaTarget);
+            Assert.Equal("https://ico.example/proof", registration.Cta!.Href);
         }
 
         [Fact]
@@ -176,9 +306,9 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(review.SubmittedAtUtc);
             Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorSubmit));
 
-            Succeeded(await EditAsync(2, Plain() with { Tooltip = "Reviewed" }, PublisherId));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Reviewed" }, PublisherId));
 
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
             Assert.Null(view.Review.SubmittedByAdminUserId);
             Assert.Null(view.Review.SubmittedAtUtc);
         }
@@ -250,7 +380,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Evidence checked", published.Reason);
             Assert.Equal(15, published.Items.Count);
 
-            var view = await _sut.GetAdminViewAsync();
+            var view = await _sut.GetAdminViewAsync(EditorId);
             Assert.Null(view.Review.SubmittedByAdminUserId);
             Assert.Equal(1, view.Published!.Version);
 
@@ -279,7 +409,8 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
-            var outcome = await _sut.PublishAsync(PublisherId, "  ", "Evidence checked");
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+            var outcome = await _sut.PublishAsync(PublisherId, "  ", "Evidence checked", revision);
 
             Assert.Equal("idempotency_key_required", outcome.Code);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -291,7 +422,8 @@ namespace TummlyBackend.Tests.Services
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
-            var outcome = await _sut.PublishAsync(PublisherId, "key-no-reason", "   ");
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+            var outcome = await _sut.PublishAsync(PublisherId, "key-no-reason", "   ", revision);
 
             Assert.Equal("validation_failed", outcome.Code);
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -301,13 +433,12 @@ namespace TummlyBackend.Tests.Services
         public async Task Publish_EnabledExternalProofWithoutEvidenceUrl_IsRefused_AndPriorVersionStays()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(1, Seeded(1, enabled: true) with
             {
-                Enabled = true,
                 CtaType = "ExternalProof",
                 CtaTarget = "https://ico.example/proof",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                CtaLabel = "View registration",
+                EvidenceUrl = null,
             }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
@@ -320,30 +451,31 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
             var registration = Assert.Single(await _sut.GetPublicAsync());
-            Assert.Equal("https://ico.example/proof", registration.EvidenceUrl);
+            Assert.Equal("https://ico.example/proof", registration.Cta!.Href);
             Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
         }
 
         [Fact]
         public async Task Publish_RoadmapWithCta_OrVerifiedWording_IsRefused()
         {
-            Succeeded(await EditAsync(3, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(3, Seeded(3, enabled: true) with
             {
-                Enabled = false,
                 CtaType = "InternalPage",
                 CtaTarget = "/security",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                CtaLabel = "Read more",
             }));
-            Succeeded(await EditAsync(9, Plain() with { Tooltip = "Verified by our team" }));
+            Succeeded(await EditAsync(9, Seeded(9, enabled: true) with { AltText = "Verified by our team" }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
             var outcome = await PublishAsync(PublisherId, "key-roadmap");
 
             Assert.Equal("publish_gate_failed", outcome.Code);
-            Assert.Contains("Item 03: Roadmap items cannot have a CTA.", outcome.Details!);
             Assert.Contains(
-                "Item 09: OwnControlQaPending items cannot use verified or certified wording.",
+                outcome.Details!,
+                detail => detail.StartsWith("Item 03: the call to action", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                "Item 09: QaPending items cannot use verified or certified wording.",
                 outcome.Details!
             );
             Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
@@ -352,13 +484,9 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Publish_EnabledItemPastExpiry_IsRefused()
         {
-            Succeeded(await EditAsync(13, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
             {
-                Enabled = true,
-                CtaType = "None",
                 ExpiresOn = new DateOnly(2026, 10, 27),
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             }));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
@@ -372,10 +500,193 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Publish_EvidenceLinkFailureBlocksPublish()
+        {
+            await PublishValidAsync();
+            const string url = "https://ico.example/item13";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with { EvidenceUrl = url }));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-dead-link");
+
+            Assert.False(outcome.Succeeded);
+            Assert.Equal("publish_gate_failed", outcome.Code);
+            Assert.Contains("Item 13: evidence link failed (HTTP 404).", outcome.Details!);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Contains("Item 13: evidence link failed (HTTP 404).", refused.DetailJson);
+        }
+
+        [Fact]
+        public async Task Publish_DisabledItemsAreNotChecked()
+        {
+            const string disabledUrl = "https://ico.example/item13-disabled";
+            _evidenceLinks.Results[disabledUrl] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13) with { EvidenceUrl = disabledUrl }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-disabled-link"));
+
+            Assert.Equal(1, published.Version);
+            Assert.DoesNotContain(disabledUrl, _evidenceLinks.CheckedUrls);
+            Assert.Contains("https://ico.example/proof", _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
+        public async Task Publish_UnderReviewItemWithDeadLinkIsNotChecked()
+        {
+            // The link is checked only when the item is public-Verified or a self-assessment (CONTRACT §5.6).
+            const string url = "https://ico.example/item13-under-review";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
+                Status = "UnderReview",
+                StatusLabel = "Under review",
+                EvidenceUrl = url,
+            }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-under-review-link"));
+
+            Assert.Equal(1, published.Version);
+            Assert.DoesNotContain(url, _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
+        public async Task Publish_Item02AlwaysChecked()
+        {
+            const string url = "https://ico.example/completion-dead";
+            _evidenceLinks.Results[url] = new TrustEvidenceLinkResult(false, "HTTP 404");
+            Succeeded(await EditAsync(2, Seeded(2, enabled: true) with
+            {
+                Status = "UnderReview",
+                StatusLabel = "Under review",
+                EvidenceUrl = url,
+            }));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-item02-link");
+
+            Assert.Equal("publish_gate_failed", outcome.Code);
+            Assert.Contains("Item 02: evidence link failed (HTTP 404).", outcome.Details!);
+            Assert.Contains(url, _evidenceLinks.CheckedUrls);
+        }
+
+        [Fact]
+        public async Task AdminView_ReturnsDraftRevisionWhenSubmitted()
+        {
+            Assert.Null((await _sut.GetAdminViewAsync(EditorId)).Review.DraftRevision);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            Assert.NotNull(submitted.DraftRevision);
+            Assert.Matches("^[0-9a-f]{64}$", submitted.DraftRevision!);
+            Assert.Equal(submitted.DraftRevision, (await _sut.GetAdminViewAsync(EditorId)).Review.DraftRevision);
+        }
+
+        [Fact]
+        public async Task DraftRevision_IsSha256OfCanonicalValuesInItemOrder()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var view = await _sut.GetAdminViewAsync(EditorId);
+
+            var canonical = JsonSerializer.Serialize(
+                view.Draft.OrderBy(item => item.ItemNumber).Select(item => item.Values).ToList(),
+                SnapshotWebOptions
+            );
+            var expected = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)))
+                .ToLowerInvariant();
+
+            Assert.Equal(expected, submitted.DraftRevision);
+        }
+
+        [Fact]
+        public async Task Edit_AfterSubmitClearsSubmission()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Assert.NotNull(submitted.DraftRevision);
+
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Changed after submit" }, PublisherId));
+
+            var view = await _sut.GetAdminViewAsync(EditorId);
+            Assert.Null(view.Review.SubmittedByAdminUserId);
+            Assert.Null(view.Review.SubmittedAtUtc);
+            Assert.Null(view.Review.DraftRevision);
+            var state = await _context.TrustIndicatorDraftStates.SingleAsync();
+            Assert.Null(state.SubmittedByAdminUserId);
+            Assert.Null(state.SubmittedAtUtc);
+            Assert.Null(state.SubmittedRevision);
+        }
+
+        [Fact]
+        public async Task Publish_WithoutDraftRevisionRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await _sut.PublishAsync(PublisherId, "key-no-revision", "Evidence checked", null);
+
+            Assert.Equal("draft_changed", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+            Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+        }
+
+        [Fact]
+        public async Task Publish_WithStaleDraftRevisionRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var first = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var reviewed = first.DraftRevision;
+
+            // A third admin changes the draft after the submit, which clears it, and submits again.
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Changed by a third admin" }, ThirdAdminId));
+            var second = Succeeded(await _sut.SubmitDraftAsync(ThirdAdminId));
+            Assert.NotEqual(reviewed, second.DraftRevision);
+
+            var stale = await _sut.PublishAsync(PublisherId, "key-stale", "Evidence checked", reviewed);
+
+            Assert.Equal("draft_changed", stale.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+
+            var fresh = Succeeded(
+                await _sut.PublishAsync(PublisherId, "key-fresh", "Evidence checked", second.DraftRevision)
+            );
+            Assert.Equal(1, fresh.Version);
+        }
+
+        [Fact]
+        public async Task Publish_WhenRowsChangedAfterSubmitRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            var submitted = Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            // A row changed without the service, after the submit. The stored revision no longer matches the rows.
+            var row = await _context.TrustIndicators.SingleAsync(r => r.ItemNumber == 9);
+            row.Tooltip = "Changed outside the service";
+            await _context.SaveChangesAsync();
+
+            var outcome = await _sut.PublishAsync(
+                PublisherId,
+                "key-out-of-band",
+                "Evidence checked",
+                submitted.DraftRevision
+            );
+
+            Assert.Equal("draft_changed", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
         public async Task Publish_KeepsPriorVersionUntouched_WhenNewVersionIsCreated()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
 
             var second = Succeeded(await PublishAsync(PublisherId, "key-v2"));
@@ -404,14 +715,13 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task Public_ShowsEnabledLiveItemsInOrder_AndDropsThemWhenTheyExpire()
         {
-            Succeeded(await EditAsync(2, Plain(enabled: true)));
-            Succeeded(await EditAsync(13, new TrustIndicatorEditableValues
+            Succeeded(await EditAsync(2, Seeded(2, enabled: true) with
             {
-                Enabled = true,
-                CtaType = "None",
+                EvidenceUrl = "https://ico.example/completion",
+            }));
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
                 ExpiresOn = new DateOnly(2026, 10, 28),
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             }));
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
@@ -429,7 +739,7 @@ namespace TummlyBackend.Tests.Services
         public async Task Public_IgnoresDraftEdits_UntilTheNextPublish()
         {
             await PublishValidAsync();
-            Succeeded(await EditAsync(1, Plain()));
+            Succeeded(await EditAsync(1, Seeded(1)));
 
             var before = await _sut.GetPublicAsync();
 
@@ -469,12 +779,10 @@ namespace TummlyBackend.Tests.Services
             Succeeded(
                 await EditAsync(
                     2,
-                    new TrustIndicatorEditableValues
+                    Seeded(2, enabled: true) with
                     {
-                        Enabled = false,
-                        CtaType = "None",
-                        AltText = string.Empty,
-                        Tooltip = "ICO certified",
+                        EvidenceUrl = "https://ico.example/completion",
+                        Scope = "Certified organisational self-assessment",
                     }
                 )
             );
@@ -486,24 +794,580 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(outcome.Details!, detail => detail.StartsWith("Item 02"));
         }
 
-        private static TrustIndicatorEditableValues Plain(bool enabled = false) =>
-            new()
+        [Fact]
+        public async Task Publish_NonApproverRefusedAndAudited()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(NonApproverId, "key-non-approver");
+
+            Assert.False(outcome.Succeeded);
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Equal(NonApproverId, refused.ActorAdminUserId);
+            Assert.Contains("approver_required", refused.DetailJson);
+        }
+
+        [Fact]
+        public async Task Publish_InactiveApproverRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(InactiveApproverId, "key-inactive");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_LockedApproverRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(LockedApproverId, "key-locked-approver");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Equal(LockedApproverId, refused.ActorAdminUserId);
+            Assert.Contains("approver_required", refused.DetailJson);
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoSubmittedRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(EditorId, "key-submitter-approver");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoLastEditedRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof"), EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(PublisherId));
+
+            var outcome = await PublishAsync(EditorId, "key-last-editor-approver");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoEditedAnotherItemSinceLastPublishRefused()
+        {
+            // The approver edited item 01; a different admin edited item 09 and submitted. Still four-eyes.
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof"), PublisherId));
+            Succeeded(await EditAsync(9, Seeded(9) with { Tooltip = "Reviewed" }, NonApproverId));
+            Succeeded(await _sut.SubmitDraftAsync(NonApproverId));
+
+            var outcome = await PublishAsync(PublisherId, "key-p-edited-other-item");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoEditedBeforeLastPublishMayPublish()
+        {
+            // The publisher's edit is older than version 1, so it does not block version 2.
+            Succeeded(await EditAsync(9, Seeded(9) with { Tooltip = "Publisher note" }, PublisherId));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof"), EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await PublishAsync(ThirdAdminId, "key-v1-third"));
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "Reviewed" }, EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var second = Succeeded(await PublishAsync(PublisherId, "key-v2-publisher"));
+
+            Assert.Equal(2, second.Version);
+            Assert.Equal(2, await _context.TrustIndicatorPublications.CountAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ApproverWhoEditedSinceLastPublishRefused()
+        {
+            await PublishValidAsync();
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            Succeeded(await EditAsync(2, Seeded(2) with { Tooltip = "After v1" }, PublisherId));
+            Succeeded(await EditAsync(3, Seeded(3) with { Tooltip = "Editor note" }, EditorId));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-p-after-v1");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_ReplayByOtherAdminRefused()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, "key-replay-other"));
+
+            var replay = await PublishAsync(ThirdAdminId, "key-replay-other");
+
+            Assert.Equal("idempotency_key_reused", replay.Code);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+            var refused = Assert.Single(await AuditAsync(AdminAuditActions.TrustIndicatorRefused));
+            Assert.Equal(ThirdAdminId, refused.ActorAdminUserId);
+            Assert.Contains("idempotency_key_reused", refused.DetailJson);
+        }
+
+        [Fact]
+        public async Task Publish_FlagWithoutGrantAuditRowRefused()
+        {
+            // Someone set the flag directly in the database. No script grant row exists for this admin.
+            var nonApprover = await _context.Admins.SingleAsync(row => row.Id == NonApproverId);
+            nonApprover.CanApproveTrustIndicators = true;
+            await _context.SaveChangesAsync();
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(NonApproverId, "key-flag-only");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_FlagWithLatestRevokeAuditRowRefused()
+        {
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverRevoke);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var outcome = await PublishAsync(PublisherId, "key-revoked");
+
+            Assert.Equal("approver_required", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_FlagWithLatestGrantAuditRowAllowed()
+        {
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverRevoke);
+            _clock.Advance(TimeSpan.FromMinutes(1));
+            WriteApproverAudit(PublisherId, AdminAuditActions.TrustApproverGrant);
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-regranted"));
+
+            Assert.Equal(1, published.Version);
+        }
+
+        [Fact]
+        public async Task Publish_ActorWhoIsLastDraftEditorRefused()
+        {
+            // The publisher is the last draft editor on the stored state. No edit audit row shows it (an
+            // out-of-band write), so only the LastEditedBy rule can refuse the publish.
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(ThirdAdminId));
+            var state = await _context.TrustIndicatorDraftStates.SingleAsync();
+            state.LastEditedByAdminUserId = PublisherId;
+            await _context.SaveChangesAsync();
+
+            var outcome = await PublishAsync(PublisherId, "key-last-editor-state");
+
+            Assert.Equal("self_approval_denied", outcome.Code);
+            Assert.Empty(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_EditDuringAnotherPublishCausesConflict()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            var revision = (await _sut.GetAdminViewAsync(PublisherId)).Review.DraftRevision;
+
+            // Publish A runs on its own context. While its link check runs, another admin edits the draft
+            // through a second context and commits. A must not save over that edit.
+            var contextB = NewContext();
+            var serviceB = new TrustIndicatorService(
+                contextB,
+                new AdminAuditService(contextB, _clock),
+                _clock,
+                _evidenceLinks
+            );
+            var editedDuringCheck = false;
+            var checker = new EditDuringCheckChecker(async () =>
+            {
+                if (editedDuringCheck)
+                {
+                    return;
+                }
+
+                editedDuringCheck = true;
+                Succeeded(await serviceB.UpdateDraftItemAsync(
+                    ThirdAdminId,
+                    2,
+                    Seeded(2) with { Tooltip = "Edited during publish" }
+                ));
+            });
+            var contextA = NewContext();
+            var serviceA = new TrustIndicatorService(
+                contextA,
+                new AdminAuditService(contextA, _clock),
+                _clock,
+                checker
+            );
+
+            var outcome = await serviceA.PublishAsync(PublisherId, "key-conflict", "Evidence checked", revision);
+
+            Assert.True(editedDuringCheck);
+            Assert.Equal("publish_conflict", outcome.Code);
+            using var verify = NewContext();
+            Assert.Empty(await verify.TrustIndicatorPublications.ToListAsync());
+            var item2 = await verify.TrustIndicators.SingleAsync(row => row.ItemNumber == 2);
+            Assert.Equal("Edited during publish", item2.Tooltip);
+            Assert.Single(await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorRefused)
+                .ToListAsync());
+        }
+
+        [Fact]
+        public async Task Edit_OverlappingEditRefusedAsDraftConflict()
+        {
+            // The first context loads the draft state, then another admin's edit commits. The stale context's
+            // edit must be refused, and nothing from it may be saved.
+            using var stale = NewContext();
+            var staleService = new TrustIndicatorService(
+                stale,
+                new AdminAuditService(stale, _clock),
+                _clock,
+                _evidenceLinks
+            );
+            Succeeded(await staleService.SubmitDraftAsync(EditorId));
+            // A fresh context: the fixture context tracks the seeded state row, so it would not see this write.
+            using (var elsewhere = NewContext())
+            {
+                var elsewhereService = new TrustIndicatorService(
+                    elsewhere,
+                    new AdminAuditService(elsewhere, _clock),
+                    _clock,
+                    _evidenceLinks
+                );
+                Succeeded(await elsewhereService.UpdateDraftItemAsync(
+                    ThirdAdminId,
+                    2,
+                    Seeded(2) with { Tooltip = "Edited elsewhere" }
+                ));
+            }
+
+            var outcome = await staleService.UpdateDraftItemAsync(
+                EditorId,
+                3,
+                Seeded(3) with { Tooltip = "Stale write" }
+            );
+
+            Assert.Equal("draft_conflict", outcome.Code);
+            using var verify = NewContext();
+            var item3 = await verify.TrustIndicators.SingleAsync(row => row.ItemNumber == 3);
+            Assert.Equal(Seeded(3).Tooltip, item3.Tooltip);
+            var edits = await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorDraftEdit)
+                .ToListAsync();
+            Assert.Single(edits);
+            Assert.Equal(ThirdAdminId, edits[0].ActorAdminUserId);
+            Assert.Single(await verify.AdminAuditEvents
+                .Where(e => e.Action == AdminAuditActions.TrustIndicatorRefused)
+                .ToListAsync());
+        }
+
+        [Fact]
+        public async Task Publish_SeparateApproverPublishes()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+
+            var published = Succeeded(await PublishAsync(PublisherId, "key-separate"));
+
+            Assert.Equal(PublisherId, published.ApprovedByAdminUserId);
+            Assert.Equal(EditorId, published.SubmittedByAdminUserId);
+        }
+
+        [Fact]
+        public async Task Publish_IdempotentReplay_ReturnsExistingVersion_BeforeApproverCheck()
+        {
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, "key-replay-rbac"));
+            // The publisher loses the flag. The same admin replaying the key still gets the version it made.
+            var publisher = await _context.Admins.SingleAsync(row => row.Id == PublisherId);
+            publisher.CanApproveTrustIndicators = false;
+            await _context.SaveChangesAsync();
+
+            var replay = Succeeded(await PublishAsync(PublisherId, "key-replay-rbac"));
+
+            Assert.Equal(1, replay.Version);
+            Assert.Single(await _context.TrustIndicatorPublications.ToListAsync());
+        }
+
+        [Fact]
+        public async Task AdminView_ReportsViewer()
+        {
+            var approver = (await _sut.GetAdminViewAsync(PublisherId)).Viewer;
+            var nonApprover = (await _sut.GetAdminViewAsync(NonApproverId)).Viewer;
+            var inactive = (await _sut.GetAdminViewAsync(InactiveApproverId)).Viewer;
+            var locked = (await _sut.GetAdminViewAsync(LockedApproverId)).Viewer;
+            var unknown = (await _sut.GetAdminViewAsync(999)).Viewer;
+
+            Assert.Equal(new TrustIndicatorViewerDto(PublisherId, true), approver);
+            Assert.Equal(new TrustIndicatorViewerDto(NonApproverId, false), nonApprover);
+            Assert.Equal(new TrustIndicatorViewerDto(InactiveApproverId, false), inactive);
+            Assert.Equal(new TrustIndicatorViewerDto(LockedApproverId, false), locked);
+            Assert.Equal(new TrustIndicatorViewerDto(999, false), unknown);
+        }
+
+        [Fact]
+        public async Task Public_QaPendingShowsUnderReviewNoCta()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(10, Seeded(10, enabled: true) with
+                {
+                    StatusLabel = "Coming soon",
+                    CtaType = "CookieSettings",
+                    CtaLabel = "Cookie settings",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("UnderReview", item.Status);
+            Assert.Equal("Under review", item.StatusLabel);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_SnapshotWithoutStatusOmitsItem()
+        {
+            // An old snapshot: the item has no status, statusLabel or ctaLabel keys at all.
+            var legacy = JsonNode.Parse(
+                JsonSerializer.Serialize(new[] { Canonical(1, Seeded(1, enabled: true)) }, SnapshotWebOptions)
+            )!.AsArray();
+            var values = legacy[0]!["values"]!.AsObject();
+            values.Remove("status");
+            values.Remove("statusLabel");
+            values.Remove("ctaLabel");
+            await WriteRawPublicationAsync(legacy.ToJsonString());
+
+            var items = await _sut.GetPublicAsync();
+
+            Assert.Empty(items);
+        }
+
+        [Fact]
+        public async Task Public_UnknownStatusOmitsItem()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { Status = "Verified" })
+            );
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
+        [Fact]
+        public async Task Public_StatusWrongForClassOmitsItem()
+        {
+            // Roadmap is a real status, but item 01 is a VerifiedPublicRecord class.
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { Status = "Roadmap", StatusLabel = "On our roadmap" })
+            );
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
+        [Fact]
+        public async Task Public_RoadmapNeverHasImageOrCta()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(3, Seeded(3, enabled: true) with
+                {
+                    ImageUrl = "https://cdn.example/roadmap.png",
+                    ImageRightsNote = "Commissioned",
+                    AltText = "Roadmap artwork",
+                    CtaType = "InternalPage",
+                    CtaTarget = "/security",
+                    CtaLabel = "Read more",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Roadmap", item.Status);
+            Assert.Equal("On our roadmap", item.StatusLabel);
+            Assert.Null(item.ImageUrl);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_CtaDroppedWhenRulesFail()
+        {
+            // The proof link does not equal the evidence URL, so §3 drops the CTA but keeps the item.
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with
+                {
+                    CtaType = "ExternalProof",
+                    CtaTarget = "https://ico.example/elsewhere",
+                    CtaLabel = "View registration",
+                    EvidenceUrl = "https://ico.example/proof",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Verified", item.Status);
+            Assert.Equal("Registered", item.StatusLabel);
+            Assert.Null(item.Cta);
+        }
+
+        [Fact]
+        public async Task Public_CookieSettingsCtaHasNullHref()
+        {
+            await PublishEditsAsync(
+                "key-cookie-cta",
+                (10, Seeded(10, enabled: true) with
+                {
+                    Status = "QaPassed",
+                    StatusLabel = "Passed QA",
+                    CtaType = "CookieSettings",
+                    CtaLabel = "Cookie settings",
+                })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal("Verified", item.Status);
+            Assert.NotNull(item.Cta);
+            Assert.Equal("CookieSettings", item.Cta!.Type);
+            Assert.Equal("Cookie settings", item.Cta.Label);
+            Assert.Null(item.Cta.Href);
+        }
+
+        [Fact]
+        public async Task Public_ExpiredHiddenRecordKept()
+        {
+            Succeeded(await EditAsync(13, Seeded(13, enabled: true) with
+            {
+                ExpiresOn = new DateOnly(2026, 10, 28),
+            }));
+            Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, "key-expired-hidden"));
+
+            _clock.Advance(TimeSpan.FromDays(1));
+
+            Assert.DoesNotContain(await _sut.GetPublicAsync(), item => item.ItemNumber == 13);
+            var view = await _sut.GetAdminViewAsync(EditorId);
+            Assert.True(view.Published!.Items.Single(item => item.ItemNumber == 13).Values.Enabled);
+            var stored = await _context.TrustIndicatorPublications.SingleAsync();
+            Assert.Contains("\"itemNumber\":13", stored.SnapshotJson);
+        }
+
+        [Fact]
+        public async Task Public_OrderByItemNumber()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(3, Seeded(3, enabled: true)),
+                Canonical(1, Seeded(1, enabled: true))
+            );
+
+            var items = await _sut.GetPublicAsync();
+
+            Assert.Equal(new[] { 1, 3 }, items.Select(item => item.ItemNumber).ToArray());
+        }
+
+        [Fact]
+        public async Task Public_NoEvidenceFieldsInJson()
+        {
+            await PublishValidAsync();
+
+            var json = JsonSerializer.Serialize(await _sut.GetPublicAsync(), SnapshotWebOptions);
+            var names = new List<string>();
+            CollectPropertyNames(JsonDocument.Parse(json).RootElement, names);
+
+            Assert.Contains("itemNumber", names);
+            Assert.Contains("cta", names);
+            foreach (var forbidden in new[]
+            {
+                "evidenceUrl", "issuer", "issuedOn", "expiresOn", "scope", "evidenceClass",
+                "enabled", "values", "ctaType", "ctaTarget", "reviewOn", "lastEditedByAdminUserId",
+                "lastEditedAtUtc", "version", "reason",
+            })
+            {
+                Assert.DoesNotContain(forbidden, names);
+            }
+            Assert.DoesNotContain("https://ico.org.uk", json);
+        }
+
+        [Fact]
+        public async Task Public_TrimsStatusLabelAndOmitsBlankOne()
+        {
+            await WriteRawPublicationAsync(
+                Canonical(1, Seeded(1, enabled: true) with { StatusLabel = "  Registered  " }),
+                Canonical(3, Seeded(3, enabled: true) with { StatusLabel = "   " })
+            );
+
+            var item = Assert.Single(await _sut.GetPublicAsync());
+
+            Assert.Equal(1, item.ItemNumber);
+            Assert.Equal("Registered", item.StatusLabel);
+        }
+
+        [Fact]
+        public async Task Public_UnknownEvidenceClassOmitsItem()
+        {
+            var raw = JsonNode.Parse(
+                JsonSerializer.Serialize(new[] { Canonical(3, Seeded(3, enabled: true)) }, SnapshotWebOptions)
+            )!.AsArray();
+            raw[0]!["evidenceClass"] = "Roadmap, Verified";
+            await WriteRawPublicationAsync(raw.ToJsonString());
+
+            Assert.Empty(await _sut.GetPublicAsync());
+        }
+
+        /// <summary>The approved seed copy as editable values, so a test edits from a valid draft.</summary>
+        private static TrustIndicatorEditableValues Seeded(int itemNumber, bool enabled = false)
+        {
+            var seed = TrustIndicatorCatalogSeed.Items.Single(item => item.ItemNumber == itemNumber);
+            return new TrustIndicatorEditableValues
             {
                 Enabled = enabled,
                 CtaType = "None",
-                AltText = string.Empty,
-                Tooltip = string.Empty,
+                Status = seed.Status.ToString(),
+                StatusLabel = seed.StatusLabel,
+                IconKey = seed.IconKey,
+                AltText = seed.Title,
+                Tooltip = seed.Tooltip,
+                Issuer = seed.Issuer,
+                EvidenceUrl = seed.EvidenceUrl,
+                IssuedOn = seed.IssuedOn,
+                Scope = seed.Scope,
             };
+        }
 
         private static TrustIndicatorEditableValues ProofLink(string url) =>
-            new()
+            Seeded(1, enabled: true) with
             {
-                Enabled = true,
                 CtaType = "ExternalProof",
                 CtaTarget = url,
+                CtaLabel = "View registration",
                 EvidenceUrl = url,
-                AltText = string.Empty,
-                Tooltip = string.Empty,
             };
 
         private static T Succeeded<T>(TrustIndicatorOutcome<T> outcome)
@@ -521,16 +1385,148 @@ namespace TummlyBackend.Tests.Services
             int actorId = EditorId
         ) => _sut.UpdateDraftItemAsync(actorId, itemNumber, values);
 
-        private Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishAsync(
+        private async Task<TrustIndicatorOutcome<TrustIndicatorPublicationDto>> PublishAsync(
             int actorId,
             string key
-        ) => _sut.PublishAsync(actorId, key, "Evidence checked");
+        )
+        {
+            var revision = (await _sut.GetAdminViewAsync(actorId)).Review.DraftRevision;
+            return await _sut.PublishAsync(actorId, key, "Evidence checked", revision);
+        }
 
         private async Task PublishValidAsync()
         {
             Succeeded(await EditAsync(1, ProofLink("https://ico.example/proof")));
             Succeeded(await _sut.SubmitDraftAsync(EditorId));
             Succeeded(await PublishAsync(PublisherId, $"key-{Guid.NewGuid():N}"));
+        }
+
+        private static readonly JsonSerializerOptions SnapshotWebOptions = new(JsonSerializerDefaults.Web);
+
+        /// <summary>One snapshot item for item n, carrying the seed title and class as the service stores them.</summary>
+        private static TrustIndicatorItemDto Canonical(int itemNumber, TrustIndicatorEditableValues values)
+        {
+            var seed = TrustIndicatorCatalogSeed.Items.Single(item => item.ItemNumber == itemNumber);
+            return new TrustIndicatorItemDto(
+                itemNumber,
+                seed.Title,
+                seed.EvidenceClass.ToString(),
+                values,
+                null,
+                null
+            );
+        }
+
+        /// <summary>
+        /// Stores a publication row directly, bypassing the publish gate. Used for hand-edited snapshots.
+        /// </summary>
+        private async Task WriteRawPublicationAsync(params TrustIndicatorItemDto[] items) =>
+            await WriteRawPublicationAsync(JsonSerializer.Serialize(items, SnapshotWebOptions));
+
+        private async Task WriteRawPublicationAsync(string snapshotJson, int version = 1)
+        {
+            _context.TrustIndicatorPublications.Add(
+                new TrustIndicatorPublication
+                {
+                    Version = version,
+                    PublishedAtUtc = _clock.GetUtcNow().UtcDateTime,
+                    PublishedByAdminUserId = PublisherId,
+                    ApprovedByAdminUserId = PublisherId,
+                    Reason = "Raw snapshot",
+                    IdempotencyKey = $"raw-{version}-{Guid.NewGuid():N}",
+                    SnapshotJson = snapshotJson,
+                }
+            );
+            await _context.SaveChangesAsync();
+        }
+
+        /// <summary>Edits each item, submits, and publishes as a second admin.</summary>
+        private async Task PublishEditsAsync(
+            string key,
+            params (int ItemNumber, TrustIndicatorEditableValues Values)[] edits
+        )
+        {
+            foreach (var (itemNumber, values) in edits)
+            {
+                Succeeded(await EditAsync(itemNumber, values));
+            }
+
+            Succeeded(await _sut.SubmitDraftAsync(EditorId));
+            Succeeded(await PublishAsync(PublisherId, key));
+        }
+
+        private static void CollectPropertyNames(JsonElement element, List<string> names)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var property in element.EnumerateObject())
+                    {
+                        names.Add(property.Name);
+                        CollectPropertyNames(property.Value, names);
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var child in element.EnumerateArray())
+                    {
+                        CollectPropertyNames(child, names);
+                    }
+                    break;
+            }
+        }
+
+        private static Admin NewAdmin(
+            int id,
+            bool canApprove,
+            bool isActive = true,
+            bool isLocked = false
+        ) =>
+            new()
+            {
+                Id = id,
+                FullName = $"Trust admin {id}",
+                Email = $"admin{id}@tummly.test",
+                PasswordHash = "hash",
+                Role = "Admin",
+                IsActive = isActive,
+                IsLocked = isLocked,
+                CanApproveTrustIndicators = canApprove,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+        /// <summary>Writes a script-style approver row (grant or revoke) for one admin, as the provisioning script does.</summary>
+        private void WriteApproverAudit(int adminId, string action)
+        {
+            _context.AdminAuditEvents.Add(
+                new AdminAuditEvent
+                {
+                    Id = Guid.NewGuid(),
+                    OccurredAtUtc = _clock.GetUtcNow().UtcDateTime,
+                    Action = action,
+                    ActorIdentity = "script:tester",
+                    TargetType = AdminAuditTargetTypes.StaffAccount,
+                    TargetId = adminId.ToString(),
+                    DetailJson = "{}",
+                }
+            );
+            _context.SaveChanges();
+        }
+
+        private ApplicationDbContext NewContext() =>
+            new(
+                new DbContextOptionsBuilder<ApplicationDbContext>()
+                    .UseInMemoryDatabase(_databaseName)
+                    .Options
+            );
+
+        /// <summary>Runs a hook once, during the link check, to simulate a concurrent edit by another admin.</summary>
+        private sealed class EditDuringCheckChecker(Func<Task> duringCheck) : ITrustEvidenceLinkChecker
+        {
+            public async Task<TrustEvidenceLinkResult> CheckAsync(Uri uri, CancellationToken cancellationToken)
+            {
+                await duringCheck();
+                return new TrustEvidenceLinkResult(true, "HTTP 200");
+            }
         }
 
         private async Task<List<AdminAuditEvent>> AuditAsync(string action) =>

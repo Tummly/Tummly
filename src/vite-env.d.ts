@@ -69,6 +69,17 @@ declare module "*.webp?*" {
   export default output;
 }
 
+/** vite-imagetools: any query ending in `&as=srcset` / `&format=webp` (one `*` only). */
+declare module "*&as=srcset" {
+  const srcset: string;
+  export default srcset;
+}
+
+declare module "*&format=webp" {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_APP_ENV?: string;

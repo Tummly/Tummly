@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 
+import { forGroupsGuestLoopPosters } from "@/assets/for-groups-images"
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import { MarketingLoopVideo } from "@/components/marketing/MarketingLoopVideo"
 import {
@@ -13,8 +14,11 @@ import { forGroupsProductVideoUrl } from "@/lib/marketingMedia"
 import { cn } from "@/lib/utils"
 
 /**
- * Figma For Groups Product `6405:36122` / cards `6405:36126`.
- * Centre copy + four equal cards (video above copy) + CTA.
+ * Figma For Groups Keep the Guest Loop working `6405:36122` / cards `6405:36126`.
+ * Centre copy + four equal cards (visual fills the card, copy sits at the
+ * bottom) + CTA. The loop videos keep the Figma still as poster (and as the
+ * reduced-motion view) and sit `videoShiftPct` higher so the UI card starts 19%
+ * from the top, as in Figma.
  */
 export function ForGroupsProduct() {
   return (
@@ -29,18 +33,13 @@ export function ForGroupsProduct() {
           FOR_GROUPS_SECTION_Y,
         )}
       >
-        <header className="flex w-full max-w-[638px] flex-col items-center gap-6 text-center text-[#141414]">
-          <div className="flex w-full flex-col items-center gap-3.5">
-            <p className="m-0 font-sans text-sm font-medium leading-4 tracking-[1.12px]">
-              {FOR_GROUPS_PRODUCT.eyebrow}
-            </p>
-            <h2
-              id="for-groups-product-heading"
-              className={cn("m-0 w-full", FOR_GROUPS_SECTION_HEADING)}
-            >
-              {FOR_GROUPS_PRODUCT.title}
-            </h2>
-          </div>
+        <header className="flex w-full flex-col items-center gap-6 text-center text-[#141414]">
+          <h2
+            id="for-groups-product-heading"
+            className={cn("m-0 w-full max-w-[660px]", FOR_GROUPS_SECTION_HEADING)}
+          >
+            {FOR_GROUPS_PRODUCT.title}
+          </h2>
           <p className={cn("m-0 max-w-[616px]", FOR_GROUPS_SECTION_BODY)}>
             {FOR_GROUPS_PRODUCT.body}
           </p>
@@ -50,19 +49,24 @@ export function ForGroupsProduct() {
           {FOR_GROUPS_PRODUCT.cards.map((card) => (
             <li key={card.id} className="flex min-w-0">
               <article
-                className="flex h-[496px] w-full flex-col items-center overflow-hidden rounded-[12px] pb-10"
+                className="relative flex h-[496px] w-full flex-col items-center justify-end overflow-hidden rounded-[12px] pb-10"
                 style={{ backgroundColor: FOR_GROUPS_PRODUCT.cardBackground }}
               >
                 <MarketingLoopVideo
                   src={forGroupsProductVideoUrl(card.id)}
-                  className="min-h-0 w-full flex-1 bg-[#e1dfdb]"
+                  poster={forGroupsGuestLoopPosters[card.id]}
+                  className="absolute inset-0 size-full bg-[#e1dfdb]"
                   videoClassName="bg-[#e1dfdb] object-cover object-center"
+                  style={{ transform: `translateY(-${card.videoShiftPct}%)` }}
                 />
-                <div className="flex w-full shrink-0 flex-col items-center gap-3.5 px-2.5 text-center text-[#141414]">
+                <div className="relative flex w-full shrink-0 flex-col items-center gap-3.5 px-2.5 text-center text-[#141414]">
                   <h3 className="m-0 font-jakarta text-xl font-bold leading-[normal]">
                     {card.title}
                   </h3>
-                  <p className="m-0 max-w-[323px] font-sans text-sm font-normal leading-5">
+                  <p
+                    className="m-0 font-sans text-sm font-normal leading-5"
+                    style={{ maxWidth: card.bodyWidth }}
+                  >
                     {card.body}
                   </p>
                 </div>

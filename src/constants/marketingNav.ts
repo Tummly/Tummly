@@ -1,54 +1,78 @@
-import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
-import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support";
+import { LEGAL_ROUTES } from "@/constants/legalRoutes";
 
 /** Marketing Pricing page. */
-export const MARKETING_PRICING_PATH = "/pricing"
+export const MARKETING_PRICING_PATH = "/pricing";
 
 /** Marketing Build your own (custom) plan page. */
-export const MARKETING_CUSTOM_PLAN_PATH = "/custom-plan"
+export const MARKETING_CUSTOM_PLAN_PATH = "/custom-plan";
 
 /** Marketing Product page — Guest Loop product overview. */
-export const MARKETING_PRODUCT_PATH = "/product"
+export const MARKETING_PRODUCT_PATH = "/product";
 
 /** Marketing How it works page. */
-export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works"
+export const MARKETING_HOW_IT_WORKS_PATH = "/how-it-works";
 
 /** Marketing QR materials page. */
-export const MARKETING_QR_MATERIALS_PATH = "/qr-materials"
+export const MARKETING_QR_MATERIALS_PATH = "/qr-materials";
 
 /** Marketing For Groups page — multi-location restaurant groups. */
-export const MARKETING_FOR_GROUPS_PATH = "/for-groups"
+export const MARKETING_FOR_GROUPS_PATH = "/for-groups";
 
 /** Marketing 30-day Pilot page. */
-export const MARKETING_PILOT_PATH = "/30-day-pilot"
+export const MARKETING_PILOT_PATH = "/30-day-pilot";
 
 /** Marketing About page. */
-export const MARKETING_ABOUT_PATH = "/about"
+export const MARKETING_ABOUT_PATH = "/about";
 
 export type MarketingNavHref =
   | { kind: "route"; to: string }
   | { kind: "hash"; hash: string }
   | { kind: "placeholder" }
   | { kind: "cookie-settings" }
-  | { kind: "external"; href: string }
+  | { kind: "external"; href: string };
 
 export type MarketingNavItem = {
-  id: string
-  label: string
-  href: MarketingNavHref
-}
+  id: string;
+  label: string;
+  href: MarketingNavHref;
+};
 
-export const MARKETING_FAQS_HASH = "#faqs"
-export const MARKETING_FAQS_PATH = "/faqs"
-export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy"
-export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant"
+export const MARKETING_FAQS_HASH = "#faqs";
+export const MARKETING_FAQS_PATH = "/faqs";
+export const MARKETING_TRUST_PRIVACY_PATH = "/trust-privacy";
+export const MARKETING_AI_ASSISTANT_PATH = "/ai-assistant";
 
 /** Public product walkthrough — fixture UI + Figma tour chrome. */
-export const MARKETING_DEMO_PATH = "/product-demo"
+export const MARKETING_DEMO_PATH = "/product-demo";
 
 export const MARKETING_DEMO_HREF: MarketingNavHref = {
   kind: "route",
   to: MARKETING_DEMO_PATH,
+};
+
+/**
+ * Marketing pages that show the fixed "Scan to try on your phone" demo QR.
+ * Legal, Help Centre, auth and 404 pages do not.
+ */
+export const MARKETING_DEMO_QR_PATHS: ReadonlySet<string> = new Set([
+  "/",
+  MARKETING_PRODUCT_PATH,
+  MARKETING_HOW_IT_WORKS_PATH,
+  MARKETING_PRICING_PATH,
+  MARKETING_CUSTOM_PLAN_PATH,
+  MARKETING_PILOT_PATH,
+  MARKETING_FOR_GROUPS_PATH,
+  MARKETING_QR_MATERIALS_PATH,
+  MARKETING_AI_ASSISTANT_PATH,
+  MARKETING_TRUST_PRIVACY_PATH,
+  MARKETING_ABOUT_PATH,
+  MARKETING_FAQS_PATH,
+]);
+
+export function showsMarketingDemoQr(pathname: string): boolean {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return MARKETING_DEMO_QR_PATHS.has(path);
 }
 
 export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
@@ -68,16 +92,16 @@ export const MARKETING_PRIMARY_NAV: MarketingNavItem[] = [
     href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
   {
-    id: "qr-materials",
-    label: "QR materials",
-    href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
+    id: "30-day-pilot",
+    label: "30-day Pilot",
+    href: { kind: "route", to: MARKETING_PILOT_PATH },
   },
   {
     id: "for-groups",
     label: "For groups",
     href: { kind: "route", to: MARKETING_FOR_GROUPS_PATH },
   },
-]
+];
 
 export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
   {
@@ -105,7 +129,7 @@ export const MARKETING_RESOURCES_NAV: MarketingNavItem[] = [
     label: "Contact",
     href: { kind: "route", to: HELP_CENTRE_CONTACT_URL },
   },
-]
+];
 
 export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
   {
@@ -120,13 +144,8 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
   },
   {
     id: "qr-materials",
-    label: "QR materials",
+    label: "QR Materials",
     href: { kind: "route", to: MARKETING_QR_MATERIALS_PATH },
-  },
-  {
-    id: "pricing",
-    label: "Pricing",
-    href: { kind: "route", to: MARKETING_PRICING_PATH },
   },
   {
     id: "ai-assistant",
@@ -134,82 +153,35 @@ export const MARKETING_FOOTER_PRODUCT: MarketingNavItem[] = [
     href: { kind: "route", to: MARKETING_AI_ASSISTANT_PATH },
   },
   { id: "try-demo", label: "Try demo", href: MARKETING_DEMO_HREF },
-]
+];
 
 export const MARKETING_FOOTER_RESTAURANTS: MarketingNavItem[] = [
+  {
+    id: "pricing",
+    label: "Pricing",
+    href: { kind: "route", to: MARKETING_PRICING_PATH },
+  },
+  {
+    id: "custom-plan",
+    label: "Build your own plan",
+    href: { kind: "route", to: MARKETING_CUSTOM_PLAN_PATH },
+  },
   {
     id: "30-day-pilot",
     label: "30-day Pilot",
     href: { kind: "route", to: MARKETING_PILOT_PATH },
   },
   {
-    id: "multi-location",
-    label: "Multi-Location",
+    id: "for-groups",
+    label: "For groups",
     href: { kind: "route", to: MARKETING_FOR_GROUPS_PATH },
   },
   {
-    id: "faq",
-    label: "FAQ",
+    id: "faqs",
+    label: "FAQs",
     href: { kind: "route", to: MARKETING_FAQS_PATH },
   },
-  { id: "log-in", label: "Log in", href: { kind: "route", to: "/login" } },
-  {
-    id: "contact",
-    label: "Contact",
-    href: { kind: "route", to: HELP_CENTRE_CONTACT_URL },
-  },
-]
-
-export const MARKETING_FOOTER_TRUST: MarketingNavItem[] = [
-  {
-    id: "trust-privacy",
-    label: "Trust & privacy",
-    href: { kind: "route", to: MARKETING_TRUST_PRIVACY_PATH },
-  },
-  {
-    id: "privacy",
-    label: "Privacy",
-    href: { kind: "route", to: LEGAL_ROUTES.privacy },
-  },
-  {
-    id: "cookies",
-    label: "Cookies",
-    href: { kind: "route", to: LEGAL_ROUTES.cookiePolicy },
-  },
-  {
-    id: "accessibility",
-    label: "Accessibility",
-    href: { kind: "route", to: LEGAL_ROUTES.accessibility },
-  },
-  {
-    id: "acceptable-use",
-    label: "Acceptable Use",
-    href: { kind: "route", to: LEGAL_ROUTES.acceptableUse },
-  },
-]
-
-export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
-  {
-    id: "about",
-    label: "About",
-    href: { kind: "route", to: MARKETING_ABOUT_PATH },
-  },
-  {
-    id: "terms",
-    label: "Terms",
-    href: { kind: "route", to: LEGAL_ROUTES.terms },
-  },
-  {
-    id: "shop-print-terms",
-    label: "Shop & Print Terms",
-    href: { kind: "route", to: LEGAL_ROUTES.shopPrintTerms },
-  },
-  {
-    id: "contact",
-    label: "Contact",
-    href: { kind: "route", to: HELP_CENTRE_CONTACT_URL },
-  },
-]
+];
 
 export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
   {
@@ -230,31 +202,89 @@ export const MARKETING_FOOTER_SOCIAL: MarketingNavItem[] = [
     label: "Facebook",
     href: { kind: "external", href: "https://www.facebook.com/Tummlycom" },
   },
-]
+];
 
-/** Statutory website disclosure (Trust Footer spec, 22 Oct 2026). */
-export const MARKETING_FOOTER_COMPANY_DISCLOSURE =
-  "TUMMLY.COM LIMITED (trading as Tummly.com). Registered in England and Wales, company no. 16236040. Registered office: 71-75 Shelton Street, Covent Garden, London WC2H 9JQ."
+/** Companies House public record for TUMMLY.COM LIMITED (16236040). */
+export const MARKETING_COMPANY_RECORD_URL =
+  "https://find-and-update.company-information.service.gov.uk/company/16236040";
 
-export const MARKETING_FOOTER_COLUMNS = [
-  { id: "product", title: "Product", items: MARKETING_FOOTER_PRODUCT },
+export const MARKETING_FOOTER_COMPANY: MarketingNavItem[] = [
   {
-    id: "restaurants",
-    title: "Restaurants",
-    items: MARKETING_FOOTER_RESTAURANTS,
-  },
-  { id: "trust", title: "Trust", items: MARKETING_FOOTER_TRUST },
-  {
-    id: "company",
-    title: "Company & Legal",
-    items: MARKETING_FOOTER_COMPANY,
+    id: "about",
+    label: "About us",
+    href: { kind: "route", to: MARKETING_ABOUT_PATH },
   },
   {
-    id: "social",
-    title: "Find us on social",
-    items: MARKETING_FOOTER_SOCIAL,
+    id: "contact",
+    label: "Contact",
+    href: { kind: "route", to: HELP_CENTRE_CONTACT_URL },
   },
-] as const
+  {
+    id: "company-record",
+    label: "View company record",
+    href: { kind: "external", href: MARKETING_COMPANY_RECORD_URL },
+  },
+];
+
+/** Privacy Notice section for guests who use Smart Guest Links. */
+export const MARKETING_GUEST_PRIVACY_PATH = `${LEGAL_ROUTES.privacy}#smart-guest-links-guest-feedback-and-restaurant-follow-up`;
+
+/** Guest preference centre — guests ask for a manage link by email. */
+export const MARKETING_GUEST_PREFERENCES_PATH = "/preferences";
+
+export const MARKETING_FOOTER_LEGAL: MarketingNavItem[] = [
+  {
+    id: "trust-privacy",
+    label: "Trust and privacy",
+    href: { kind: "route", to: MARKETING_TRUST_PRIVACY_PATH },
+  },
+  {
+    id: "privacy",
+    label: "Privacy Notice",
+    href: { kind: "route", to: LEGAL_ROUTES.privacy },
+  },
+  {
+    id: "guest-privacy",
+    label: "Privacy for Guests",
+    href: { kind: "route", to: MARKETING_GUEST_PRIVACY_PATH },
+  },
+  {
+    id: "marketing-preferences",
+    label: "Manage marketing preferences",
+    href: { kind: "route", to: MARKETING_GUEST_PREFERENCES_PATH },
+  },
+  {
+    id: "accessibility",
+    label: "Accessibility",
+    href: { kind: "route", to: LEGAL_ROUTES.accessibility },
+  },
+  {
+    id: "terms",
+    label: "Terms of Service",
+    href: { kind: "route", to: LEGAL_ROUTES.terms },
+  },
+  {
+    id: "acceptable-use",
+    label: "Acceptable Use",
+    href: { kind: "route", to: LEGAL_ROUTES.acceptableUse },
+  },
+  {
+    id: "shop-print-terms",
+    label: "Shop and Print Terms",
+    href: { kind: "route", to: LEGAL_ROUTES.shopPrintTerms },
+  },
+  {
+    id: "cookie-settings",
+    label: "Cookie settings",
+    href: { kind: "cookie-settings" },
+  },
+];
+
+/** Statutory website disclosure (Figma footer `5839:73487`), one entry per line. */
+export const MARKETING_FOOTER_COMPANY_DISCLOSURE = [
+  "Tummly is operated by TUMMLY.COM LIMITED, registered in England and Wales (Company No. 16236040).",
+  "Registered office: 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ.",
+] as const;
 
 export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
   {
@@ -268,56 +298,10 @@ export const MARKETING_FOOTER_BOTTOM_LINKS: MarketingNavItem[] = [
     href: { kind: "route", to: LEGAL_ROUTES.cookiePolicy },
   },
   {
-    id: "cookie-settings",
-    label: "Cookie settings",
-    href: { kind: "cookie-settings" },
-  },
-  {
     id: "terms",
     label: "Terms",
     href: { kind: "route", to: LEGAL_ROUTES.terms },
   },
-]
+];
 
-export type MarketingTrustCredential = {
-  id: string
-  title: string
-  linkLabel: string
-  href: MarketingNavHref
-}
-
-/** “Built with trust in mind” credentials (Figma footer). */
-export const MARKETING_FOOTER_TRUST_CREDENTIALS: MarketingTrustCredential[] = [
-  {
-    id: "ico-registration",
-    title: "ICO Data Protection Registration",
-    linkLabel: "View registration",
-    href: { kind: "placeholder" },
-  },
-  {
-    id: "ico-essentials",
-    title: "ICO Data Protection Essentials",
-    linkLabel: "View record",
-    href: { kind: "placeholder" },
-  },
-  {
-    id: "cyber-essentials",
-    title: "Cyber Essentials",
-    linkLabel: "View certificate",
-    href: { kind: "placeholder" },
-  },
-  {
-    id: "cyber-essentials-plus",
-    title: "Cyber Essentials Plus",
-    linkLabel: "View certificate",
-    href: { kind: "placeholder" },
-  },
-  {
-    id: "iso-27001",
-    title: "ISO/IEC 27001",
-    linkLabel: "View certification",
-    href: { kind: "placeholder" },
-  },
-]
-
-export const MARKETING_FOOTER_FHH_URL = "https://fhh.group"
+export const MARKETING_FOOTER_FHH_URL = "https://fhh.group";

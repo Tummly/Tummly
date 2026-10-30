@@ -46,12 +46,41 @@ type AiAssistantPlansProps = {
    * 12–14px eyebrow, 28/36 title, no body.
    */
   compactHeader?: boolean
+  /**
+   * Home Pricing `4902:19866`: header copy left, "Compare all plans" right
+   * (bottom-aligned on desktop), 46/52 title. The compare button leaves the footer.
+   */
+  splitHeader?: boolean
+  /**
+   * With `splitHeader`: keep the 46/52 header but put "Compare all plans" under the
+   * cards instead of beside the title (QR materials pricing `6859:12685`).
+   */
+  compareBelow?: boolean
+  /**
+   * Where the grey line under the price comes from. `catalogue` (default) shows the
+   * published annual price; `card` shows `card.subline` (Home Pricing location limits).
+   * Monthly amounts always come from the catalogue.
+   */
+  sublineSource?: "catalogue" | "card"
+  /** Merged onto the section title (How it works `5661:19772` wraps at 503px). */
+  titleClassName?: string
+  /** Merged onto the eyebrow (How it works `6874:12903`: *functional* 600 #4a4a4a). */
+  eyebrowClassName?: string
+  /** Merged onto the body (How it works `5661:19773` wraps at 422px). */
+  bodyClassName?: string
+  /**
+   * Figma Pricing component column widths (`7190:11240`, same as QR materials
+   * `7190:11029`): 388.5 / 346.5 / 388.5 / 346.5 of 1548px with 26px gaps, and a 275.4px
+   * Pilot description. Default keeps equal flex columns.
+   */
+  figmaColumns?: boolean
 }
 
 /** Pilot keeps its content copy; paid plans read the published catalogue. */
 function planPriceLines(
   card: AiAssistantPlanStripCard,
   prices: PublicPlanPrices,
+  sublineSource: "catalogue" | "card",
 ): { amount: string | null; subline: string | null } {
   if (card.id === "Pilot") {
     return { amount: card.priceAmount ?? null, subline: card.subline ?? null }
@@ -59,7 +88,12 @@ function planPriceLines(
   const planPrice = prices[card.id]
   return {
     amount: planPrice?.monthly ?? null,
-    subline: planPrice != null ? `${planPrice.annual}/year` : null,
+    subline:
+      sublineSource === "card"
+        ? (card.subline ?? null)
+        : planPrice != null
+          ? `${planPrice.annual}/year`
+          : null,
   }
 }
 
@@ -69,6 +103,8 @@ function PlanCard({
   showAiAllowance,
   prices,
   status,
+  sublineSource,
+  figmaColumns,
 }: {
   card: AiAssistantPlanStripCard
   /** Right divider between adjacent non-highlighted cards on desktop (skip before Growth). */
@@ -76,25 +112,52 @@ function PlanCard({
   showAiAllowance: boolean
   prices: PublicPlanPrices
   status: PublicPlanPricesStatus
+  sublineSource: "catalogue" | "card"
+  figmaColumns: boolean
 }) {
-  const price = planPriceLines(card, prices)
+  const price = planPriceLines(card, prices, sublineSource)
+  /* Home Pricing (`sublineSource="card"`): Figma `7190:11030` type metrics. */
+  const homeFigma = sublineSource === "card"
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 flex-col gap-10 overflow-hidden py-6 lg:min-w-[280px] lg:flex-1",
+        "flex w-full min-w-0 flex-col gap-10 overflow-hidden py-6 lg:flex-1",
+        figmaColumns &&
+          (card.id === "Pilot" || card.id === "Growth"
+            ? "lg:w-[calc((100%-78px)*0.264286)] lg:flex-none"
+            : "lg:w-[calc((100%-78px)*0.235714)] lg:flex-none"),
         card.isHighlighted
-          ? "rounded-[6px] border border-[#14a74a] bg-[rgba(20,167,74,0.05)] px-[26px]"
+          ? cn(
+              "rounded-[6px] border border-[#14a74a] bg-[rgba(20,167,74,0.05)] px-[26px]",
+              // Figma `7183:10960`: the 1px stroke sits inside the 315px frame.
+              homeFigma && "py-[23px]",
+            )
           : cn(
               "border-[#cacaca]",
               showDivider && "border-b lg:border-b-0 lg:border-r lg:pr-[26px]",
             ),
       )}
     >
-      <div className="flex flex-col gap-3">
-        <h3 className="m-0 font-jakarta text-[30px] font-medium leading-none text-[#141414]">
+      {/* flex-1 keeps price + button on one line across cards with different copy lengths. */}
+      <div className="flex flex-col gap-3 lg:flex-1">
+        <h3
+          className={cn(
+            "m-0 font-jakarta text-[30px] font-medium leading-none text-[#141414]",
+            // Figma `7183:10965` (highlighted) #262626; 37.8px intrinsic line height.
+            homeFigma && "lg:leading-[37.8px]",
+            homeFigma && card.isHighlighted && "text-[#262626]",
+          )}
+        >
           {card.name}
         </h3>
-        <p className="m-0 max-w-[346px] text-sm font-normal leading-[19px] text-[#141414]">
+        <p
+          className={cn(
+            "m-0 max-w-[346px] text-sm font-normal leading-[19px] text-[#141414]",
+            figmaColumns && card.id === "Pilot" && "max-w-[275.4px]",
+            // Figma wraps the Growth text after "that need"; Helvetica Neue needs 345px.
+            figmaColumns && card.id === "Growth" && "lg:-mr-3",
+          )}
+        >
           {card.description}
         </p>
       </div>
@@ -103,7 +166,13 @@ function PlanCard({
         <div className="flex flex-col gap-2">
           {price.amount != null ? (
             <p className="m-0 text-[#141414]">
-              <span className="text-[26px] font-normal leading-none lg:text-[36px]">
+              <span
+                className={cn(
+                  "text-[26px] font-normal leading-none lg:text-[36px]",
+                  // Figma `7183:10957`: 36px type in a 47px (1.3) line box.
+                  homeFigma && "lg:leading-[47px]",
+                )}
+              >
                 {price.amount}
               </span>
               <span className="text-sm font-normal leading-none">
@@ -114,7 +183,15 @@ function PlanCard({
             <PublicPlanPriceFallback status={status} />
           )}
           {price.subline != null ? (
-            <p className="m-0 text-sm font-normal leading-[normal] text-[#7c7c7c]">
+            // Narrow cards (lg–xl) wrap "No payment card required." to two lines;
+            // reserve both so the price rows of all cards stay on one line.
+            <p
+              className={cn(
+                "m-0 text-sm font-normal leading-[normal] text-[#7c7c7c]",
+                // Figma `7183:10947`: Medium 500, 18.228px line height.
+                homeFigma && "font-medium leading-[18.228px] lg:min-h-[2lh] xl:min-h-0",
+              )}
+            >
               {price.subline}
             </p>
           ) : null}
@@ -165,7 +242,15 @@ export function AiAssistantPlans({
   showAiAllowance = true,
   surfaceClassName = "bg-[#f0f0f0]",
   compactHeader = false,
+  splitHeader = false,
+  compareBelow = false,
+  sublineSource = "catalogue",
+  titleClassName,
+  eyebrowClassName,
+  bodyClassName,
+  figmaColumns = false,
 }: AiAssistantPlansProps = {}) {
+  const compareInHeader = splitHeader && !compareBelow
   const body = content.body?.trim() ?? ""
   const showBody = body.length > 0
   const { status, prices, retry } = usePublicPlanPrices()
@@ -179,42 +264,78 @@ export function AiAssistantPlans({
           AI_ASSISTANT_SECTION_Y,
         )}
       >
-        <header
+        <div
           className={cn(
-            "flex w-full flex-col",
-            compactHeader
-              ? "max-w-[548px] gap-3.5"
-              : "max-w-[651px] gap-[22px]",
+            "flex w-full flex-col gap-[46px]",
+            compareInHeader && "lg:flex-row lg:items-end lg:justify-between",
           )}
         >
-          <div className="flex w-full flex-col gap-3.5">
-            <p
-              className={cn(
-                "m-0 font-medium text-[#141414]",
-                compactHeader
-                  ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
-                  : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
-              )}
+          <header
+            className={cn(
+              "flex w-full flex-col",
+              compactHeader
+                ? "max-w-[548px] gap-3.5"
+                : "max-w-[651px] gap-[22px]",
+              compareInHeader && "lg:w-auto",
+            )}
+          >
+            <div className="flex w-full flex-col gap-3.5">
+              <p
+                className={cn(
+                  "m-0 font-medium text-[#141414]",
+                  compareBelow
+                    ? "font-jakarta text-sm uppercase leading-4 tracking-[1.12px] text-[#141414]"
+                    : splitHeader
+                      ? "font-sans text-sm font-medium uppercase leading-4 tracking-[1.12px] text-[#4a4a4a]"
+                      : compactHeader
+                        ? "font-jakarta text-xs leading-[14px] lg:text-sm lg:leading-4"
+                        : "font-sans text-sm uppercase leading-[normal] tracking-[1.12px] text-black",
+                  eyebrowClassName,
+                )}
+              >
+                {content.eyebrow}
+              </p>
+              <h2
+                className={cn(
+                  "m-0 lg:whitespace-pre-line",
+                  splitHeader
+                    ? "max-w-[548px] font-jakarta text-[34px] font-medium leading-10 text-[#141414] lg:text-[46px] lg:leading-[52px]"
+                    : compactHeader
+                      ? "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[36px] lg:leading-[48px]"
+                      : AI_ASSISTANT_SECTION_HEADING,
+                  titleClassName,
+                )}
+              >
+                {content.title}
+              </h2>
+            </div>
+            {showBody ? (
+              <p
+                className={cn(
+                  "m-0",
+                  compareBelow
+                    ? "max-w-[491px]"
+                    : splitHeader
+                      ? "max-w-[430px]"
+                      : "max-w-[592px]",
+                  AI_ASSISTANT_SECTION_BODY,
+                  bodyClassName,
+                )}
+              >
+                {body}
+              </p>
+            ) : null}
+          </header>
+          {compareInHeader ? (
+            <MarketingButton
+              asChild
+              variant="secondary"
+              className="w-fit shrink-0"
             >
-              {content.eyebrow}
-            </p>
-            <h2
-              className={cn(
-                "m-0",
-                compactHeader
-                  ? "font-jakarta text-[28px] font-medium leading-9 text-[#141414] lg:text-[36px] lg:leading-[48px]"
-                  : AI_ASSISTANT_SECTION_HEADING,
-              )}
-            >
-              {content.title}
-            </h2>
-          </div>
-          {showBody ? (
-            <p className={cn("m-0 max-w-[592px]", AI_ASSISTANT_SECTION_BODY)}>
-              {body}
-            </p>
+              <Link to={content.compareTo}>{content.compareLabel}</Link>
+            </MarketingButton>
           ) : null}
-        </header>
+        </div>
 
         <div className="flex w-full flex-col gap-6">
           <PublicPlanPricesStatusMessage status={status} onRetry={retry} />
@@ -231,6 +352,8 @@ export function AiAssistantPlans({
                   showAiAllowance={showAiAllowance}
                   prices={prices}
                   status={status}
+                  sublineSource={sublineSource}
+                  figmaColumns={figmaColumns}
                 />
               )
             })}
@@ -243,9 +366,15 @@ export function AiAssistantPlans({
           </p>
         ) : null}
 
-        <MarketingButton asChild variant="secondary">
-          <Link to={content.compareTo}>{content.compareLabel}</Link>
-        </MarketingButton>
+        {compareInHeader ? null : (
+          <MarketingButton
+            asChild
+            variant="secondary"
+            className={cn(compareBelow && "w-fit sm:w-[164px]")}
+          >
+            <Link to={content.compareTo}>{content.compareLabel}</Link>
+          </MarketingButton>
+        )}
       </div>
     </section>
   )

@@ -25,8 +25,6 @@ const AI_PROVIDERS = [
     label: "ChatGPT",
     src: aiChatgpt,
     kind: "glyph" as const,
-    glyphSize: 19,
-    backgroundColor: "#000000",
     href: `https://chatgpt.com/?prompt=${encodedAskAiPrompt}`,
   },
   {
@@ -34,9 +32,6 @@ const AI_PROVIDERS = [
     label: "Claude",
     src: aiClaude,
     kind: "glyph" as const,
-    glyphSize: 16,
-    // Asset glyph is brand coral — dark tile keeps it readable (Apollo uses a white mark on coral).
-    backgroundColor: "#000000",
     href: `https://claude.ai/new?q=${encodedAskAiPrompt}`,
   },
   {
@@ -44,8 +39,6 @@ const AI_PROVIDERS = [
     label: "Google AI",
     src: aiGemini,
     kind: "tile" as const,
-    glyphSize: 16,
-    backgroundColor: "#000000",
     href: `https://www.google.com/search?udm=50&aep=11&q=${encodedAskAiPrompt}`,
   },
   {
@@ -53,8 +46,6 @@ const AI_PROVIDERS = [
     label: "Perplexity",
     src: aiPerplexity,
     kind: "glyph" as const,
-    glyphSize: 16,
-    backgroundColor: "#1F4A4C",
     href: `https://www.perplexity.ai/search/new?q=${encodedAskAiPrompt}`,
   },
   {
@@ -62,8 +53,6 @@ const AI_PROVIDERS = [
     label: "Grok",
     src: aiGrok,
     kind: "glyph" as const,
-    glyphSize: 19,
-    backgroundColor: "#000000",
     href: `https://x.com/i/grok?text=${encodedAskAiPrompt}`,
   },
 ] as const
@@ -73,13 +62,17 @@ type MarketingAskAiIconsProps = {
 }
 
 /**
- * Figma footer “Ask AI about Tummly” icon row (`5839:44707`).
- * Interaction matches common Ask-AI widgets: 32px tiles, opacity hover, deep links.
+ * Figma footer “Ask AI about Tummly” icon row: desktop `6909:67486`
+ * (28px `#141414` tiles, 13px glyphs, 13px gap), mobile `6243:19705`
+ * (26px tiles, 12px glyphs, 12px gap). Opacity hover, deep links.
  */
 export function MarketingAskAiIcons({ className }: MarketingAskAiIconsProps) {
   return (
     <ul
-      className={cn("m-0 flex list-none items-center justify-start gap-2 p-0", className)}
+      className={cn(
+        "m-0 flex list-none items-center justify-start gap-3 p-0 md:gap-[13px]",
+        className,
+      )}
       aria-label="Ask AI about Tummly"
     >
       {AI_PROVIDERS.map((provider) => (
@@ -89,29 +82,25 @@ export function MarketingAskAiIcons({ className }: MarketingAskAiIconsProps) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Ask ${provider.label} about Tummly`}
-            className="block transition-opacity duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:ring-offset-2"
+            className="block rounded-[6px] transition-opacity duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/40 focus-visible:ring-offset-2 md:rounded-[6.5px]"
           >
-            <div
-              className="flex size-8 items-center justify-center overflow-hidden rounded-lg"
-              style={{ backgroundColor: provider.backgroundColor }}
-            >
+            <div className="flex size-[26px] items-center justify-center overflow-hidden rounded-[6px] bg-[#141414] md:size-7 md:rounded-[6.5px]">
               {provider.kind === "tile" ? (
                 <img
                   src={provider.src}
                   alt=""
-                  width={32}
-                  height={32}
-                  className="block size-8 object-cover"
+                  width={28}
+                  height={28}
+                  className="block size-full object-cover"
                   aria-hidden
                 />
               ) : (
                 <img
                   src={provider.src}
                   alt=""
-                  width={provider.glyphSize}
-                  height={provider.glyphSize}
-                  className="block h-auto object-contain"
-                  style={{ width: provider.glyphSize }}
+                  width={13}
+                  height={13}
+                  className="block h-auto w-3 object-contain md:w-[13px]"
                   aria-hidden
                 />
               )}

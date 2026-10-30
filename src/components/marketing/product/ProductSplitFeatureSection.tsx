@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -16,23 +17,32 @@ export type FeaturePointIconImg = {
   src: string
   width: number
   height: number
+  /** Merged after the default `mt-0.5 shrink-0` (e.g. `mt-0` to top-align a 24px glyph). */
+  className?: string
 }
 
 function FeaturePoint({
   point,
   Icon,
   iconImg,
+  bodyClassName,
 }: {
   point: ProductFeaturePoint
   Icon?: LucideIcon
   iconImg?: FeaturePointIconImg
+  bodyClassName?: string
 }) {
   const copy = (
     <>
       <h3 className="m-0 font-jakarta text-base font-bold leading-[normal]">
         {point.title}
       </h3>
-      <p className="m-0 max-w-[641px] font-sans text-sm font-normal leading-5">
+      <p
+        className={cn(
+          "m-0 max-w-[641px] font-sans text-sm font-normal leading-5",
+          bodyClassName,
+        )}
+      >
         {point.body}
       </p>
     </>
@@ -40,13 +50,13 @@ function FeaturePoint({
 
   if (iconImg != null) {
     return (
-      <div className="flex items-start gap-3 text-[#141414]">
+      <div className="flex items-baseline gap-3 text-[#141414]">
         <img
           src={iconImg.src}
           alt=""
           width={iconImg.width}
           height={iconImg.height}
-          className="mt-0.5 shrink-0"
+          className={cn("mt-0.5 shrink-0", iconImg.className)}
           aria-hidden
         />
         <div className="flex min-w-0 flex-col gap-1.5">{copy}</div>
@@ -81,12 +91,6 @@ export type ProductSplitFeatureSectionProps = {
   pointIcons?: Partial<Record<string, LucideIcon>>
   /** Optional Figma SVG per point id (wins over `pointIcons` when both set). */
   pointIconImgs?: Partial<Record<string, FeaturePointIconImg>>
-  imageSrc: string
-  imageAlt: string
-  imageWidth: number
-  imageHeight: number
-  /** Optional srcset when Blob publishes 1x + 2x widths. */
-  imageSrcSet?: string
   /**
    * When true, media sits on the left on desktop (Campaigns).
    * Mobile still shows copy first.
@@ -104,7 +108,60 @@ export type ProductSplitFeatureSectionProps = {
   }
   /** Optional section background — default white. */
   className?: string
-}
+  /** Opt-in: extra classes on the media plate (e.g. aspect ratio, background). */
+  mediaClassName?: string
+  /** Opt-in: replaces `cta` with custom actions (e.g. several buttons). */
+  actions?: ReactNode
+  /** Opt-in: extra classes on the eyebrow (merged after the defaults). */
+  eyebrowClassName?: string
+  /** Opt-in: extra classes on the h2 (merged after the defaults). */
+  titleClassName?: string
+  /** Opt-in: extra classes on the body paragraph (merged after the defaults), e.g. a narrower max width. */
+  bodyClassName?: string
+  /** Opt-in: extra classes on the row dividers (merged after the defaults). */
+  dividerClassName?: string
+  /** Opt-in: extra classes on the list + actions wrapper (merged last). */
+  footerClassName?: string
+  /**
+   * Opt-in, with `balanceToMedia`: Figma 720 / 640 / 120 layout that shrinks
+   * below the xl breakpoint instead of overflowing, with the list and actions
+   * pinned to the bottom of the media height (heading top, list bottom).
+   */
+  fluidBalance?: boolean
+  /** Merged onto each point body (e.g. For Groups 14/18 leading). */
+  pointBodyClassName?: string
+  /**
+   * For Groups only: at `xl` the copy column is a fixed 560px high and spaces
+   * intro, list and button with `justify-between` (Figma bands 04, 06, 07, 08).
+   * Without it the column keeps its natural height with a 116px intro gap (band 05).
+   */
+  fixedCopyHeight?: boolean
+  /** For Groups only: gap between the list and the CTA button. Default 54px. */
+  ctaGapClassName?: string
+  /** Merged onto the padded inner row (e.g. a different vertical pad). */
+  contentClassName?: string
+} & ProductSplitFeatureMedia
+
+/** Either an image (default) or custom `media` content — never neither. */
+type ProductSplitFeatureMedia =
+  | {
+      imageSrc: string
+      imageAlt: string
+      imageWidth: number
+      imageHeight: number
+      /** Optional srcset when Blob publishes 1x + 2x widths. */
+      imageSrcSet?: string
+      media?: never
+    }
+  | {
+      /** Opt-in: custom media content (replaces the `img`; the plate is `relative`). */
+      media: ReactNode
+      imageSrc?: never
+      imageAlt?: never
+      imageWidth?: never
+      imageHeight?: never
+      imageSrcSet?: never
+    }
 
 /**
  * Shared Product page layout: copy + feature list and media plate.
@@ -127,17 +184,38 @@ export function ProductSplitFeatureSection({
   balanceToMedia = false,
   cta,
   className,
+  media,
+  mediaClassName,
+  actions,
+  eyebrowClassName,
+  titleClassName,
+  bodyClassName,
+  dividerClassName,
+  footerClassName,
+  fluidBalance = false,
+  pointBodyClassName,
+  fixedCopyHeight = false,
+  ctaGapClassName,
+  contentClassName,
 }: ProductSplitFeatureSectionProps) {
   const hasPoints = points.length > 0
-  const hasFooter = hasPoints || cta != null
+  const hasFooter = hasPoints || cta != null || actions != null
 
   const copyBlock = (
     <div
       className={cn(
         "flex w-full flex-col gap-10",
         balanceToMedia
-          ? // For Groups: fixed 116px between intro and list (no justify-between stretch).
-            "max-w-[640px] lg:w-[640px] lg:shrink-0 lg:gap-[116px]"
+          ? // For Groups: 640px copy at Figma width (49.5% below it). At xl either a fixed
+            // 560px column (space-between) or the natural height with a 116px intro gap.
+            fluidBalance
+            ? "max-w-[640px] lg:min-w-0 lg:flex-1 lg:justify-between lg:gap-10 lg:self-stretch lg:py-[30px]"
+            : cn(
+                "max-w-[640px] lg:w-[49.5%] lg:shrink-0 lg:gap-14",
+                fixedCopyHeight
+                  ? "xl:h-[560px] xl:justify-between xl:gap-0"
+                  : "xl:gap-[116px]",
+              )
           : "max-w-[712px] lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
@@ -153,7 +231,12 @@ export function ProductSplitFeatureSection({
         {balanceToMedia ? (
           <div className="flex w-full flex-col gap-3.5">
             {eyebrow != null && eyebrow !== "" ? (
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
+              <p
+                className={cn(
+                  "m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black",
+                  eyebrowClassName,
+                )}
+              >
                 {eyebrow}
               </p>
             ) : null}
@@ -162,6 +245,7 @@ export function ProductSplitFeatureSection({
               className={cn(
                 "m-0 max-w-[567px] whitespace-pre-line",
                 PRODUCT_SECTION_HEADING,
+                titleClassName,
               )}
             >
               {title}
@@ -170,7 +254,12 @@ export function ProductSplitFeatureSection({
         ) : (
           <>
             {eyebrow != null && eyebrow !== "" ? (
-              <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
+              <p
+                className={cn(
+                  "m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black",
+                  eyebrowClassName,
+                )}
+              >
                 {eyebrow}
               </p>
             ) : null}
@@ -179,6 +268,7 @@ export function ProductSplitFeatureSection({
               className={cn(
                 "m-0 max-w-[710px] whitespace-pre-line",
                 PRODUCT_SECTION_HEADING,
+                titleClassName,
               )}
             >
               {title}
@@ -190,21 +280,23 @@ export function ProductSplitFeatureSection({
             "m-0",
             balanceToMedia ? "max-w-[627px]" : "max-w-[692px]",
             PRODUCT_SECTION_BODY,
+            bodyClassName,
           )}
         >
           {body}
         </p>
       </header>
 
-          {hasFooter ? (
+      {hasFooter ? (
         <div
           className={cn(
             "flex w-full flex-col",
             balanceToMedia
               ? cta != null
-                ? "gap-[54px]"
+                ? (ctaGapClassName ?? "gap-[54px]")
                 : "gap-4"
               : "gap-[26px]",
+            footerClassName,
           )}
         >
           {hasPoints ? (
@@ -215,16 +307,24 @@ export function ProductSplitFeatureSection({
                     point={point}
                     Icon={pointIcons?.[point.id]}
                     iconImg={pointIconImgs?.[point.id]}
+                    bodyClassName={pointBodyClassName}
                   />
                   {index < points.length - 1 ? (
-                    <hr className="m-0 w-full border-[#e0e0e0]" />
+                    <hr
+                      className={cn(
+                        "m-0 w-full border-[#e0e0e0]",
+                        dividerClassName,
+                      )}
+                    />
                   ) : null}
                 </li>
               ))}
             </ul>
           ) : null}
 
-          {cta != null ? (
+          {actions != null ? (
+            actions
+          ) : cta != null ? (
             <MarketingButton asChild variant="secondary" className="w-fit">
               <Link to={cta.to}>{cta.label}</Link>
             </MarketingButton>
@@ -238,32 +338,40 @@ export function ProductSplitFeatureSection({
     <div
       className={cn(
         "w-full shrink-0 overflow-hidden rounded-[12px]",
+        media != null && "relative",
         balanceToMedia
-          ? "lg:aspect-[720/650] lg:w-[min(100%,720px)] lg:max-w-[720px] lg:self-center"
+          ? fluidBalance
+            ? "lg:aspect-[720/650] lg:w-[48%] lg:max-w-[720px] lg:self-center"
+            : "lg:aspect-[720/650] lg:w-auto lg:min-w-0 lg:max-w-[720px] lg:flex-1 lg:shrink lg:self-center"
           : // Desktop: stretch to the copy column height so media matches text.
             "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
         mediaFirst ? "order-2 lg:order-1" : null,
+        mediaClassName,
       )}
     >
-      <img
-        src={imageSrc}
-        srcSet={imageSrcSet}
-        sizes={
-          balanceToMedia
-            ? "(min-width: 1024px) 720px, 100vw"
-            : "(min-width: 1024px) 766px, 100vw"
-        }
-        alt={imageAlt}
-        width={imageWidth}
-        height={imageHeight}
-        className={cn(
-          "block h-auto w-full",
-          balanceToMedia
-            ? "lg:size-full lg:object-cover lg:object-center"
-            : "lg:h-full lg:min-h-full lg:w-full lg:object-cover lg:object-center",
-        )}
-        decoding="async"
-      />
+      {media != null ? (
+        media
+      ) : (
+        <img
+          src={imageSrc}
+          srcSet={imageSrcSet}
+          sizes={
+            balanceToMedia
+              ? "(min-width: 1024px) 720px, 100vw"
+              : "(min-width: 1024px) 766px, 100vw"
+          }
+          alt={imageAlt}
+          width={imageWidth}
+          height={imageHeight}
+          className={cn(
+            "block h-auto w-full",
+            balanceToMedia
+              ? "lg:size-full lg:object-cover lg:object-center"
+              : "lg:h-full lg:min-h-full lg:w-full lg:object-cover lg:object-center",
+          )}
+          decoding="async"
+        />
+      )}
     </div>
   )
 
@@ -276,15 +384,18 @@ export function ProductSplitFeatureSection({
         className={cn(
           "flex w-full flex-col items-start gap-10 lg:flex-row",
           balanceToMedia
-            ? // Figma For Groups: 720 media + 120 gap + 640 copy (fixed gap, no stretch).
-              // Copy-left bands pack to the right edge; media-left bands pack to the left.
+            ? // Figma For Groups: 720 media + 120 gap + 640 copy at 1668px; both columns
+              // and the gap scale down below that. Copy-left bands pack to the right edge.
               cn(
-                "lg:items-center lg:gap-[120px]",
+                fluidBalance
+                  ? "lg:items-center lg:gap-12 xl:gap-[120px]"
+                  : "lg:items-center lg:gap-[clamp(32px,3.5vw,48px)] xl:gap-[clamp(48px,6.95vw,120px)]",
                 mediaFirst ? null : "lg:justify-end",
               )
             : "lg:items-stretch lg:justify-between lg:gap-[70px]",
           PRODUCT_SECTION_INSET,
           PRODUCT_SECTION_Y,
+          contentClassName,
         )}
       >
         {mediaFirst ? (

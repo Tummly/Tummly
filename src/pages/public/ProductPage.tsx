@@ -1,34 +1,27 @@
-import { useEffect } from "react"
-
 import Footer from "@/components/home/Footer"
-import { MarketingSignUpCta } from "@/components/marketing/MarketingSignUpCta"
 import { ProductAiAssistant } from "@/components/marketing/product/ProductAiAssistant"
 import { ProductCampaigns } from "@/components/marketing/product/ProductCampaigns"
 import { ProductCapture } from "@/components/marketing/product/ProductCapture"
-import { ProductControl } from "@/components/marketing/product/ProductControl"
 import { ProductFaqs } from "@/components/marketing/product/ProductFaqs"
 import { ProductFeedback } from "@/components/marketing/product/ProductFeedback"
 import { ProductFeedbackRecovery } from "@/components/marketing/product/ProductFeedbackRecovery"
 import { ProductGroups } from "@/components/marketing/product/ProductGroups"
-import { ProductGuestLoop } from "@/components/marketing/product/ProductGuestLoop"
 import { ProductGuests } from "@/components/marketing/product/ProductGuests"
 import { ProductHero } from "@/components/marketing/product/ProductHero"
+import { ProductOutcomes } from "@/components/marketing/product/ProductOutcomes"
+import { ProductPricing } from "@/components/marketing/product/ProductPricing"
 import { ProductReports } from "@/components/marketing/product/ProductReports"
-import { ProductSystems } from "@/components/marketing/product/ProductSystems"
-import { PRODUCT_SIGN_UP_CTA } from "@/content/marketing/productPage"
-import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
+import { ProductSignUpCta } from "@/components/marketing/product/ProductSignUpCta"
+import { ProductTrust } from "@/components/marketing/product/ProductTrust"
 
 /**
- * Figma marketing Product page —
- * hero `5661:22625` through FAQs `5661:24202` and Sign-up CTA.
+ * Figma marketing Product page — hero `5661:22625` through FAQs `5661:24202`
+ * and Sign up `6824:12527`.
  */
 export default function ProductPage() {
-  useEffect(() => scheduleWarmSignUpCtaMedia(), [])
-
   return (
     <>
       <ProductHero />
-      <ProductGuestLoop />
       <ProductCapture />
       <ProductFeedback />
       <ProductFeedbackRecovery />
@@ -36,11 +29,12 @@ export default function ProductPage() {
       <ProductCampaigns />
       <ProductReports />
       <ProductAiAssistant />
-      <ProductSystems />
+      <ProductOutcomes />
       <ProductGroups />
-      <ProductControl />
+      <ProductTrust />
+      <ProductPricing />
       <ProductFaqs />
-      <MarketingSignUpCta content={PRODUCT_SIGN_UP_CTA} />
+      <ProductSignUpCta />
       <Footer />
     </>
   )

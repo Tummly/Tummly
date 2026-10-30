@@ -5,12 +5,11 @@ import { HomeHowItWorks } from "@/components/home/HomeHowItWorks"
 import { HomeHowItWorksSteps } from "@/components/home/HomeHowItWorksSteps"
 import { HomeIndustries } from "@/components/home/HomeIndustries"
 import { HomePricing } from "@/components/home/HomePricing"
-import { HomeProduct } from "@/components/home/HomeProduct"
+import { HomePlatform } from "@/components/home/HomePlatform"
 import { HomeQrMaterials } from "@/components/home/HomeQrMaterials"
+import { HomeServeStrip } from "@/components/home/HomeServeStrip"
 import { HomeTrustControl } from "@/components/home/HomeTrustControl"
-import { HomeValueProps } from "@/components/home/HomeValueProps"
 import Hero from "@/components/home/Hero"
-import { MarketingFixedDemoQr } from "@/components/marketing/MarketingFixedDemoQr"
 import { MarketingSignUpCta } from "@/components/marketing/MarketingSignUpCta"
 import { HOME_SIGN_UP_CTA } from "@/content/marketing/homePage"
 import { scheduleWarmSignUpCtaMedia } from "@/lib/prefetchSignUpCtaMedia"
@@ -21,17 +20,16 @@ function HomePage() {
   return (
     <>
       <Hero />
-      <HomeValueProps />
+      <HomeServeStrip />
+      <HomePlatform />
       <HomeHowItWorks />
       <HomeHowItWorksSteps />
       <HomeQrMaterials />
       <HomeIndustries />
-      <HomeProduct />
       <HomeTrustControl />
       <HomePricing />
       <MarketingSignUpCta content={HOME_SIGN_UP_CTA} />
       <Footer />
-      <MarketingFixedDemoQr />
     </>
   )
 }

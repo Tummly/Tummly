@@ -5,6 +5,7 @@ namespace TummlyBackend.Interfaces
     public interface ITrustIndicatorService
     {
         Task<AdminTrustIndicatorsViewDto> GetAdminViewAsync(
+            int actorAdminUserId,
             CancellationToken cancellationToken = default
         );
 
@@ -24,6 +25,7 @@ namespace TummlyBackend.Interfaces
             int actorAdminUserId,
             string? idempotencyKey,
             string? reason,
+            string? draftRevision,
             CancellationToken cancellationToken = default
         );
 

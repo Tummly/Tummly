@@ -1,37 +1,37 @@
-import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { MenuIcon } from "lucide-react"
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { MenuIcon } from "lucide-react";
 
-import SignInLink from "@/components/auth/SignInLink"
-import { MarketingLogo } from "@/components/marketing/MarketingLogo"
-import { MarketingNavLink } from "@/components/marketing/MarketingNavLink"
-import { MarketingResourcesMenu } from "@/components/marketing/MarketingResourcesMenu"
-import { MarketingButton } from "@/components/marketing/MarketingButton"
-import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
-import { Button } from "@/components/ui/button"
+import SignInLink from "@/components/auth/SignInLink";
+import { MarketingLogo } from "@/components/marketing/MarketingLogo";
+import { MarketingNavLink } from "@/components/marketing/MarketingNavLink";
+import { MarketingResourcesMenu } from "@/components/marketing/MarketingResourcesMenu";
+import { MarketingButton } from "@/components/marketing/MarketingButton";
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet"
-import { HELP_CENTRE_URL } from "@/config/support"
+} from "@/components/ui/sheet";
+import { HELP_CENTRE_URL } from "@/config/support";
 import {
   MARKETING_DEMO_PATH,
   MARKETING_PRIMARY_NAV,
   MARKETING_RESOURCES_NAV,
-} from "@/constants/marketingNav"
+} from "@/constants/marketingNav";
 import {
   marketingChromeBackground,
   marketingHeaderChromePadding,
-} from "@/lib/marketing-layout"
-import { cn } from "@/lib/utils"
-import { clearAuthSession } from "@/pages/utils/authHelpers"
-import { useAuthStore } from "@/stores/authStore"
+} from "@/lib/marketing-layout";
+import { cn } from "@/lib/utils";
+import { clearAuthSession } from "@/pages/utils/authHelpers";
+import { useAuthStore } from "@/stores/authStore";
 
 const logInClass =
-  "rounded-sm px-2.5 py-2 text-sm font-inter font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 sm:px-[18px] sm:py-2.5"
+  "rounded-[4px] px-2.5 py-2 text-sm font-inter font-medium leading-5 text-[#141414] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#141414]/30 sm:px-[18px] sm:py-2.5";
 
 /**
  * Figma marketing Header (`5700:25213`).
@@ -39,91 +39,89 @@ const logInClass =
  * Below xl: logo left | Pilot CTA + hamburger (Log in / Try demo live in the sheet).
  */
 export default function MarketingHeader() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const navigate = useNavigate()
-  const token = useAuthStore((state) => state.token)
-  const role = useAuthStore((state) => state.role)
-  const accountType = useAuthStore((state) => state.accountType)
-  const hasHydrated = useAuthStore((state) => state._hasHydrated)
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.role);
+  const accountType = useAuthStore((state) => state.accountType);
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
 
   const isSignedIn =
-    hasHydrated
-    && Boolean(token)
-    && (role === "ADMIN" || role === "USER" || role === "SUPPORT")
+    hasHydrated &&
+    Boolean(token) &&
+    (role === "ADMIN" || role === "USER" || role === "SUPPORT");
 
   const homePath = (() => {
     if (!isSignedIn) {
-      return "/"
+      return "/";
     }
 
     if (role === "ADMIN" || role === "SUPPORT") {
-      return "/admin-dashboard"
+      return "/admin-dashboard";
     }
 
     if (accountType === "Single") {
-      return "/single-dashboard"
+      return "/single-dashboard";
     }
 
-    return "/multi-dashboard"
-  })()
+    return "/multi-dashboard";
+  })();
 
   const handleLogout = () => {
-    clearAuthSession()
-    navigate("/login", { replace: true })
-  }
+    clearAuthSession();
+    navigate("/login", { replace: true });
+  };
 
-  const closeMobile = () => setMobileOpen(false)
+  const closeMobile = () => setMobileOpen(false);
 
-  const pilotCta = (density: "default" | "compact") => (
+  const pilotCta = (density: "header" | "compact") => (
     <MarketingButton
       asChild
       variant="primary"
-      showArrow={density === "default"}
+      showArrow={density === "header"}
       density={density}
       className="shrink-0"
     >
       <RequestTrialLink planIntent={{ plan: "Pilot" }}>
-        <span className="max-sm:hidden">Start 30-day Pilot</span>
-        <span className="sm:hidden">Start Pilot</span>
+        Get started
       </RequestTrialLink>
     </MarketingButton>
-  )
+  );
 
-  const desktopActions =
-    isSignedIn ? (
-      <>
-        {role === "USER" ? (
-          <Link to={HELP_CENTRE_URL} className={cn(logInClass, "shrink-0")}>
-            Help
-          </Link>
-        ) : null}
-        <MarketingButton
-          variant="secondary"
-          showArrow={false}
-          density="default"
-          className="shrink-0"
-          onClick={handleLogout}
-        >
-          Log out
-        </MarketingButton>
-      </>
-    ) : (
-      <>
-        <SignInLink to="/login" className={cn(logInClass, "shrink-0")}>
-          Log in
-        </SignInLink>
-        <MarketingButton
-          asChild
-          variant="secondary"
-          showArrow
-          density="default"
-          className="shrink-0"
-        >
-          <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
-        </MarketingButton>
-        {pilotCta("default")}
-      </>
-    )
+  const desktopActions = isSignedIn ? (
+    <>
+      {role === "USER" ? (
+        <Link to={HELP_CENTRE_URL} className={cn(logInClass, "shrink-0")}>
+          Help
+        </Link>
+      ) : null}
+      <MarketingButton
+        variant="secondary"
+        showArrow={false}
+        density="header"
+        className="shrink-0"
+        onClick={handleLogout}
+      >
+        Log out
+      </MarketingButton>
+    </>
+  ) : (
+    <>
+      <SignInLink to="/login" className={cn(logInClass, "shrink-0")}>
+        Log in
+      </SignInLink>
+      <MarketingButton
+        asChild
+        variant="secondary"
+        showArrow
+        density="header"
+        className="shrink-0"
+      >
+        <Link to={MARKETING_DEMO_PATH}>Try demo</Link>
+      </MarketingButton>
+      {pilotCta("header")}
+    </>
+  );
 
   /** Below xl: only the primary CTA stays in the bar. */
   const mobileBarActions = isSignedIn ? (
@@ -138,7 +136,7 @@ export default function MarketingHeader() {
     </MarketingButton>
   ) : (
     pilotCta("compact")
-  )
+  );
 
   return (
     <header
@@ -157,8 +155,12 @@ export default function MarketingHeader() {
           "xl:grid xl:grid-cols-[1fr_auto_1fr] xl:gap-4",
         )}
       >
-        {/* Full nav needs ~xl; below that use the sheet so mid widths do not collide. */}
-        <div className="hidden min-w-0 items-center gap-6 xl:flex xl:gap-9">
+        {/*
+          Full nav needs ~xl; below that use the sheet so mid widths do not collide.
+          Figma gap is 36px (1440+). The 1fr track is only ~535px at 1280, so the
+          gap steps 16 → 24 → 36 to keep the nav clear of the centred logo.
+        */}
+        <div className="hidden min-w-0 items-center gap-4 xl:flex min-[1366px]:gap-6 min-[1440px]:gap-9">
           {MARKETING_PRIMARY_NAV.map((item) => (
             <MarketingNavLink
               key={item.id}
@@ -252,8 +254,8 @@ export default function MarketingHeader() {
                         density="compact"
                         className="w-full justify-center"
                         onClick={() => {
-                          closeMobile()
-                          handleLogout()
+                          closeMobile();
+                          handleLogout();
                         }}
                       >
                         Log out
@@ -288,5 +290,5 @@ export default function MarketingHeader() {
         </div>
       </nav>
     </header>
-  )
+  );
 }
