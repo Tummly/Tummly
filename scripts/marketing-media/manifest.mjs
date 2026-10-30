@@ -351,37 +351,7 @@ export const SIMPLE_ASSETS = [
     quality: 90,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   })),
-  // For Groups hero visual is video (`for-groups/hero.mp4`) — see marketingMedia.ts.
-  // Trust badges 172×152 CSS.
-  {
-    id: "for-groups/eyebrow-sparkle",
-    source: ".scratch/marketing-media-sources/for-groups/eyebrow-sparkle.png",
-    blobDir: "images/for-groups",
-    baseName: "eyebrow-sparkle",
-    widths: [22, 44],
-    formats: /** @type {Format[]} */ (["png"]),
-    quality: 100,
-    primaryFormat: /** @type {"png"} */ ("png"),
-  },
-  ...[
-    "iso-27001",
-    "cyber-essentials-plus",
-    "ico-dpe",
-    "ico-data",
-    "cyber-essentials",
-    "iasme-level-1",
-    "good-business-charter",
-    "iso-27701",
-  ].map((name) => ({
-    id: `for-groups/trust-${name}`,
-    source: `.scratch/marketing-media-sources/for-groups/trust-badges/${name}.png`,
-    blobDir: "images/for-groups/trust-badges",
-    baseName: name,
-    widths: [172, 344],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  })),
+  // For Groups hero photo lives in src/assets/images/marketing/for-groups/hero.webp.
   // For Groups Group-wide visibility (Figma `5661:20731`) — display 720 CSS px; 4× master.
   {
     id: "for-groups/feature-reporting",
@@ -427,28 +397,7 @@ export const SIMPLE_ASSETS = [
     quality: 100,
     primaryFormat: /** @type {"webp"} */ ("webp"),
   },
-  // For Groups AI Assistant (Figma `5661:22128`) — display 720 CSS px; 4× master.
-  {
-    id: "for-groups/feature-ai",
-    source: ".scratch/marketing-media-sources/for-groups/feature-ai.png",
-    blobDir: "images/for-groups",
-    baseName: "feature-ai",
-    widths: [720, 1440, 2880],
-    formats: /** @type {Format[]} */ (["avif", "webp", "png"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  },
-  // For Groups Sign up CTA background (Figma `6405:36178`) — display 1668 CSS px.
-  {
-    id: "for-groups/signup-cta-bg",
-    source: ".scratch/marketing-media-sources/for-groups/signup-cta-bg.png",
-    blobDir: "images/for-groups",
-    baseName: "signup-cta-bg",
-    widths: [834, 1668],
-    formats: /** @type {Format[]} */ (["avif", "webp", "jpg"]),
-    quality: 100,
-    primaryFormat: /** @type {"webp"} */ ("webp"),
-  },
+  // For Groups AI assistant and Sign up CTA plates live in src/assets/images/marketing/for-groups.
   {
     id: "signup/signup-modal-backdrop",
     source: "src/assets/images/signup-modal-backdrop.png",

@@ -123,7 +123,7 @@ export function ForGroupsPricing() {
 
   return (
     <section
-      className="w-full overflow-hidden rounded-bl-[8px] rounded-br-[8px] bg-[#f0f0f0]"
+      className="w-full overflow-hidden bg-[#f0f0f0]"
       aria-labelledby="for-groups-pricing-heading"
     >
       <div
@@ -135,12 +135,15 @@ export function ForGroupsPricing() {
       >
         <header className="flex w-full max-w-[656px] flex-col items-center gap-[22px] text-center">
           <div className="flex w-full flex-col items-center gap-3.5">
-            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px] text-black">
+            <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] text-black">
               {FOR_GROUPS_PRICING.eyebrow}
             </p>
             <h2
               id="for-groups-pricing-heading"
-              className={cn("m-0 text-black", FOR_GROUPS_SECTION_HEADING)}
+              className={cn(
+                "m-0 max-w-[464px] text-black",
+                FOR_GROUPS_SECTION_HEADING,
+              )}
             >
               {FOR_GROUPS_PRICING.title}
             </h2>
@@ -157,7 +160,7 @@ export function ForGroupsPricing() {
         </header>
 
         <div className="flex w-full flex-col items-start gap-[46px] lg:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-10 py-6">
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-10 py-6">
             <div className="flex flex-col gap-3">
               <h3 className="m-0 font-jakarta text-[30px] font-semibold leading-none text-[#141414]">
                 {FOR_GROUPS_PRICING.planName}
@@ -218,10 +221,10 @@ export function ForGroupsPricing() {
             </div>
           </div>
 
-          <aside className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[12px]">
-            <div className="flex flex-col gap-8 rounded-tl-[8px] rounded-tr-[8px] bg-[#dfebe3] px-8 py-7">
+          <aside className="flex w-full min-w-0 flex-1 flex-col overflow-hidden rounded-[12px]">
+            <div className="flex flex-col gap-8 rounded-tl-[8px] rounded-tr-[8px] bg-[#dfebe3] px-5 py-7 sm:px-8">
               <div className="flex max-w-[548px] flex-col gap-[18px] text-black">
-                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal] tracking-[1.12px]">
+                <p className="m-0 font-sans text-sm font-medium uppercase leading-[normal]">
                   {calculator.eyebrow}
                 </p>
                 <div className="flex flex-col gap-3.5">
@@ -234,9 +237,9 @@ export function ForGroupsPricing() {
                 </div>
               </div>
 
-              <div className="flex w-full items-center justify-between gap-4 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-[30px]">
+              <div className="flex w-full flex-col items-start gap-5 rounded-[12px] border border-[#e5e5e5] bg-[#f4f4f4] p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-[30px]">
                 <div className="flex min-w-0 flex-col gap-2">
-                  <p className="m-0 font-sans text-[26px] font-normal leading-none text-[#141414]">
+                  <p className="m-0 font-sans text-[22px] font-normal leading-none text-[#141414] sm:text-[26px]">
                     {calculator.locationLabel}
                   </p>
                   <p className="m-0 font-sans text-sm font-medium leading-[normal] text-[#7c7c7c]">
@@ -280,7 +283,7 @@ export function ForGroupsPricing() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-8 bg-[#e5e5e5] px-8 py-7">
+            <div className="flex flex-col gap-8 bg-[#e5e5e5] px-5 py-7 sm:px-8">
               <div
                 className="flex w-full items-center gap-2.5 rounded-[10px] border border-[rgba(38,38,38,0.21)] bg-[#f4f4f4] p-3"
                 role="group"
@@ -315,7 +318,7 @@ export function ForGroupsPricing() {
                   }}
                 >
                   {PRICING_CADENCE_COPY.annual}
-                  <span className="rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] font-medium leading-none text-white">
+                  <span className="rounded-full bg-[#14a74a] px-2.5 py-2 text-[10px] whitespace-nowrap font-medium leading-none text-white">
                     {PRICING_CADENCE_COPY.saveBadge}
                   </span>
                 </button>

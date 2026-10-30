@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 
 import { MarketingButton } from "@/components/marketing/MarketingButton"
 import {
+  PRODUCT_BAND_HEADING,
   PRODUCT_SECTION_BODY,
   PRODUCT_SECTION_HEADING,
   PRODUCT_SECTION_INSET,
@@ -22,17 +23,24 @@ function FeaturePoint({
   point,
   Icon,
   iconImg,
+  bodyClassName,
 }: {
   point: ProductFeaturePoint
   Icon?: LucideIcon
   iconImg?: FeaturePointIconImg
+  bodyClassName?: string
 }) {
   const copy = (
     <>
       <h3 className="m-0 font-jakarta text-base font-bold leading-[normal]">
         {point.title}
       </h3>
-      <p className="m-0 max-w-[641px] font-sans text-sm font-normal leading-5">
+      <p
+        className={cn(
+          "m-0 max-w-[641px] font-sans text-sm font-normal leading-5",
+          bodyClassName,
+        )}
+      >
         {point.body}
       </p>
     </>
@@ -40,13 +48,13 @@ function FeaturePoint({
 
   if (iconImg != null) {
     return (
-      <div className="flex items-start gap-3 text-[#141414]">
+      <div className="flex items-baseline gap-3 text-[#141414]">
         <img
           src={iconImg.src}
           alt=""
           width={iconImg.width}
           height={iconImg.height}
-          className="mt-0.5 shrink-0"
+          className="shrink-0"
           aria-hidden
         />
         <div className="flex min-w-0 flex-col gap-1.5">{copy}</div>
@@ -104,6 +112,10 @@ export type ProductSplitFeatureSectionProps = {
   }
   /** Optional section background — default white. */
   className?: string
+  /** Merged onto each point body (e.g. For Groups 14/18 leading). */
+  pointBodyClassName?: string
+  /** Merged onto the intro body (e.g. a narrower max width). */
+  bodyClassName?: string
 }
 
 /**
@@ -127,6 +139,8 @@ export function ProductSplitFeatureSection({
   balanceToMedia = false,
   cta,
   className,
+  pointBodyClassName,
+  bodyClassName,
 }: ProductSplitFeatureSectionProps) {
   const hasPoints = points.length > 0
   const hasFooter = hasPoints || cta != null
@@ -136,8 +150,8 @@ export function ProductSplitFeatureSection({
       className={cn(
         "flex w-full flex-col gap-10",
         balanceToMedia
-          ? // For Groups: fixed 116px between intro and list (no justify-between stretch).
-            "max-w-[640px] lg:w-[640px] lg:shrink-0 lg:gap-[116px]"
+          ? // For Groups: 640px copy at Figma width (49.5% below it), 116px between intro and list.
+            "max-w-[640px] lg:w-[49.5%] lg:shrink-0 lg:gap-14 xl:gap-[116px]"
           : "max-w-[712px] lg:min-w-0 lg:flex-1 lg:self-stretch lg:justify-between lg:gap-[72px] xl:gap-[116px]",
         mediaFirst ? "order-1 lg:order-2" : null,
       )}
@@ -160,8 +174,9 @@ export function ProductSplitFeatureSection({
             <h2
               id={headingId}
               className={cn(
-                "m-0 max-w-[567px] whitespace-pre-line",
-                PRODUCT_SECTION_HEADING,
+                "m-0 max-w-[567px] lg:whitespace-pre-line",
+                PRODUCT_BAND_HEADING,
+                "lg:leading-[45px]",
               )}
             >
               {title}
@@ -190,6 +205,7 @@ export function ProductSplitFeatureSection({
             "m-0",
             balanceToMedia ? "max-w-[627px]" : "max-w-[692px]",
             PRODUCT_SECTION_BODY,
+            bodyClassName,
           )}
         >
           {body}
@@ -215,6 +231,7 @@ export function ProductSplitFeatureSection({
                     point={point}
                     Icon={pointIcons?.[point.id]}
                     iconImg={pointIconImgs?.[point.id]}
+                    bodyClassName={pointBodyClassName}
                   />
                   {index < points.length - 1 ? (
                     <hr className="m-0 w-full border-[#e0e0e0]" />
@@ -239,7 +256,7 @@ export function ProductSplitFeatureSection({
       className={cn(
         "w-full shrink-0 overflow-hidden rounded-[12px]",
         balanceToMedia
-          ? "lg:aspect-[720/650] lg:w-[min(100%,720px)] lg:max-w-[720px] lg:self-center"
+          ? "lg:aspect-[720/650] lg:w-auto lg:min-w-0 lg:max-w-[720px] lg:flex-1 lg:shrink lg:self-center"
           : // Desktop: stretch to the copy column height so media matches text.
             "lg:flex lg:w-[min(100%,766px)] lg:max-w-[766px] lg:self-stretch",
         mediaFirst ? "order-2 lg:order-1" : null,
@@ -276,10 +293,10 @@ export function ProductSplitFeatureSection({
         className={cn(
           "flex w-full flex-col items-start gap-10 lg:flex-row",
           balanceToMedia
-            ? // Figma For Groups: 720 media + 120 gap + 640 copy (fixed gap, no stretch).
-              // Copy-left bands pack to the right edge; media-left bands pack to the left.
+            ? // Figma For Groups: 720 media + 120 gap + 640 copy at 1668px; both columns
+              // and the gap scale down below that. Copy-left bands pack to the right edge.
               cn(
-                "lg:items-center lg:gap-[120px]",
+                "lg:items-center lg:gap-[clamp(32px,3.5vw,120px)]",
                 mediaFirst ? null : "lg:justify-end",
               )
             : "lg:items-stretch lg:justify-between lg:gap-[70px]",

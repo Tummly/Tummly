@@ -43,13 +43,6 @@ export function homeHeroVideoUrl(): string {
   return marketingMediaUrl(HOME_HERO_VIDEO_PATH)
 }
 
-/** For Groups hero visual (`marketing/for-groups/hero.mp4`). */
-export const FOR_GROUPS_HERO_VIDEO_PATH = "for-groups/hero.mp4"
-
-export function forGroupsHeroVideoUrl(): string {
-  return marketingMediaUrl(FOR_GROUPS_HERO_VIDEO_PATH)
-}
-
 /**
  * For Groups “ONE CONNECTED GUEST LOOP” product card loops
  * (`marketing/for-groups/product-e1dfdb-*.mp4` — beige plate masters, no re-encode).

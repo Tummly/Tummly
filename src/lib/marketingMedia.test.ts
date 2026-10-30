@@ -84,17 +84,9 @@ describe("marketingMediaUrl", () => {
     )
   })
 
-  it("builds For Groups hero and product card video URLs", async () => {
-    const {
-      forGroupsHeroVideoUrl,
-      FOR_GROUPS_HERO_VIDEO_PATH,
-      forGroupsProductVideoUrl,
-      FOR_GROUPS_PRODUCT_VIDEO_PATHS,
-    } = await import("./marketingMedia")
-    expect(FOR_GROUPS_HERO_VIDEO_PATH).toBe("for-groups/hero.mp4")
-    expect(forGroupsHeroVideoUrl()).toBe(
-      "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/hero.mp4",
-    )
+  it("builds For Groups product card video URLs", async () => {
+    const { forGroupsProductVideoUrl, FOR_GROUPS_PRODUCT_VIDEO_PATHS } =
+      await import("./marketingMedia")
     expect(FOR_GROUPS_PRODUCT_VIDEO_PATHS["hear-from-guests"]).toBe(
       "for-groups/product-e1dfdb-hear-from-guests.mp4",
     )
@@ -102,5 +94,4 @@ describe("marketingMediaUrl", () => {
       "https://sttummlyqavfavue.blob.core.windows.net/marketing/for-groups/product-e1dfdb-whats-working.mp4",
     )
   })
-
 })

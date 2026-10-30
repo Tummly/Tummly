@@ -12,19 +12,39 @@ import {
   PRODUCT_DISPLAY_HEADING,
   PRODUCT_FAQS,
   PRODUCT_SECTION_INSET,
+  type ProductFaqItem,
 } from "@/content/marketing/productPage"
 import { marketingHeaderStickyTopClass } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
+export type ProductFaqsContent = {
+  title: string
+  moreTitle: string
+  moreBody: string
+  moreCtaLabel: string
+  moreCtaTo: string
+  items: readonly ProductFaqItem[]
+}
+
 /**
  * Figma Product FAQs `5661:24202`: sticky title left (548px max), 746px list right.
  * Plus glyph turns into a cross when open; Figma shows every answer open.
+ * For Groups FAQs `5661:22571` reuse it with their own copy and a 780px list.
  */
-export function ProductFaqs() {
+export function ProductFaqs({
+  content = PRODUCT_FAQS,
+  headingId = "product-faqs-heading",
+  listClassName = "lg:max-w-[746px]",
+}: {
+  content?: ProductFaqsContent
+  headingId?: string
+  /** Desktop max width of the question list. */
+  listClassName?: string
+} = {}) {
   return (
     <section
       className="w-full rounded-bl-[12px] rounded-br-[12px] bg-white"
-      aria-labelledby="product-faqs-heading"
+      aria-labelledby={headingId}
     >
       <div
         className={cn(
@@ -39,18 +59,23 @@ export function ProductFaqs() {
             marketingHeaderStickyTopClass,
           )}
         >
-          <h2 id="product-faqs-heading" className={PRODUCT_DISPLAY_HEADING}>
-            {PRODUCT_FAQS.title}
+          <h2 id={headingId} className={PRODUCT_DISPLAY_HEADING}>
+            {content.title}
           </h2>
         </header>
 
-        <div className="flex min-w-0 w-full flex-col gap-[30px] lg:min-w-0 lg:max-w-[746px] lg:flex-1 lg:pt-5">
+        <div
+          className={cn(
+            "flex min-w-0 w-full flex-col gap-[30px] lg:min-w-0 lg:flex-1 lg:pt-5",
+            listClassName,
+          )}
+        >
           <Accordion
             type="multiple"
-            defaultValue={PRODUCT_FAQS.items.map((item) => item.id)}
+            defaultValue={content.items.map((item) => item.id)}
             className="gap-[30px]"
           >
-            {PRODUCT_FAQS.items.map((item) => (
+            {content.items.map((item) => (
               <AccordionItem
                 key={item.id}
                 value={item.id}
@@ -78,15 +103,15 @@ export function ProductFaqs() {
           <div className="flex flex-col gap-7 pb-5">
             <div className="flex flex-col gap-3">
               <h3 className="m-0 font-jakarta text-lg font-semibold leading-[normal] text-black">
-                {PRODUCT_FAQS.moreTitle}
+                {content.moreTitle}
               </h3>
               <p className="m-0 font-sans text-sm font-normal leading-[19px] text-[#141414]">
-                {PRODUCT_FAQS.moreBody}
+                {content.moreBody}
               </p>
             </div>
             <MarketingButton asChild variant="secondary" className="w-fit">
-              <Link to={PRODUCT_FAQS.moreCtaTo}>
-                {PRODUCT_FAQS.moreCtaLabel}
+              <Link to={content.moreCtaTo}>
+                {content.moreCtaLabel}
               </Link>
             </MarketingButton>
           </div>

@@ -1,18 +1,19 @@
-import aiCampaignsIcon from "@/assets/svg/marketing/for-groups/ai-campaigns.svg"
-import aiCompareIcon from "@/assets/svg/marketing/for-groups/ai-compare.svg"
-import aiFeedbackIcon from "@/assets/svg/marketing/for-groups/ai-feedback.svg"
-import campaignsPromoteIcon from "@/assets/svg/marketing/for-groups/campaigns-promote.svg"
-import campaignsResponseIcon from "@/assets/svg/marketing/for-groups/campaigns-response.svg"
-import campaignsThankIcon from "@/assets/svg/marketing/for-groups/campaigns-thank.svg"
-import locationConnectedIcon from "@/assets/svg/marketing/for-groups/location-connected.svg"
-import locationExpandIcon from "@/assets/svg/marketing/for-groups/location-expand.svg"
-import locationSetupIcon from "@/assets/svg/marketing/for-groups/location-setup.svg"
+import aiAssistantImage from "@/assets/images/marketing/for-groups/ai-assistant.webp"
+import aiConcernIcon from "@/assets/svg/marketing/for-groups/ai-concern.svg"
+import aiFollowUpIcon from "@/assets/svg/marketing/for-groups/ai-follow-up.svg"
+import aiLocalDetailIcon from "@/assets/svg/marketing/for-groups/ai-local-detail.svg"
+import campaignsAudienceIcon from "@/assets/svg/marketing/for-groups/campaigns-audience.svg"
+import campaignsConfirmIcon from "@/assets/svg/marketing/for-groups/campaigns-confirm.svg"
+import campaignsScopeIcon from "@/assets/svg/marketing/for-groups/campaigns-scope.svg"
+import locationAddIcon from "@/assets/svg/marketing/for-groups/location-add.svg"
+import locationDistinctIcon from "@/assets/svg/marketing/for-groups/location-distinct.svg"
+import locationStartIcon from "@/assets/svg/marketing/for-groups/location-start.svg"
 import reportingCompareIcon from "@/assets/svg/marketing/for-groups/reporting-compare.svg"
-import reportingEngagementIcon from "@/assets/svg/marketing/for-groups/reporting-engagement.svg"
-import reportingRecurringIcon from "@/assets/svg/marketing/for-groups/reporting-recurring.svg"
-import teamsAreaIcon from "@/assets/svg/marketing/for-groups/teams-area.svg"
-import teamsLocationIcon from "@/assets/svg/marketing/for-groups/teams-location.svg"
-import teamsOwnersIcon from "@/assets/svg/marketing/for-groups/teams-owners.svg"
+import reportingFocusIcon from "@/assets/svg/marketing/for-groups/reporting-focus.svg"
+import reportingLookBehindIcon from "@/assets/svg/marketing/for-groups/reporting-look-behind.svg"
+import teamsAssignedIcon from "@/assets/svg/marketing/for-groups/teams-assigned.svg"
+import teamsBillingIcon from "@/assets/svg/marketing/for-groups/teams-billing.svg"
+import teamsStaffTaskIcon from "@/assets/svg/marketing/for-groups/teams-staff-task.svg"
 import {
   ProductSplitFeatureSection,
   type FeaturePointIconImg,
@@ -32,98 +33,102 @@ const locationManagementImage = remoteSimpleImg(
 )
 const teamsImage = remoteSimpleImg("for-groups/feature-teams")
 const campaignsImage = remoteSimpleImg("for-groups/feature-campaigns")
-const aiImage = remoteSimpleImg("for-groups/feature-ai")
+/** Figma AI Assistant plate `5661:22128` — 720×650 at 4×, baked with the `#eceae6` plate. */
+const AI_IMAGE = { width: 2880, height: 2600 } as const
 
 /** Figma For Groups point glyphs — root width/height from export. */
 const REPORTING_POINT_ICONS = {
-  "compare-activity": {
+  "compare-restaurants": {
     src: reportingCompareIcon,
-    width: 22,
-    height: 20,
+    width: 22.45,
+    height: 19.515,
   },
-  "recurring-concerns": {
-    src: reportingRecurringIcon,
-    width: 18,
-    height: 18,
+  "look-behind-change": {
+    src: reportingLookBehindIcon,
+    width: 17.5,
+    height: 17.5137,
   },
-  "guest-engagement": {
-    src: reportingEngagementIcon,
-    width: 20,
-    height: 20,
+  "focus-review": {
+    src: reportingFocusIcon,
+    width: 19.5,
+    height: 19.5,
   },
 } as const satisfies Record<string, FeaturePointIconImg>
 
 const LOCATION_MANAGEMENT_POINT_ICONS = {
-  "connected-group": {
-    src: locationConnectedIcon,
-    width: 14,
+  "start-with-one": {
+    src: locationStartIcon,
+    width: 14.5,
     height: 19,
   },
-  "set-up-restaurant": {
-    src: locationSetupIcon,
-    width: 20,
-    height: 19,
+  "add-more": {
+    src: locationAddIcon,
+    width: 20.1,
+    height: 19.3,
   },
-  "expand-control": {
-    src: locationExpandIcon,
-    width: 18,
-    height: 18,
+  "keep-distinct": {
+    src: locationDistinctIcon,
+    width: 18.5,
+    height: 18.5,
   },
 } as const satisfies Record<string, FeaturePointIconImg>
 
 const TEAMS_POINT_ICONS = {
-  "group-owners": {
-    src: teamsOwnersIcon,
-    width: 19,
+  "assigned-restaurants": {
+    src: teamsAssignedIcon,
+    width: 18.5178,
     height: 15,
   },
-  "area-managers": {
-    src: teamsAreaIcon,
-    width: 20,
-    height: 19,
+  "staff-task": {
+    src: teamsStaffTaskIcon,
+    width: 20.1,
+    height: 19.3,
   },
-  "location-managers": {
-    src: teamsLocationIcon,
-    width: 18,
-    height: 18,
+  "restricted-billing": {
+    src: teamsBillingIcon,
+    width: 18.5,
+    height: 18.5,
   },
 } as const satisfies Record<string, FeaturePointIconImg>
 
 const CAMPAIGNS_POINT_ICONS = {
-  "thank-recent": {
-    src: campaignsThankIcon,
-    width: 18,
-    height: 18,
+  "restaurant-scope": {
+    src: campaignsScopeIcon,
+    width: 18.5,
+    height: 17.5,
   },
-  "promote-new": {
-    src: campaignsPromoteIcon,
-    width: 18,
-    height: 16,
+  "match-audience": {
+    src: campaignsAudienceIcon,
+    width: 18.2307,
+    height: 16.4073,
   },
-  "understand-response": {
-    src: campaignsResponseIcon,
+  "confirm-details": {
+    src: campaignsConfirmIcon,
     width: 21,
     height: 15,
   },
 } as const satisfies Record<string, FeaturePointIconImg>
 
 const AI_POINT_ICONS = {
-  "understand-feedback": {
-    src: aiFeedbackIcon,
-    width: 18,
-    height: 19,
+  "recurring-concern": {
+    src: aiConcernIcon,
+    width: 18.4875,
+    height: 19.0188,
   },
-  "compare-locations": {
-    src: aiCompareIcon,
-    width: 18,
-    height: 18,
+  "local-detail": {
+    src: aiLocalDetailIcon,
+    width: 18.3222,
+    height: 17.6636,
   },
-  "prepare-campaigns": {
-    src: aiCampaignsIcon,
-    width: 18,
-    height: 16,
+  "prepare-follow-up": {
+    src: aiFollowUpIcon,
+    width: 18.3601,
+    height: 15.5039,
   },
 } as const satisfies Record<string, FeaturePointIconImg>
+
+/** Figma point body: Helvetica 14/18 (Group-wide visibility keeps 14/20). */
+const POINT_BODY_TIGHT = "leading-[18px]"
 
 /** Figma For Groups Group-wide visibility `5661:20730` — media left. */
 export function ForGroupsReporting() {
@@ -142,11 +147,12 @@ export function ForGroupsReporting() {
       imageHeight={reportingImage.height}
       mediaFirst
       balanceToMedia
+      bodyClassName="max-w-[612px]"
     />
   )
 }
 
-/** Figma For Groups Location management `5661:21077` — copy left, media right. */
+/** Figma For Groups Adding your restaurants `5661:21077` — copy left, media right. */
 export function ForGroupsLocationManagement() {
   return (
     <ProductSplitFeatureSection
@@ -162,6 +168,8 @@ export function ForGroupsLocationManagement() {
       imageWidth={locationManagementImage.width}
       imageHeight={locationManagementImage.height}
       balanceToMedia
+      bodyClassName="max-w-[638px]"
+      pointBodyClassName={POINT_BODY_TIGHT}
       cta={{
         label: FOR_GROUPS_LOCATION_MANAGEMENT.ctaLabel,
         to: FOR_GROUPS_LOCATION_MANAGEMENT.ctaTo,
@@ -170,7 +178,7 @@ export function ForGroupsLocationManagement() {
   )
 }
 
-/** Figma For Groups Team Access `5661:21424` — media left. */
+/** Figma For Groups Team access `5661:21424` — media left. */
 export function ForGroupsTeams() {
   return (
     <ProductSplitFeatureSection
@@ -187,11 +195,13 @@ export function ForGroupsTeams() {
       imageHeight={teamsImage.height}
       mediaFirst
       balanceToMedia
+      bodyClassName="max-w-[612px]"
+      pointBodyClassName={POINT_BODY_TIGHT}
     />
   )
 }
 
-/** Figma For Groups Offers & Campaigns `5661:21775` — copy left, media right. */
+/** Figma For Groups Offers & campaigns `5661:21775` — copy left, media right. */
 export function ForGroupsCampaigns() {
   return (
     <ProductSplitFeatureSection
@@ -207,11 +217,13 @@ export function ForGroupsCampaigns() {
       imageWidth={campaignsImage.width}
       imageHeight={campaignsImage.height}
       balanceToMedia
+      bodyClassName="max-w-[567px]"
+      pointBodyClassName={POINT_BODY_TIGHT}
     />
   )
 }
 
-/** Figma For Groups AI Assistant `5661:22127` — media left. */
+/** Figma For Groups AI assistant `5661:22127` — media left. */
 export function ForGroupsAi() {
   return (
     <ProductSplitFeatureSection
@@ -221,13 +233,13 @@ export function ForGroupsAi() {
       body={FOR_GROUPS_AI.body}
       points={FOR_GROUPS_AI.points}
       pointIconImgs={AI_POINT_ICONS}
-      imageSrc={aiImage.src}
-      imageSrcSet={aiImage.srcSet}
+      imageSrc={aiAssistantImage}
       imageAlt={FOR_GROUPS_AI.imageAlt}
-      imageWidth={aiImage.width}
-      imageHeight={aiImage.height}
+      imageWidth={AI_IMAGE.width}
+      imageHeight={AI_IMAGE.height}
       mediaFirst
       balanceToMedia
+      pointBodyClassName={POINT_BODY_TIGHT}
       cta={{ label: FOR_GROUPS_AI.ctaLabel, to: FOR_GROUPS_AI.ctaTo }}
     />
   )
