@@ -64,8 +64,8 @@ describe("MarketingCertificationCarousel", () => {
 
   it("holds Previous at the start and keeps Next active", () => {
     const html = renderHtml()
-    const prev = buttonTag(html, "Previous certifications")
-    const next = buttonTag(html, "Next certifications")
+    const prev = buttonTag(html, "Previous trust indicators")
+    const next = buttonTag(html, "Next trust indicators")
     expect(prev).toContain('aria-disabled="true"')
     expect(next).toContain('aria-disabled="false"')
     // aria-disabled, not disabled: focus can stay on the button.

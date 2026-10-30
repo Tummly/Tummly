@@ -56,6 +56,21 @@ describe("TrustIndicatorTile (closed)", () => {
     expect(tile()).toContain('aria-label="ISO/IEC 27001, On our roadmap"')
   })
 
+  it("describes the trigger with an sr-only copy of the tooltip text", () => {
+    const html = tile(VERIFIED_EXTERNAL)
+    const id = html.match(/<button[^>]*aria-describedby="([^"]+)"/)?.[1] ?? ""
+    expect(id).not.toBe("")
+    expect(html).toContain(
+      `<span id="${id}" class="sr-only">We pay the data protection fee.</span>`,
+    )
+  })
+
+  it("has no description attribute or element when the tooltip is empty", () => {
+    const html = tile({ ...ROADMAP, tooltip: "" })
+    expect(html).not.toContain("aria-describedby")
+    expect(html).not.toContain('class="sr-only">')
+  })
+
   it("renders no link while closed, even with a CTA injected", () => {
     expect(tile()).not.toContain("<a")
   })

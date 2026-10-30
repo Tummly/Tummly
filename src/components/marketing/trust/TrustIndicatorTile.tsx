@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react"
+import { useEffect, useId, useReducer, useRef } from "react"
 import { ExternalLink } from "lucide-react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 import { Link } from "react-router-dom"
@@ -53,6 +53,8 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
   const triggerRef = useRef<HTMLButtonElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const closedByEscape = useRef(false)
+  // The bubble is portalled, so screen readers get the tooltip text from this sr-only copy.
+  const descriptionId = useId()
   const verified = indicator.status === "Verified"
   const cta = verified ? indicator.cta : null
 
@@ -113,6 +115,7 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
             ref={triggerRef}
             type="button"
             aria-label={`${indicator.title}, ${indicator.statusLabel}`}
+            aria-describedby={indicator.tooltip !== "" ? descriptionId : undefined}
             className={cn(TILE_CLASS, TILE_WIDTH_CLASS[variant])}
             onPointerEnter={(event) => {
               if (event.pointerType === "mouse") dispatch({ type: "hover-enter" })
@@ -206,6 +209,11 @@ export function TrustIndicatorTile({ indicator, variant }: TrustIndicatorTilePro
           />
         </PopoverContent>
       </Popover>
+      {indicator.tooltip !== "" ? (
+        <span id={descriptionId} className="sr-only">
+          {indicator.tooltip}
+        </span>
+      ) : null}
     </div>
   )
 }

@@ -87,7 +87,7 @@ export function MarketingCertificationCarousel({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Previous certifications"
+          aria-label="Previous trust indicators"
           aria-controls={trackId}
           aria-disabled={edges.start}
           onClick={() => {
@@ -107,7 +107,7 @@ export function MarketingCertificationCarousel({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Next certifications"
+          aria-label="Next trust indicators"
           aria-controls={trackId}
           aria-disabled={edges.end}
           onClick={() => {

@@ -22,7 +22,7 @@ test("Gate closed: no trust block in the footer or on Home, and no trust request
 
   await page.goto("/")
   await expect(page.locator("footer").last().getByText("Proud to be a company of")).toBeVisible()
-  await expect(page.getByRole("region", { name: "Trust and privacy credentials" })).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "Trust and privacy indicators" })).toHaveCount(0)
 
   expect(trustRequests).toBe(0)
 })

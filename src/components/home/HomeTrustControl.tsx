@@ -120,7 +120,7 @@ export function HomeTrustControl() {
           <Carousel
             opts={{ align: "start", dragFree: true, containScroll: "trimSnaps" }}
             className="flex w-full flex-col gap-2.5"
-            aria-label="Trust and privacy credentials"
+            aria-label="Trust and privacy indicators"
           >
             <CarouselContent className="-ml-6">
               {indicators.map((indicator) => (

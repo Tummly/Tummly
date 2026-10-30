@@ -437,6 +437,13 @@ test.describe("footer trust list", () => {
         `${tile.title}, ${tile.statusLabel}`,
       )
     }
+
+    // The bubble is portalled, so the tooltip text reaches screen readers through the
+    // trigger's accessible description (item 01 and item 03 of the approved set).
+    await expect(tileButton(list, ICO)).toHaveAccessibleDescription(TRUST_TOOLTIPS.ico)
+    await expect(tileButton(list, ROADMAP)).toHaveAccessibleDescription(
+      TRUST_TOOLTIPS.cyberEssentials,
+    )
   })
 
   for (const width of TOUCH_WIDTHS) {
@@ -569,7 +576,7 @@ test.describe("trust surfaces share the published titles", () => {
         name: "Home",
         open: async () => {
           await openHome(page)
-          return page.getByRole("region", { name: "Trust and privacy credentials" })
+          return page.getByRole("region", { name: "Trust and privacy indicators" })
         },
       },
       {
@@ -659,7 +666,7 @@ async function expectNoTrustBlockOnEverySurface(
   await expect(footer.getByText("Built with trust in mind"), `${label}: footer`).toHaveCount(0)
   await expect(trustList(footer), `${label}: footer list`).toHaveCount(0)
   await expect(
-    page.getByRole("region", { name: "Trust and privacy credentials" }),
+    page.getByRole("region", { name: "Trust and privacy indicators" }),
     `${label}: home carousel`,
   ).toHaveCount(0)
 
@@ -673,8 +680,8 @@ async function expectNoTrustBlockOnEverySurface(
   await expectFooterRendered(page, `${label}: product`)
   footer = page.locator("footer").last()
   await expect(footer.getByText("Built with trust in mind"), `${label}: product footer`).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Previous certifications" })).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Previous trust indicators" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next trust indicators" })).toHaveCount(0)
   for (const tile of TILES) {
     await expect(tileButton(page.locator("body"), tile), `${label}: product ${tile.title}`).toHaveCount(0)
   }
@@ -690,7 +697,7 @@ async function expectNoTrustBlockOnEverySurface(
     page.getByText("Built with trust at the heart of Tummly."),
     `${label}: for-groups strip`,
   ).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next trust indicators" })).toHaveCount(0)
   for (const tile of TILES) {
     await expect(tileButton(page.locator("body"), tile), `${label}: for-groups ${tile.title}`).toHaveCount(0)
   }

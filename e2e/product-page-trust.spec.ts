@@ -25,8 +25,8 @@ test("Trust section withholds the certification badges and arrows", async ({ pag
   const trust = section(page, /Guest trust\./)
 
   await expect(trust.getByRole("button", { name: "A private way to be heard" })).toBeVisible()
-  await expect(page.getByRole("button", { name: "Previous certifications" })).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Previous trust indicators" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next trust indicators" })).toHaveCount(0)
   await expect(page.getByText("ISO/IEC 27001")).toHaveCount(0)
 })
 
@@ -34,5 +34,5 @@ test("For Groups hero withholds the trust strip", async ({ page }) => {
   await page.goto("/for-groups")
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
   await expect(page.getByText("Built with trust at the heart of Tummly.")).toHaveCount(0)
-  await expect(page.getByRole("button", { name: "Next certifications" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Next trust indicators" })).toHaveCount(0)
 })
